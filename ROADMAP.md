@@ -17,9 +17,10 @@
   - Cor e calculo ajustados para Sono Leve.
 - [x] **Pesquisa na Tela de Processos para Apps Nao em Execucao**
   - Integrada busca de aplicativos instalados (`allApps`) inativos no campo de pesquisa com card de inspecao.
-- [ ] **Resolucao Definitiva de Reset do Ciclo de Bateria ao Atualizar (v1.0.5)**
+- [x] **Resolucao Definitiva de Reset do Ciclo de Bateria ao Atualizar (v1.0.5)**
   - [x] Eliminacao de race condition: carga sincronizada do ciclo ativo e historico em `init` antes do registro do `batteryReceiver`.
   - [x] Gravacao atomica (`.tmp` + rename) dos arquivos `active_cycle.json` e `cycles.json` para evitar corrupcao em desligamento abrupto.
   - [x] Chamada de persistencia sincronizada forcada (`persistStateSynchronously`) imediatamente antes da execucao do instalador root (`installViaRoot`).
   - [x] Bump de versao para v1.0.5 (code 6) e atualizacao do changelog.
-  - [ ] Validacao completa na branch `test` via GitHub Actions antes de merge para `main`.
+  - [x] Validacao completa na branch `test` via GitHub Actions concluida com sucesso.
+  - [ ] Merge para a branch `main` e publicacao da Release oficial no GitHub Actions.
