@@ -1172,6 +1172,7 @@
 
     
     <string name="enforce_doze_title">Enforce Doze (Sono Profundo)</string>
+    <string name="enforce_doze_enable_title">Ativar Enforce Doze</string>
     <string name="enforce_doze_desc">Força o modo Doze do Android imediatamente ao desligar a tela para maximizar a economia de bateria.</string>
     <string name="enforce_doze_status_active">Ativo</string>
     <string name="enforce_doze_status_inactive">Inativo</string>
@@ -1211,10 +1212,10 @@
     
     <string name="battery_auto_reset_title">Redefinição Automática (Auto Reset)</string>
     <string name="battery_reset_on_charging_title">Resetar ao carregar</string>
-    <string name="battery_reset_on_charging_desc">Resetar estatísticas ao carregar até o nível alvo ou 100%</string>
+    <string name="battery_reset_on_charging_desc">Resetar estatísticas ao carregar até o nível alvo ou 100%%</string>
     <string name="battery_reset_target_percent">Porcentagem Alvo: %1$d%%</string>
-    <string name="battery_reset_full_charge">Carga completa (100%)</string>
-    <string name="battery_reset_target_label">&gt;= %1$d%% ou 100%</string>
+    <string name="battery_reset_full_charge">Carga completa (100%%)</string>
+    <string name="battery_reset_target_label">&gt;= %1$d%% ou 100%%</string>
     <string name="battery_reset_on_reboot_title">Resetar ao reiniciar o celular</string>
     <string name="battery_reset_on_reboot_enabled_desc">Zerar estatísticas e iniciar novo ciclo ao reiniciar</string>
     <string name="battery_reset_on_reboot_disabled_desc">Preservar histórico e dados acumulados após reiniciar</string>

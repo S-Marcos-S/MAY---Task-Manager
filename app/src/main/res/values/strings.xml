@@ -1210,6 +1210,7 @@
 
     
     <string name="enforce_doze_title">Enforce Doze (Deep Sleep)</string>
+    <string name="enforce_doze_enable_title">Enable Enforce Doze</string>
     <string name="enforce_doze_desc">Forces Android into deep sleep immediately when screen is turned off to maximize battery savings.</string>
     <string name="enforce_doze_status_active">Active</string>
     <string name="enforce_doze_status_inactive">Inactive</string>
@@ -1249,10 +1250,10 @@
     
     <string name="battery_auto_reset_title">Auto Reset</string>
     <string name="battery_reset_on_charging_title">Reset when charging</string>
-    <string name="battery_reset_on_charging_desc">Reset statistics when charging reaches target level or 100%</string>
+    <string name="battery_reset_on_charging_desc">Reset statistics when charging reaches target level or 100%%</string>
     <string name="battery_reset_target_percent">Target percentage: %1$d%%</string>
-    <string name="battery_reset_full_charge">Full charge (100%)</string>
-    <string name="battery_reset_target_label">&gt;= %1$d%% or 100%</string>
+    <string name="battery_reset_full_charge">Full charge (100%%)</string>
+    <string name="battery_reset_target_label">&gt;= %1$d%% or 100%%</string>
     <string name="battery_reset_on_reboot_title">Reset on reboot</string>
     <string name="battery_reset_on_reboot_enabled_desc">Reset statistics and start new cycle on phone reboot</string>
     <string name="battery_reset_on_reboot_disabled_desc">Preserve history and accumulated data across phone reboots</string>

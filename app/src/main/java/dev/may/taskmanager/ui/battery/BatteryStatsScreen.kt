@@ -3088,7 +3088,7 @@ fun BatterySettingsTab(vm: BatteryStatsViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Ativar Enforce Doze", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text(stringResource(R.string.enforce_doze_enable_title), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                             Text(stringResource(R.string.enforce_doze_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(
