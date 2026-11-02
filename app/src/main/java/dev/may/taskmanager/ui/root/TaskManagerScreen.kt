@@ -49,7 +49,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Autorenew
@@ -138,6 +137,7 @@ import dev.may.taskmanager.root.SystemPerformanceSnapshot
 import dev.may.taskmanager.root.SystemTaskInspector
 import dev.may.taskmanager.root.TaskProcessItem
 import dev.may.taskmanager.ui.common.AppIcon
+import dev.may.taskmanager.ui.theme.LocalActiveThemeId
 import dev.may.taskmanager.ui.theme.LocalGlassThemeActive
 import dev.may.taskmanager.ui.theme.dynamicBorderColor
 import dev.may.taskmanager.ui.theme.dynamicSurfaceColor
@@ -269,36 +269,12 @@ fun TaskManagerScreen(
         }
     }
 
-    val view = LocalView.current
-    DisposableEffect(view) {
-        val window = (context as? Activity)?.window
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && window != null) {
-            val hadBlurFlag = (window.attributes.flags and WindowManager.LayoutParams.FLAG_BLUR_BEHIND) != 0
-            val prevRadius = window.attributes.blurBehindRadius
-            window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-            val params = window.attributes
-            params.blurBehindRadius = 45
-            window.attributes = params
-
-            onDispose {
-                val p = window.attributes
-                p.blurBehindRadius = prevRadius
-                window.attributes = p
-                if (!hadBlurFlag) {
-                    window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                }
-            }
-        } else {
-            onDispose {}
-        }
-    }
-
-    val isDark = isSystemInDarkTheme()
     val isGlassActive = LocalGlassThemeActive.current
-    val backgroundColor = if (isGlassActive) {
-        if (isDark) Color.Black.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.45f)
-    } else {
-        dynamicSurfaceColor(alpha = 0.40f, tintFraction = 0.16f)
+    val isOled = LocalActiveThemeId.current == "oled_black"
+    val backgroundColor = when {
+        isGlassActive -> Color.Transparent
+        isOled -> Color.Black
+        else -> dynamicSurfaceColor(alpha = 0.40f, tintFraction = 0.16f)
     }
 
     Scaffold(
@@ -315,7 +291,6 @@ fun TaskManagerScreen(
                         pagerState.animateScrollToPage(targetTab.ordinal)
                     }
                 },
-                onNavigateBack = onNavigateBack,
                 onOpenSettings = onOpenSettings,
                 onOpenAnomalySettings = { showAnomalySettingsDialog = true },
                 isWatcherActive = anomalyConfig.isEnabled,
@@ -489,7 +464,6 @@ private fun CleanTaskManagerTopBar(
     tabs: List<TaskManagerTab>,
     selectedTab: TaskManagerTab,
     onTabSelect: (TaskManagerTab) -> Unit,
-    onNavigateBack: () -> Unit,
     onOpenSettings: () -> Unit = {},
     onOpenAnomalySettings: () -> Unit,
     isWatcherActive: Boolean,
@@ -497,6 +471,7 @@ private fun CleanTaskManagerTopBar(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val listState = rememberLazyListState()
+    val isOled = LocalActiveThemeId.current == "oled_black"
 
     LaunchedEffect(selectedTab) {
         val idx = tabs.indexOf(selectedTab)
@@ -506,7 +481,7 @@ private fun CleanTaskManagerTopBar(
     }
 
     Surface(
-        color = if (isGlassActive) Color.Transparent else dynamicSurfaceColor(alpha = 0.65f, tintFraction = 0.18f),
+        color = if (isGlassActive) Color.Transparent else if (isOled) Color.Black else dynamicSurfaceColor(alpha = 0.65f, tintFraction = 0.18f),
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding(),
@@ -514,22 +489,9 @@ private fun CleanTaskManagerTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 6.dp, end = 10.dp, top = 4.dp, bottom = 6.dp),
+                .padding(start = 10.dp, end = 10.dp, top = 4.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(
-                onClick = onNavigateBack,
-                modifier = Modifier.size(38.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.action_back),
-                    tint = colorScheme.onSurface,
-                )
-            }
-
-            Spacer(Modifier.width(6.dp))
-
             // Cabeçalho rolável compacto com todas as 6 abas
             LazyRow(
                 state = listState,

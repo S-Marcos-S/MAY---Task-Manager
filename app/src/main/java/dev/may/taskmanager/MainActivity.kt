@@ -4,21 +4,32 @@ package dev.may.taskmanager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Surface
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import dev.may.taskmanager.data.AppInfo
 import dev.may.taskmanager.root.TaskManagerEvents
 import dev.may.taskmanager.root.anomaly.BackgroundAnomalyNotificationManager
@@ -27,6 +38,7 @@ import dev.may.taskmanager.root.log.LogViewerEvents
 import dev.may.taskmanager.ui.root.TaskManagerScreen
 import dev.may.taskmanager.ui.settings.SettingsScreen
 import dev.may.taskmanager.ui.theme.MayTheme
+import dev.may.taskmanager.ui.theme.glass.WallpaperGlassProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -64,16 +76,74 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            DisposableEffect(activeThemeId) {
+                val window = this@MainActivity.window
+                val isGlass = activeThemeId == "glass"
+                val isOled = activeThemeId == "oled_black"
+                if (isGlass) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                        val params = window.attributes
+                        params.blurBehindRadius = 45
+                        window.attributes = params
+                    }
+                    window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
+                    WallpaperGlassProvider.refreshWallpaper(this@MainActivity)
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                    }
+                    if (isOled) {
+                        window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.BLACK))
+                    } else {
+                        window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.BLACK))
+                    }
+                }
+                onDispose { }
+            }
+
             MayTheme(activeThemeId = activeThemeId) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.Transparent,
+                val isGlassTheme = activeThemeId == "glass"
+                val isOledTheme = activeThemeId == "oled_black"
+                val isDark = isSystemInDarkTheme()
+                val wallpaperBitmap by WallpaperGlassProvider.currentWallpaperFlow.collectAsState()
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            when {
+                                isGlassTheme -> Color.Transparent
+                                isOledTheme -> Color.Black
+                                else -> MaterialTheme.colorScheme.background
+                            }
+                        ),
                 ) {
+                    if (isGlassTheme) {
+                        if (wallpaperBitmap != null) {
+                            Image(
+                                bitmap = wallpaperBitmap!!.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    if (isDark) Color.Black.copy(alpha = 0.42f)
+                                    else Color.White.copy(alpha = 0.30f)
+                                ),
+                        )
+                    }
+
                     when (currentScreen) {
                         CurrentScreen.TASK_MANAGER -> {
                             TaskManagerScreen(
                                 allApps = allApps,
-                                onNavigateBack = { finish() },
                                 onOpenSettings = { currentScreen = CurrentScreen.SETTINGS },
                             )
                         }
@@ -86,6 +156,9 @@ class MainActivity : ComponentActivity() {
                                 onSelectTheme = { themeId ->
                                     activeThemeId = themeId
                                     prefs.edit().putString(KEY_ACTIVE_THEME, themeId).apply()
+                                    if (themeId == "glass") {
+                                        WallpaperGlassProvider.refreshWallpaper(this@MainActivity)
+                                    }
                                 },
                                 onNavigateBack = {
                                     currentScreen = CurrentScreen.TASK_MANAGER
@@ -96,6 +169,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        WallpaperGlassProvider.refreshWallpaper(this)
     }
 
     override fun onNewIntent(intent: Intent) {

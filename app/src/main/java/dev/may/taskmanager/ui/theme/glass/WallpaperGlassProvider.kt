@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
 import kotlin.math.min
@@ -56,11 +57,17 @@ object WallpaperGlassProvider {
     private val _wallpaperTick = MutableStateFlow(0)
     val wallpaperTick: StateFlow<Int> = _wallpaperTick.asStateFlow()
 
+    private val _currentWallpaperFlow = MutableStateFlow<Bitmap?>(null)
+    val currentWallpaperFlow: StateFlow<Bitmap?> = _currentWallpaperFlow.asStateFlow()
+
     @Volatile
     private var cachedSharp: Bitmap? = null
 
     @Volatile
     private var cachedBlurred: Bitmap? = null
+
+    val currentWallpaper: Bitmap?
+        get() = cachedSharp
 
     @Volatile
     private var fallbackBitmap: Bitmap? = null
@@ -125,6 +132,7 @@ object WallpaperGlassProvider {
             if (bitmap != null) {
                 processWallpaper(bitmap)
             } else {
+                _currentWallpaperFlow.value = null
                 val dm = appContext.resources.displayMetrics
                 val w = max(1, dm.widthPixels)
                 val h = max(1, dm.heightPixels)
@@ -150,38 +158,73 @@ object WallpaperGlassProvider {
         val blurW = min(FROSTED_SAMPLE_WIDTH, sharpW)
         val blurred = GlassShader.sampleBlur(sharp, blurW, 4)
         cachedBlurred = blurred
+        _currentWallpaperFlow.value = sharp
     }
 
     private fun loadWallpaperBitmap(context: Context): Bitmap? {
-        runCatching {
-            val wm = WallpaperManager.getInstance(context)
-            val d = wm.drawable
-            if (d is BitmapDrawable && d.bitmap != null) {
-                return d.bitmap
-            }
-            if (d != null && d.intrinsicWidth > 0 && d.intrinsicHeight > 0) {
-                val b = Bitmap.createBitmap(d.intrinsicWidth, d.intrinsicHeight, Bitmap.Config.ARGB_8888)
-                val c = Canvas(b)
-                d.setBounds(0, 0, b.width, b.height)
-                d.draw(c)
-                return b
+        val wm = runCatching { WallpaperManager.getInstance(context) }.getOrNull()
+
+        // 1. Try WallpaperManager.getWallpaperFile (API 24+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && wm != null) {
+            runCatching {
+                wm.getWallpaperFile(WallpaperManager.FLAG_SYSTEM)?.use { pfd ->
+                    BitmapFactory.decodeFileDescriptor(pfd.fileDescriptor)
+                }
+            }.getOrNull()?.let { return it }
+        }
+
+        // 2. Try WallpaperManager drawable / peekDrawable
+        if (wm != null) {
+            runCatching {
+                val d = wm.drawable ?: wm.peekDrawable()
+                if (d is BitmapDrawable && d.bitmap != null) {
+                    return d.bitmap
+                }
+                if (d != null && d.intrinsicWidth > 0 && d.intrinsicHeight > 0) {
+                    val b = Bitmap.createBitmap(d.intrinsicWidth, d.intrinsicHeight, Bitmap.Config.ARGB_8888)
+                    val c = Canvas(b)
+                    d.setBounds(0, 0, b.width, b.height)
+                    d.draw(c)
+                    return b
+                }
             }
         }
 
-        runCatching {
-            val wm = WallpaperManager.getInstance(context)
-            val d = wm.getBuiltInDrawable(WallpaperManager.FLAG_SYSTEM)
-            if (d is BitmapDrawable && d.bitmap != null) {
-                return d.bitmap
+        // 3. Try direct read from standard Android wallpaper storage locations
+        val standardPaths = listOf(
+            "/data/system/users/0/wallpaper",
+            "/data/system/users/0/wallpaper_orig",
+            "/data/system/users/0/wallpaper_lock",
+        )
+        for (path in standardPaths) {
+            runCatching {
+                val file = File(path)
+                if (file.exists() && file.canRead()) {
+                    val b = BitmapFactory.decodeFile(file.absolutePath)
+                    if (b != null) return b
+                }
             }
         }
 
+        // 4. Try root read if accessible (MAY is a root task manager)
         runCatching {
-            val path = "/data/system/users/0/wallpaper"
-            val file = File(path)
-            if (file.exists() && file.canRead()) {
-                val b = BitmapFactory.decodeFile(file.absolutePath)
+            val cacheFile = File(context.cacheDir, "sys_wallpaper.raw")
+            val script = "if [ -f /data/system/users/0/wallpaper ]; then cat /data/system/users/0/wallpaper > ${cacheFile.absolutePath}; elif [ -f /data/system/users/0/wallpaper_orig ]; then cat /data/system/users/0/wallpaper_orig > ${cacheFile.absolutePath}; fi && chmod 644 ${cacheFile.absolutePath}"
+            val process = ProcessBuilder("su", "-c", script).start()
+            val finished = process.waitFor(2500, TimeUnit.MILLISECONDS)
+            if (finished && cacheFile.exists() && cacheFile.length() > 0) {
+                val b = BitmapFactory.decodeFile(cacheFile.absolutePath)
                 if (b != null) return b
+            }
+        }
+
+        // 5. Try built-in drawable
+        if (wm != null) {
+            runCatching {
+                val d = wm.getBuiltInDrawable(WallpaperManager.FLAG_SYSTEM)
+                if (d is BitmapDrawable && d.bitmap != null) {
+                    return d.bitmap
+                }
             }
         }
 
@@ -194,8 +237,8 @@ object WallpaperGlassProvider {
         val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val baseColor1 = if (isDark) 0xFF14171F.toInt() else 0xFFE6E9F0.toInt()
         val baseColor2 = if (isDark) 0xFF1F2430.toInt() else 0xFFD8DCE6.toInt()
-        val spotColor1 = if (isDark) 0xFF2B3A4A.toInt() else 0xFFB0C4DE.toInt()
-        val spotColor2 = if (isDark) 0xFF352B44.toInt() else 0xFFD2BFE3.toInt()
+        val spotColor1 = if (isDark) 0x332B3A4A.toInt() else 0x33B0C4DE.toInt()
+        val spotColor2 = if (isDark) 0x33352B44.toInt() else 0x33D2BFE3.toInt()
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(0f, 0f, width.toFloat(), height.toFloat(), baseColor1, baseColor2, Shader.TileMode.CLAMP)

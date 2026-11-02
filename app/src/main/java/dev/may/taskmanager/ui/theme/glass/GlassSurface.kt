@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.may.taskmanager.ui.theme.LocalActiveThemeId
 import dev.may.taskmanager.ui.theme.LocalGlassThemeActive
 import dev.may.taskmanager.ui.theme.dynamicBorderColor
 import dev.may.taskmanager.ui.theme.dynamicSurfaceColor
@@ -212,12 +213,15 @@ fun GlassCard(
             content = content,
         )
     } else {
+        val isOled = LocalActiveThemeId.current == "oled_black"
+        val resolvedColor = if (isOled) MaterialTheme.colorScheme.surfaceVariant else fallbackColor
+        val resolvedBorder = if (isOled) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else border
         Surface(
             modifier = baseModifier,
             shape = shape,
-            color = fallbackColor,
-            border = border,
-            tonalElevation = 2.dp,
+            color = resolvedColor,
+            border = resolvedBorder,
+            tonalElevation = if (isOled) 0.dp else 2.dp,
         ) {
             Box(
                 modifier = Modifier.fillMaxWidth(),
