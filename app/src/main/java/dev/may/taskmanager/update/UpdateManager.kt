@@ -45,17 +45,19 @@ data class UpdateInfo(
     val apkDownloadUrl: String,
     val apkSize: Long,
     val publishedAtMs: Long,
+    val isBeta: Boolean = false,
 ) {
     val displayVersion: String
         get() {
             val v = versionName?.trim()
-            return when {
+            val base = when {
                 !v.isNullOrBlank() -> if (v.startsWith("v", ignoreCase = true)) v else "v$v"
                 tagName.isNotBlank() && !tagName.equals("latest", ignoreCase = true) -> {
                     if (tagName.startsWith("v", ignoreCase = true)) tagName else "v$tagName"
                 }
                 else -> "v${BuildConfig.VERSION_NAME}"
             }
+            return if (isBeta && !base.contains("beta", ignoreCase = true)) "$base (Beta)" else base
         }
 }
 
@@ -66,6 +68,7 @@ object UpdateManager {
     private const val KEY_DOWNLOADED_APK_URI = "downloaded_apk_uri"
     private const val KEY_DOWNLOADED_VERSION_CODE = "downloaded_version_code"
     private const val KEY_DOWNLOADED_VERSION_NAME = "downloaded_version_name"
+    private const val KEY_BETA_TESTER_ENABLED = "beta_tester_enabled"
 
     private const val GITHUB_REPO = "S-Marcos-S/MAY---Task-Manager"
     private const val RELEASES_API_URL = "https://api.github.com/repos/$GITHUB_REPO/releases?per_page=5"
@@ -89,6 +92,16 @@ object UpdateManager {
 
     fun init(context: Context) {
         appContext = context.applicationContext
+    }
+
+    fun isBetaTesterEnabled(context: Context): Boolean {
+        val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_BETA_TESTER_ENABLED, false)
+    }
+
+    fun setBetaTesterEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_BETA_TESTER_ENABLED, enabled).apply()
     }
 
     fun checkForUpdates(context: Context, force: Boolean = false) {
@@ -125,12 +138,21 @@ object UpdateManager {
         if (releasesArray.length() == 0) return@withContext null
 
         val currentVersion = BuildConfig.VERSION_NAME
+        val betaAllowed = isBetaTesterEnabled(context)
 
         for (i in 0 until releasesArray.length()) {
             val releaseObj = releasesArray.optJSONObject(i) ?: continue
             val tagName = releaseObj.optString("tag_name", "").trim()
             val releaseName = releaseObj.optString("name", "").trim()
             val body = releaseObj.optString("body", "").trim()
+            val isPreRelease = releaseObj.optBoolean("prerelease", false) ||
+                    tagName.contains("beta", ignoreCase = true) ||
+                    releaseName.contains("beta", ignoreCase = true)
+
+            // If user did not opt-in to beta testing, skip pre-release / beta builds
+            if (isPreRelease && !betaAllowed) {
+                continue
+            }
 
             val rawVersion = tagName.removePrefix("v").removePrefix("V").trim()
             val assets = releaseObj.optJSONArray("assets") ?: continue
@@ -161,6 +183,7 @@ object UpdateManager {
                     apkDownloadUrl = apkUrl,
                     apkSize = apkSize,
                     publishedAtMs = System.currentTimeMillis(),
+                    isBeta = isPreRelease,
                 )
             }
         }

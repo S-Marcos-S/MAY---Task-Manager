@@ -37,6 +37,9 @@
     <string name="settings_root_not_detected">Não detectado</string>
 
     <!-- Atualizações -->
+    <string name="settings_beta_tester_title">Testador de Versões Beta</string>
+    <string name="settings_beta_tester_desc">Receber atualizações de teste e pré-lançamentos antes da versão estável pública</string>
+    <string name="update_beta_badge">BETA</string>
     <string name="update_available_title">Atualização disponível</string>
     <string name="update_checking">Verificando novas versões…</string>
     <string name="update_up_to_date">Aplicativo atualizado</string>

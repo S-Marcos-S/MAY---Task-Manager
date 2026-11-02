@@ -48,6 +48,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -100,6 +101,7 @@ fun SettingsScreen(
     val updateInfo by UpdateManager.updateAvailable.collectAsState()
     val isCheckingUpdates by UpdateManager.isCheckingUpdates.collectAsState()
     val downloadStatus by UpdateManager.downloadStatus.collectAsState()
+    var isBetaTester by remember { mutableStateOf(UpdateManager.isBetaTesterEnabled(context)) }
 
     // Automatically check for updates on entering SettingsScreen
     LaunchedEffect(Unit) {
@@ -282,6 +284,49 @@ fun SettingsScreen(
                         UpdateManager.installUpdate(context, uri, useRoot)
                     },
                 )
+            }
+
+            item {
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadiusDp = 14.dp,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 12.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_beta_tester_title),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = colorScheme.onSurface,
+                            )
+                            Text(
+                                text = stringResource(R.string.settings_beta_tester_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colorScheme.onSurfaceVariant,
+                            )
+                        }
+
+                        Switch(
+                            checked = isBetaTester,
+                            onCheckedChange = { checked ->
+                                isBetaTester = checked
+                                UpdateManager.setBetaTesterEnabled(context, checked)
+                                HapticUtil.tick(view)
+                                UpdateManager.checkForUpdates(context, force = true)
+                            },
+                        )
+                    }
+                }
             }
 
             // Section: System & App Info

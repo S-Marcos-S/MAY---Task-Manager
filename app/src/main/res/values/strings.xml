@@ -37,6 +37,9 @@
     <string name="settings_root_not_detected">Not Detected</string>
 
     <!-- Updates -->
+    <string name="settings_beta_tester_title">Beta Version Tester</string>
+    <string name="settings_beta_tester_desc">Receive test updates and experimental releases before public stable rollout</string>
+    <string name="update_beta_badge">BETA</string>
     <string name="update_available_title">Update Available</string>
     <string name="update_checking">Checking for updates…</string>
     <string name="update_up_to_date">App is up to date</string>

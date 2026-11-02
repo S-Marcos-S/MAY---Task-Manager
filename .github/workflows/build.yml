@@ -17,6 +17,7 @@ jobs:
     outputs:
       should_build: ${{ steps.check.outputs.should_build }}
       version: ${{ steps.check.outputs.version }}
+      is_beta: ${{ steps.check.outputs.is_beta }}
     steps:
       - name: Check commit message for version
         id: check
@@ -27,18 +28,27 @@ jobs:
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "Workflow manually triggered via workflow_dispatch, proceeding with build."
             echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "is_beta=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "Inspecting commit message:"
           printf '%s\n' "$COMMIT_MSG"
 
-          # Match version pattern like v1.0.0, 1.0.0, etc.
-          if printf '%s' "$COMMIT_MSG" | grep -qE '\b(v?[0-9]+\.[0-9]+(\.[0-9]+)?)\b'; then
-            DETECTED_VERSION=$(printf '%s' "$COMMIT_MSG" | grep -oE '\b(v?[0-9]+\.[0-9]+(\.[0-9]+)?)\b' | head -n 1)
+          # Match version pattern like v1.0.0, 1.0.0, v1.0.1-beta, 1.0.1-beta.1, etc.
+          if printf '%s' "$COMMIT_MSG" | grep -qE '\b(v?[0-9]+\.[0-9]+(\.[0-9]+)?(-beta(\.[0-9]+)?)?)\b'; then
+            DETECTED_VERSION=$(printf '%s' "$COMMIT_MSG" | grep -oE '\b(v?[0-9]+\.[0-9]+(\.[0-9]+)?(-beta(\.[0-9]+)?)?)\b' | head -n 1)
             echo "Version number detected in commit: $DETECTED_VERSION. Proceeding with build."
             echo "should_build=true" >> "$GITHUB_OUTPUT"
             echo "version=$DETECTED_VERSION" >> "$GITHUB_OUTPUT"
+
+            if echo "$DETECTED_VERSION" | grep -iq "beta" || echo "$COMMIT_MSG" | grep -iqE '\bbeta\b'; then
+              echo "Beta version detected."
+              echo "is_beta=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Stable release detected."
+              echo "is_beta=false" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "No version number found in commit message. Skipping build."
             echo "should_build=false" >> "$GITHUB_OUTPUT"
@@ -166,6 +176,12 @@ jobs:
           echo "VERSION_NAME=${VERSION_NAME}" >> $GITHUB_OUTPUT
           echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_OUTPUT
 
+          if echo "${VERSION_NAME}" | grep -iq "beta" || [ "${{ needs.check-version.outputs.is_beta }}" = "true" ]; then
+            echo "IS_BETA=true" >> $GITHUB_OUTPUT
+          else
+            echo "IS_BETA=false" >> $GITHUB_OUTPUT
+          fi
+
           if git ls-remote --tags origin "refs/tags/${TAG_NAME}" | grep -q "${TAG_NAME}"; then
             echo "Tag ${TAG_NAME} already exists in repository. Skipping version release creation."
             echo "IS_NEW_VERSION=false" >> $GITHUB_OUTPUT
@@ -196,22 +212,24 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version_check.outputs.TAG_NAME }}
-          name: "MAY Task Manager ${{ steps.version_check.outputs.TAG_NAME }}"
+          name: "MAY Task Manager ${{ steps.version_check.outputs.TAG_NAME }}${{ steps.version_check.outputs.IS_BETA == 'true' && ' (Beta)' || '' }}"
           body_path: RELEASE_NOTES.md
-          prerelease: false
+          prerelease: ${{ steps.version_check.outputs.IS_BETA == 'true' }}
+          make_latest: ${{ steps.version_check.outputs.IS_BETA != 'true' }}
           files: |
             artifacts/may-task-manager-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish GitHub Release for direct download
-        if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+        if: (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') && steps.version_check.outputs.IS_BETA != 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: "MAY Task Manager - Latest APKs (${{ steps.version_check.outputs.TAG_NAME }})"
+          name: "MAY Task Manager - Latest Stable APK (${{ steps.version_check.outputs.TAG_NAME }})"
           body_path: RELEASE_NOTES.md
           prerelease: false
+          make_latest: false
           files: |
             artifacts/may-task-manager-release.apk
         env:
