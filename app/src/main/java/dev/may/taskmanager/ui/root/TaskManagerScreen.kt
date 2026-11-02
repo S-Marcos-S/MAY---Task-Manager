@@ -795,11 +795,12 @@ private fun ProcessesScreen(
                 val simulatedItem = remember(app) {
                     TaskProcessItem(
                         pid = 0,
-                        appName = app.label,
                         packageName = app.packageName,
                         processName = app.packageName,
+                        appName = app.label,
+                        user = "u0",
                         cpuPercent = 0.0,
-                        ramBytes = 0L,
+                        ramMb = 0.0,
                         isForeground = false,
                         appInfo = app,
                     )

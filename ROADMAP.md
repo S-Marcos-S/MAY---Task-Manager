@@ -27,5 +27,6 @@
 - [ ] **Validacao e Release v1.0.4**
   - [x] Extracao de todas as novas strings para `strings.xml`, `values-pt` e `values-pt-rBR`.
   - [x] Verificacao de ausencia de emojis e checagem estrita de imports.
+  - [x] Correcao dos pontos identificados no compilador Kotlin (DailyHistoryRepository, DailyHistoryScreen, TaskManagerScreen).
   - [x] Bump para versao 1.0.4 no `build.gradle.kts` e atualizacao do `CHANGELOG_LATEST.md`.
   - [ ] Teste previo na branch `test` via GitHub Actions antes de mesclar para a `main`.

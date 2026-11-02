@@ -1277,23 +1277,6 @@ private fun HistoryLegendItem(
     }
 }
 
-            // Hour labels (00h, 06h, 12h, 18h, 23h)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 2.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(text = "00h", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = colorScheme.outline)
-                Text(text = "06h", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = colorScheme.outline)
-                Text(text = "12h", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = colorScheme.outline)
-                Text(text = "18h", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = colorScheme.outline)
-                Text(text = "23h", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = colorScheme.outline)
-            }
-        }
-    }
-}
-
 private fun formatDuration(millis: Long): String {
     if (millis <= 0L) return "0m"
     val seconds = millis / 1000L

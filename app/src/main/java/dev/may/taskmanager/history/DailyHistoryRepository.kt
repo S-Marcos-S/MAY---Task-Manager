@@ -520,10 +520,6 @@ class DailyHistoryRepository private constructor(private val context: Context) {
             synthesized.add(BatteryTimelinePoint(curTime, currentLevel, state))
             curTime += stepMs
         }
-            val state = stateAt(curTime)
-            synthesized.add(BatteryTimelinePoint(curTime, currentLevel, state))
-            curTime += stepMs
-        }
 
         return synthesized
     }
