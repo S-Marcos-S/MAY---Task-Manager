@@ -21,3 +21,7 @@ build-*.sh
 # OS
 .DS_Store
 Thumbs.db
+
+# Agent / Rules
+GEMINI.md
+

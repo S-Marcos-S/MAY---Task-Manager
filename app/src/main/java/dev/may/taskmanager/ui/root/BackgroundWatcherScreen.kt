@@ -230,30 +230,38 @@ fun BackgroundWatcherScreen(
                         }
 
                         // Categories row
-                        Row(
+                        LazyRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            CompactFilterChip(
-                                selected = config.notifyNetwork,
-                                label = stringResource(R.string.background_filter_network),
-                                onClick = { watcher.updateConfig(config.copy(notifyNetwork = !config.notifyNetwork)) },
-                            )
-                            CompactFilterChip(
-                                selected = config.notifyCpu,
-                                label = stringResource(R.string.anomaly_opt_cpu),
-                                onClick = { watcher.updateConfig(config.copy(notifyCpu = !config.notifyCpu)) },
-                            )
-                            CompactFilterChip(
-                                selected = config.notifyRam,
-                                label = stringResource(R.string.anomaly_opt_ram),
-                                onClick = { watcher.updateConfig(config.copy(notifyRam = !config.notifyRam)) },
-                            )
-                            CompactFilterChip(
-                                selected = config.notifyDeepSleep,
-                                label = stringResource(R.string.background_filter_deep_sleep),
-                                onClick = { watcher.updateConfig(config.copy(notifyDeepSleep = !config.notifyDeepSleep)) },
-                            )
+                            item {
+                                CompactFilterChip(
+                                    selected = config.notifyNetwork,
+                                    label = stringResource(R.string.background_filter_network),
+                                    onClick = { watcher.updateConfig(config.copy(notifyNetwork = !config.notifyNetwork)) },
+                                )
+                            }
+                            item {
+                                CompactFilterChip(
+                                    selected = config.notifyCpu,
+                                    label = stringResource(R.string.anomaly_opt_cpu),
+                                    onClick = { watcher.updateConfig(config.copy(notifyCpu = !config.notifyCpu)) },
+                                )
+                            }
+                            item {
+                                CompactFilterChip(
+                                    selected = config.notifyRam,
+                                    label = stringResource(R.string.anomaly_opt_ram),
+                                    onClick = { watcher.updateConfig(config.copy(notifyRam = !config.notifyRam)) },
+                                )
+                            }
+                            item {
+                                CompactFilterChip(
+                                    selected = config.notifyDeepSleep,
+                                    label = stringResource(R.string.background_filter_deep_sleep),
+                                    onClick = { watcher.updateConfig(config.copy(notifyDeepSleep = !config.notifyDeepSleep)) },
+                                )
+                            }
                         }
                     }
                 }
@@ -508,6 +516,8 @@ private fun CompactFilterChip(
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = if (selected) colorScheme.onPrimary else colorScheme.onSurface,
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
         )
     }

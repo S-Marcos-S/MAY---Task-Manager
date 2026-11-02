@@ -144,6 +144,14 @@ class MainActivity : ComponentActivity() {
                         CurrentScreen.TASK_MANAGER -> {
                             TaskManagerScreen(
                                 allApps = allApps,
+                                activeThemeId = activeThemeId,
+                                onSelectTheme = { themeId ->
+                                    activeThemeId = themeId
+                                    prefs.edit().putString(KEY_ACTIVE_THEME, themeId).apply()
+                                    if (themeId == "glass") {
+                                        WallpaperGlassProvider.refreshWallpaper(this@MainActivity)
+                                    }
+                                },
                                 onOpenSettings = { currentScreen = CurrentScreen.SETTINGS },
                             )
                         }

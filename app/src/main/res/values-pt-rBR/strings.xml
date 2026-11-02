@@ -61,11 +61,27 @@
     <string name="task_manager_tab_history">Histórico</string>
     <string name="task_manager_tab_cycles">Ciclos</string>
     <string name="task_manager_tab_network">Rede</string>
+    <string name="task_manager_tab_settings">Configurações</string>
+    <string name="performance_card_settings_desc">Aparência, atualizações e preferências do sistema</string>
+    <string name="performance_card_settings_action">Abrir</string>
+    <string name="performance_ram_percent_in_use">%1$s em uso</string>
+    <string name="performance_net_connection_type">Tipo de conexão: %1$s</string>
+    <string name="performance_net_connected">Conectado</string>
+    <string name="performance_storage_internal">Armazenamento Interno do Sistema</string>
+    <string name="performance_cpu_title">Processador (CPU)</string>
+    <string name="performance_cpu_subtitle">Utilização total do processador</string>
+    <string name="performance_cpu_idle">Ocioso</string>
+    <string name="performance_gpu_title">Unidade Gráfica (GPU)</string>
+    <string name="performance_ram_title">Memória (RAM)</string>
+    <string name="performance_net_title">Rede &amp; Internet</string>
 
     
     <string name="task_manager_group_foreground">Apps em 1º Plano</string>
     <string name="task_manager_group_background">Processos em 2º Plano</string>
     <string name="task_manager_group_system">Processos do Sistema</string>
+    <string name="task_manager_group_installed">Apps Instalados (Sem Execução)</string>
+    <string name="task_manager_status_inactive">Inativo</string>
+    <string name="task_manager_inactive_tap_to_analyze">Toque para inspecionar e analisar</string>
     <string name="task_manager_search_hint">Buscar apps, processos ou PID…</string>
     <string name="task_manager_live_badge">AO VIVO</string>
     <string name="task_manager_end_task">Finalizar Tarefa</string>
@@ -1223,9 +1239,11 @@
     
     <string name="history_day_battery_chart">Uso da Bateria nas 24h</string>
     <string name="history_battery_legend_screen_on">Tela ligada</string>
+    <string name="history_battery_legend_light_sleep">Sono leve</string>
     <string name="history_battery_legend_deep_sleep">Sono profundo</string>
     <string name="history_battery_legend_off">Desligado</string>
     <string name="history_battery_state_screen_on">Tela ligada</string>
+    <string name="history_battery_state_light_sleep">Sono leve</string>
     <string name="history_battery_state_deep_sleep">Sono profundo</string>
     <string name="history_battery_state_off">Aparelho desligado</string>
     <string name="history_battery_tooltip_format">%1$s • %2$d%% • %3$s</string>

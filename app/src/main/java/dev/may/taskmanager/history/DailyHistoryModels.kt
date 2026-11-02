@@ -109,6 +109,7 @@ data class BatteryTimelinePoint(
         const val STATE_DEEP_SLEEP = 0
         const val STATE_SCREEN_ON = 1
         const val STATE_OFF = 2
+        const val STATE_LIGHT_SLEEP = 3
 
         fun fromJson(json: JSONObject): BatteryTimelinePoint {
             return BatteryTimelinePoint(

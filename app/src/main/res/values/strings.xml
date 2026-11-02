@@ -61,11 +61,27 @@
     <string name="task_manager_tab_history">History</string>
     <string name="task_manager_tab_cycles">Cycles</string>
     <string name="task_manager_tab_network">Network</string>
+    <string name="task_manager_tab_settings">Settings</string>
+    <string name="performance_card_settings_desc">Appearance, updates and system preferences</string>
+    <string name="performance_card_settings_action">Open</string>
+    <string name="performance_ram_percent_in_use">%1$s in use</string>
+    <string name="performance_net_connection_type">Connection type: %1$s</string>
+    <string name="performance_net_connected">Connected</string>
+    <string name="performance_storage_internal">Internal System Storage</string>
+    <string name="performance_cpu_title">Processor (CPU)</string>
+    <string name="performance_cpu_subtitle">Total processor utilization</string>
+    <string name="performance_cpu_idle">Idle</string>
+    <string name="performance_gpu_title">Graphics Unit (GPU)</string>
+    <string name="performance_ram_title">Memory (RAM)</string>
+    <string name="performance_net_title">Network &amp; Internet</string>
 
     
     <string name="task_manager_group_foreground">Foreground Apps</string>
     <string name="task_manager_group_background">Background Processes</string>
     <string name="task_manager_group_system">System Processes</string>
+    <string name="task_manager_group_installed">Installed Apps (Not Running)</string>
+    <string name="task_manager_status_inactive">Inactive</string>
+    <string name="task_manager_inactive_tap_to_analyze">Tap to inspect and analyze</string>
     <string name="task_manager_search_hint">Search apps, processes or PID…</string>
     <string name="task_manager_live_badge">LIVE</string>
     <string name="task_manager_end_task">End Task</string>
@@ -1261,9 +1277,11 @@
     
     <string name="history_day_battery_chart">24h Battery Usage</string>
     <string name="history_battery_legend_screen_on">Screen on</string>
+    <string name="history_battery_legend_light_sleep">Light sleep</string>
     <string name="history_battery_legend_deep_sleep">Deep sleep</string>
     <string name="history_battery_legend_off">Off</string>
     <string name="history_battery_state_screen_on">Screen on</string>
+    <string name="history_battery_state_light_sleep">Light sleep</string>
     <string name="history_battery_state_deep_sleep">Deep sleep</string>
     <string name="history_battery_state_off">Device turned off</string>
     <string name="history_battery_tooltip_format">%1$s • %2$d%% • %3$s</string>

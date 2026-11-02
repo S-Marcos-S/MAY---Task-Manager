@@ -24,6 +24,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 import kotlin.math.abs
@@ -63,6 +64,12 @@ class BatteryCycleRepository private constructor(private val context: Context) {
         val dir = File(context.filesDir, DIR_NAME)
         if (!dir.exists()) dir.mkdirs()
         File(dir, FILE_NAME)
+    }
+
+    private val activeCycleFile: File by lazy {
+        val dir = File(context.filesDir, DIR_NAME)
+        if (!dir.exists()) dir.mkdirs()
+        File(dir, "active_cycle.json")
     }
 
     private val _cyclesFlow = MutableStateFlow<List<BatteryCycleRecord>>(emptyList())
@@ -268,6 +275,7 @@ class BatteryCycleRepository private constructor(private val context: Context) {
         )
 
         publishCycles()
+        saveActiveCycleToDisk()
     }
 
     private fun handleBatteryChanged(intent: Intent) {
@@ -323,6 +331,7 @@ class BatteryCycleRepository private constructor(private val context: Context) {
             saveToDisk()
         }
         activeCycle = null
+        saveActiveCycleToDisk()
     }
 
     private fun startNewActiveCycle(isCharging: Boolean) {
@@ -356,6 +365,7 @@ class BatteryCycleRepository private constructor(private val context: Context) {
         )
 
         publishCycles()
+        saveActiveCycleToDisk()
     }
 
     private fun publishCycles() {
@@ -426,9 +436,44 @@ class BatteryCycleRepository private constructor(private val context: Context) {
             }
 
             // Start or restore current active cycle
+            lastSampleRealtime = SystemClock.elapsedRealtime()
+            lastSampleUptime = SystemClock.uptimeMillis()
             val isCharging = isCurrentlyCharging()
-            startNewActiveCycle(isCharging)
+            var restored: BatteryCycleRecord? = null
+
+            if (activeCycleFile.exists()) {
+                val text = runCatching { activeCycleFile.readText(Charsets.UTF_8) }.getOrNull()
+                if (!text.isNullOrBlank()) {
+                    runCatching {
+                        val obj = JSONObject(text)
+                        restored = BatteryCycleRecord.fromJson(obj)
+                    }.onFailure {
+                        Log.e(TAG, "Failed to parse active cycle from disk", it)
+                    }
+                }
+            }
+
+            if (restored != null) {
+                val expectedType = if (isCharging) CycleType.CHARGE else CycleType.DISCHARGE
+                if (restored.type == expectedType) {
+                    activeCycle = restored.copy(isActive = true)
+                    sampleCurrentTelemetryPoint()
+                } else {
+                    val now = System.currentTimeMillis()
+                    val duration = now - restored.startTimeMs
+                    if (duration > 45_000L || restored.batteryDeltaPercent >= 1) {
+                        historicalCycles.add(0, restored.copy(endTimeMs = now, isActive = false))
+                        if (historicalCycles.size > MAX_HISTORY_CYCLES) {
+                            historicalCycles.removeAt(historicalCycles.lastIndex)
+                        }
+                    }
+                    startNewActiveCycle(isCharging)
+                }
+            } else {
+                startNewActiveCycle(isCharging)
+            }
             saveToDisk()
+            publishCycles()
         }
     }
 
@@ -556,6 +601,24 @@ class BatteryCycleRepository private constructor(private val context: Context) {
                 dataFile.writeText(array.toString(), Charsets.UTF_8)
             }.onFailure {
                 Log.e(TAG, "Failed to save battery cycles to disk", it)
+            }
+            saveActiveCycleToDisk()
+        }
+    }
+
+    private fun saveActiveCycleToDisk() {
+        val cycle = activeCycle
+        scope.launch {
+            runCatching {
+                if (cycle != null) {
+                    activeCycleFile.writeText(cycle.toJson().toString(), Charsets.UTF_8)
+                } else {
+                    if (activeCycleFile.exists()) {
+                        activeCycleFile.delete()
+                    }
+                }
+            }.onFailure {
+                Log.e(TAG, "Failed to save active battery cycle to disk", it)
             }
         }
     }

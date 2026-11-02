@@ -106,6 +106,7 @@ fun SettingsScreen(
     activeThemeId: String,
     onSelectTheme: (String) -> Unit,
     onNavigateBack: () -> Unit,
+    showHeader: Boolean = true,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -168,26 +169,28 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(R.string.settings_title),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.action_back),
+            if (showHeader) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(R.string.settings_title),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
                         )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                ),
-            )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.action_back),
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                    ),
+                )
+            }
         },
         containerColor = Color.Transparent,
         modifier = Modifier.fillMaxSize(),

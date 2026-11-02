@@ -476,6 +476,7 @@ class DailyHistoryRepository private constructor(private val context: Context) {
                     val s = stateAt(tp.timestamp)
                     val state = if (s == BatteryTimelinePoint.STATE_OFF) BatteryTimelinePoint.STATE_OFF
                     else if (tp.isScreenOn) BatteryTimelinePoint.STATE_SCREEN_ON
+                    else if (tp.powerWatts > 1.2f || tp.currentA > 0.35f) BatteryTimelinePoint.STATE_LIGHT_SLEEP
                     else s
                     points.add(BatteryTimelinePoint(tp.timestamp, tp.batteryLevel, state))
                 }
@@ -492,13 +493,14 @@ class DailyHistoryRepository private constructor(private val context: Context) {
             }
         }
 
+        val isToday = date.isEqual(LocalDate.now())
         if (deduped.size >= 2) {
             val first = deduped.first()
             if (first.timestamp > startOfDay + 300_000L) {
                 deduped.add(0, BatteryTimelinePoint(startOfDay, first.batteryLevel, stateAt(startOfDay)))
             }
             val last = deduped.last()
-            if (last.timestamp < endOfDay - 300_000L) {
+            if (!isToday && last.timestamp < endOfDay - 300_000L) {
                 deduped.add(BatteryTimelinePoint(endOfDay, last.batteryLevel, stateAt(endOfDay)))
             }
             return deduped
@@ -509,10 +511,15 @@ class DailyHistoryRepository private constructor(private val context: Context) {
         val endLevel = (100 - calculatedDrain).coerceIn(5, 100)
         val stepMs = 30 * 60_000L
         var curTime = startOfDay
+        val maxTime = if (isToday) System.currentTimeMillis() else endOfDay
 
-        while (curTime <= endOfDay) {
+        while (curTime <= maxTime) {
             val ratio = ((curTime - startOfDay).toDouble() / (endOfDay - startOfDay).coerceAtLeast(1L)).coerceIn(0.0, 1.0)
             val currentLevel = (startLevel - (ratio * (startLevel - endLevel))).toInt().coerceIn(0, 100)
+            val state = stateAt(curTime)
+            synthesized.add(BatteryTimelinePoint(curTime, currentLevel, state))
+            curTime += stepMs
+        }
             val state = stateAt(curTime)
             synthesized.add(BatteryTimelinePoint(curTime, currentLevel, state))
             curTime += stepMs

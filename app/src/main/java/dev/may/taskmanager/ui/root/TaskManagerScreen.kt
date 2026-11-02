@@ -82,6 +82,9 @@ import dev.may.taskmanager.history.DailyHistoryRepository
 import dev.may.taskmanager.ui.network.NetworkStatsScreen
 import dev.may.taskmanager.ui.battery.BatteryStatsScreen
 import dev.may.taskmanager.ui.battery.BatteryCyclesScreen
+import dev.may.taskmanager.ui.settings.SettingsScreen
+import dev.may.taskmanager.battery.BatteryCycleRepository
+import dev.may.taskmanager.battery.CycleType
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -151,10 +154,11 @@ private enum class TaskManagerTab {
     PROCESSES,
     PERFORMANCE,
     HISTORY,
-    CYCLES,
     BACKGROUND,
     NETWORK,
     BATTERY,
+    CYCLES,
+    SETTINGS,
 }
 
 /**
@@ -166,6 +170,8 @@ private enum class TaskManagerTab {
 @Composable
 fun TaskManagerScreen(
     allApps: List<AppInfo>,
+    activeThemeId: String = "system_dynamic",
+    onSelectTheme: (String) -> Unit = {},
     onNavigateBack: () -> Unit = {},
     onNavigateToNetworkStats: () -> Unit = {},
     onNavigateToBatteryStats: () -> Unit = {},
@@ -291,7 +297,6 @@ fun TaskManagerScreen(
                         pagerState.animateScrollToPage(targetTab.ordinal)
                     }
                 },
-                onOpenSettings = onOpenSettings,
                 isGlassActive = isGlassActive,
             )
         },
@@ -310,6 +315,7 @@ fun TaskManagerScreen(
                     TaskManagerTab.PROCESSES -> {
                         ProcessesScreen(
                             tasksSnapshot = runningTasksSnapshot,
+                            allApps = allApps,
                             searchQuery = searchQuery,
                             onSearchQueryChange = { searchQuery = it },
                             showSystemProcesses = showSystemProcesses,
@@ -374,6 +380,16 @@ fun TaskManagerScreen(
                                     pagerState.animateScrollToPage(TaskManagerTab.BATTERY.ordinal)
                                 }
                             },
+                            onNavigateToCycles = {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(TaskManagerTab.CYCLES.ordinal)
+                                }
+                            },
+                            onNavigateToSettings = {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(TaskManagerTab.SETTINGS.ordinal)
+                                }
+                            },
                         )
                     }
 
@@ -383,17 +399,6 @@ fun TaskManagerScreen(
                             onNavigateToBackgroundTab = {
                                 scope.launch {
                                     pagerState.animateScrollToPage(TaskManagerTab.BACKGROUND.ordinal)
-                                }
-                            },
-                        )
-                    }
-
-                    TaskManagerTab.CYCLES -> {
-                        BatteryCyclesScreen(
-                            allApps = allApps,
-                            onNavigateBack = {
-                                scope.launch {
-                                    pagerState.animateScrollToPage(TaskManagerTab.PERFORMANCE.ordinal)
                                 }
                             },
                         )
@@ -420,6 +425,30 @@ fun TaskManagerScreen(
                     TaskManagerTab.BATTERY -> {
                         BatteryStatsScreen(
                             onBack = {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(TaskManagerTab.PERFORMANCE.ordinal)
+                                }
+                            },
+                            showHeader = false,
+                        )
+                    }
+
+                    TaskManagerTab.CYCLES -> {
+                        BatteryCyclesScreen(
+                            allApps = allApps,
+                            onNavigateBack = {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(TaskManagerTab.PERFORMANCE.ordinal)
+                                }
+                            },
+                        )
+                    }
+
+                    TaskManagerTab.SETTINGS -> {
+                        SettingsScreen(
+                            activeThemeId = activeThemeId,
+                            onSelectTheme = onSelectTheme,
+                            onNavigateBack = {
                                 scope.launch {
                                     pagerState.animateScrollToPage(TaskManagerTab.PERFORMANCE.ordinal)
                                 }
@@ -462,7 +491,6 @@ private fun CleanTaskManagerTopBar(
     tabs: List<TaskManagerTab>,
     selectedTab: TaskManagerTab,
     onTabSelect: (TaskManagerTab) -> Unit,
-    onOpenSettings: () -> Unit = {},
     isGlassActive: Boolean = LocalGlassThemeActive.current,
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -488,11 +516,11 @@ private fun CleanTaskManagerTopBar(
                 .padding(start = 10.dp, end = 10.dp, top = 4.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Cabeçalho rolável compacto com todas as 6 abas
+            // Cabeçalho rolável compacto com todas as abas
             LazyRow(
                 state = listState,
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(colorScheme.surfaceContainerHigh)
                     .border(1.dp, colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
@@ -505,10 +533,11 @@ private fun CleanTaskManagerTopBar(
                         TaskManagerTab.PROCESSES -> stringResource(R.string.task_manager_tab_processes) to Icons.Filled.ViewList
                         TaskManagerTab.PERFORMANCE -> stringResource(R.string.task_manager_tab_performance) to Icons.Filled.Speed
                         TaskManagerTab.HISTORY -> stringResource(R.string.task_manager_tab_history) to Icons.Filled.CalendarMonth
-                        TaskManagerTab.CYCLES -> stringResource(R.string.task_manager_tab_cycles) to Icons.Filled.Autorenew
                         TaskManagerTab.BACKGROUND -> stringResource(R.string.task_manager_tab_background) to Icons.Filled.Bedtime
                         TaskManagerTab.NETWORK -> stringResource(R.string.task_manager_tab_network) to Icons.Filled.Wifi
                         TaskManagerTab.BATTERY -> stringResource(R.string.task_manager_tab_battery) to Icons.Filled.BatteryChargingFull
+                        TaskManagerTab.CYCLES -> stringResource(R.string.task_manager_tab_cycles) to Icons.Filled.Autorenew
+                        TaskManagerTab.SETTINGS -> stringResource(R.string.task_manager_tab_settings) to Icons.Filled.Settings
                     }
                     ExpressiveTabPill(
                         title = title,
@@ -517,19 +546,6 @@ private fun CleanTaskManagerTopBar(
                         onClick = { onTabSelect(tab) },
                     )
                 }
-            }
-
-            Spacer(Modifier.width(6.dp))
-
-            IconButton(
-                onClick = onOpenSettings,
-                modifier = Modifier.size(38.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = stringResource(R.string.settings_title),
-                    tint = colorScheme.onSurfaceVariant,
-                )
             }
         }
     }
@@ -574,6 +590,8 @@ private fun ExpressiveTabPill(
                 color = contentColor,
                 fontSize = 12.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1,
+                softWrap = false,
             )
         }
     }
@@ -582,6 +600,7 @@ private fun ExpressiveTabPill(
 @Composable
 private fun ProcessesScreen(
     tasksSnapshot: RunningTasksSnapshot?,
+    allApps: List<AppInfo> = emptyList(),
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     showSystemProcesses: Boolean,
@@ -604,6 +623,23 @@ private fun ProcessesScreen(
     val filteredSys = tasksSnapshot?.systemProcesses?.filter {
         query.isEmpty() || it.processName.lowercase(Locale.ROOT).contains(query) || it.pid.toString().contains(query)
     } ?: emptyList()
+
+    val runningPackages = remember(tasksSnapshot) {
+        val set = mutableSetOf<String>()
+        tasksSnapshot?.foregroundApps?.forEach { set.add(it.packageName) }
+        tasksSnapshot?.backgroundApps?.forEach { set.add(it.packageName) }
+        set
+    }
+
+    val matchingInstalledApps = if (query.isNotEmpty()) {
+        allApps.filter { app ->
+            !runningPackages.contains(app.packageName) &&
+            (app.label.lowercase(Locale.ROOT).contains(query) ||
+             app.packageName.lowercase(Locale.ROOT).contains(query))
+        }
+    } else {
+        emptyList()
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -746,8 +782,121 @@ private fun ProcessesScreen(
             }
         }
 
+        // 4. INSTALLED APPS (NOT RUNNING - SEARCH RESULTS)
+        if (matchingInstalledApps.isNotEmpty()) {
+            item {
+                SectionHeader(
+                    title = stringResource(R.string.task_manager_group_installed),
+                    count = matchingInstalledApps.size,
+                    indicatorColor = Color(0xFFF59E0B),
+                )
+            }
+            items(matchingInstalledApps, key = { "installed_${it.packageName}" }) { app ->
+                val simulatedItem = remember(app) {
+                    TaskProcessItem(
+                        pid = 0,
+                        appName = app.label,
+                        packageName = app.packageName,
+                        processName = app.packageName,
+                        cpuPercent = 0.0,
+                        ramBytes = 0L,
+                        isForeground = false,
+                        appInfo = app,
+                    )
+                }
+                InstalledAppSearchCard(
+                    app = app,
+                    onClick = { onInspectApp(simulatedItem) },
+                )
+            }
+        }
+
         item {
             Spacer(Modifier.height(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun InstalledAppSearchCard(
+    app: AppInfo,
+    onClick: () -> Unit,
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadiusDp = 16.dp,
+        fallbackColor = dynamicSurfaceColor(alpha = 0.70f, tintFraction = 0.18f),
+        border = BorderStroke(1.dp, dynamicBorderColor(alpha = 0.25f, tintFraction = 0.30f)),
+        onClick = onClick,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AppIcon(
+                app = app,
+                sizeDp = 38,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.dp, colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+            )
+
+            Spacer(Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = app.label,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(colorScheme.outline.copy(alpha = 0.14f))
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.task_manager_status_inactive),
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false,
+                        )
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.task_manager_inactive_tap_to_analyze),
+                    fontSize = 11.sp,
+                    color = colorScheme.onSurface.copy(alpha = 0.55f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Spacer(Modifier.width(8.dp))
+
+            Text(
+                text = stringResource(R.string.performance_card_settings_action),
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(colorScheme.primary.copy(alpha = 0.12f))
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
         }
     }
 }
@@ -1023,7 +1172,10 @@ private fun PerformanceScreen(
     batteryHistory: List<Float> = emptyList(),
     onNavigateToNetworkStats: () -> Unit = {},
     onNavigateToBatteryStats: () -> Unit = {},
+    onNavigateToCycles: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
 
     LazyColumn(
@@ -1054,11 +1206,11 @@ private fun PerformanceScreen(
             val ramTotalGb = ramTotal / 1024.0
 
             PerformanceResourceCard(
-                title = "Memória (RAM)",
+                title = stringResource(R.string.performance_ram_title),
                 icon = Icons.Filled.Memory,
                 accentColor = Color(0xFF8B5CF6), // Violet
                 headline = "${String.format(Locale.US, "%.1f", ramUsedGb)} GB / ${String.format(Locale.US, "%.1f", ramTotalGb)} GB",
-                subHeadline = "${String.format(Locale.US, "%.1f", ramPercent)}% em uso",
+                subHeadline = stringResource(R.string.performance_ram_percent_in_use, "${String.format(Locale.US, "%.1f", ramPercent)}%"),
                 history = ramHistory,
                 chartColor = Color(0xFF8B5CF6),
             ) {
@@ -1079,16 +1231,16 @@ private fun PerformanceScreen(
             val txSpeed = snapshot?.txSpeedBps ?: 0L
 
             PerformanceResourceCard(
-                title = "Rede & Internet",
+                title = stringResource(R.string.performance_net_title),
                 icon = Icons.Filled.CloudDownload,
                 accentColor = Color(0xFF06B6D4), // Cyan
                 headline = "↓ ${formatSpeed(rxSpeed)}  ↑ ${formatSpeed(txSpeed)}",
-                subHeadline = "Tipo de conexão: ${snapshot?.networkType ?: "Conectado"}",
+                subHeadline = stringResource(R.string.performance_net_connection_type, snapshot?.networkType ?: stringResource(R.string.performance_net_connected)),
                 history = netRxHistory,
                 chartColor = Color(0xFF06B6D4),
                 actionButton = {
                     Text(
-                        text = "Ver mais",
+                        text = stringResource(R.string.action_show_more),
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF06B6D4),
@@ -1127,13 +1279,13 @@ private fun PerformanceScreen(
                 else -> Color(0xFF10B981) // Green
             }
 
-            val headline = "$battPct% · ${if (isCharging) "Carregando" else "Em Descarga"}"
+            val headline = "$battPct% · ${if (isCharging) stringResource(R.string.task_manager_battery_charging) else stringResource(R.string.task_manager_battery_discharging)}"
             val subHeadline = if (currentMa != null && currentMa != 0L) {
                 val sign = if (currentMa > 0 && isCharging) "+" else ""
                 val wattStr = if (powerWatts != null) " (${String.format(Locale.US, "%.2f", powerWatts)} W)" else ""
                 "$sign${currentMa} mA$wattStr"
             } else {
-                "Alimentação via Bateria"
+                stringResource(R.string.task_manager_battery_power_supply)
             }
 
             PerformanceResourceCard(
@@ -1146,7 +1298,7 @@ private fun PerformanceScreen(
                 chartColor = battAccent,
                 actionButton = {
                     Text(
-                        text = "Ver mais",
+                        text = stringResource(R.string.action_show_more),
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = battAccent,
@@ -1172,6 +1324,72 @@ private fun PerformanceScreen(
                     SpecItem(
                         label = stringResource(R.string.task_manager_battery_health),
                         value = health,
+                    )
+                }
+            }
+        }
+
+        item {
+            // 5. BATTERY CYCLES RESOURCE CARD (Placed right next to Battery)
+            val repository = remember { BatteryCycleRepository.getInstance(context) }
+            val cycles by repository.cyclesFlow.collectAsState()
+            val hardwareCycles by repository.hardwareCycleCount.collectAsState()
+            val activeCycle = cycles.firstOrNull { it.isActive }
+
+            val cycleAccent = Color(0xFF10B981)
+            val isCycleCharging = activeCycle?.type == CycleType.CHARGE
+            val cycleHeadline = if (activeCycle != null) {
+                val sign = if (isCycleCharging) "+" else "-"
+                "$sign${activeCycle.batteryDeltaPercent}% (${String.format(Locale.US, "%.0f", activeCycle.totalMah)} mAh)"
+            } else {
+                stringResource(R.string.cycles_active)
+            }
+            val cycleSubHeadline = if (activeCycle != null) {
+                if (isCycleCharging) stringResource(R.string.cycles_charge) else stringResource(R.string.cycles_discharge)
+            } else {
+                stringResource(R.string.task_manager_tab_cycles)
+            }
+
+            val cycleHistory = remember(activeCycle) {
+                activeCycle?.telemetryPoints?.map { it.powerWatts }?.takeLast(30) ?: emptyList()
+            }
+
+            PerformanceResourceCard(
+                title = stringResource(R.string.task_manager_tab_cycles),
+                icon = Icons.Filled.Autorenew,
+                accentColor = cycleAccent,
+                headline = cycleHeadline,
+                subHeadline = cycleSubHeadline,
+                history = if (cycleHistory.isNotEmpty()) cycleHistory else batteryHistory,
+                chartColor = cycleAccent,
+                actionButton = {
+                    Text(
+                        text = stringResource(R.string.action_show_more),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = cycleAccent,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable(onClick = onNavigateToCycles)
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                    )
+                },
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    SpecItem(
+                        label = stringResource(R.string.cycles_active),
+                        value = if (activeCycle != null) "${activeCycle.startBatteryLevel}% → ${activeCycle.endBatteryLevel}%" else "—",
+                    )
+                    SpecItem(
+                        label = stringResource(R.string.cycles_cycles_spent),
+                        value = if (activeCycle != null) String.format(Locale.US, "%.2f", activeCycle.totalCyclesDelta) else "—",
+                    )
+                    SpecItem(
+                        label = stringResource(R.string.cycles_hardware_cycles),
+                        value = if (hardwareCycles != null) "$hardwareCycles" else "—",
                     )
                 }
             }
@@ -1214,7 +1432,7 @@ private fun PerformanceScreen(
                         Spacer(Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Unidade Gráfica (GPU)",
+                                text = stringResource(R.string.performance_gpu_title),
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = colorScheme.onSurface,
@@ -1251,7 +1469,7 @@ private fun PerformanceScreen(
         }
 
         item {
-            // 5. STORAGE CARD
+            // 7. STORAGE CARD
             val storageTotal = snapshot?.storageTotalGb ?: 0.0
             val storageUsed = snapshot?.storageUsedGb ?: 0.0
             val storageAvail = snapshot?.storageAvailableGb ?: 0.0
@@ -1294,7 +1512,7 @@ private fun PerformanceScreen(
                                 color = colorScheme.onSurface,
                             )
                             Text(
-                                text = "Armazenamento Interno do Sistema",
+                                text = stringResource(R.string.performance_storage_internal),
                                 fontSize = 11.sp,
                                 color = colorScheme.onSurface.copy(alpha = 0.55f),
                             )
@@ -1328,6 +1546,100 @@ private fun PerformanceScreen(
         }
 
         item {
+            // 8. CONFIGURATION / SETTINGS INTEGRATED CARD
+            GlassCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onNavigateToSettings),
+                cornerRadiusDp = 20.dp,
+                fallbackColor = dynamicSurfaceColor(alpha = 0.72f, tintFraction = 0.18f),
+                border = BorderStroke(1.dp, dynamicBorderColor(alpha = 0.28f, tintFraction = 0.35f)),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(colorScheme.primary.copy(alpha = 0.16f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = null,
+                                tint = colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.settings_title),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = stringResource(R.string.performance_card_settings_desc),
+                                fontSize = 11.sp,
+                                color = colorScheme.onSurface.copy(alpha = 0.55f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.performance_card_settings_action),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colorScheme.primary,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colorScheme.primary.copy(alpha = 0.12f))
+                                .clickable(onClick = onNavigateToSettings)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    HorizontalDivider(
+                        color = colorScheme.outline.copy(alpha = 0.1f),
+                        thickness = 1.dp,
+                    )
+
+                    Spacer(Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        SpecItem(
+                            label = stringResource(R.string.settings_section_appearance),
+                            value = stringResource(R.string.settings_title),
+                        )
+                        SpecItem(
+                            label = stringResource(R.string.settings_section_updates),
+                            value = "v1.0.4",
+                        )
+                        SpecItem(
+                            label = stringResource(R.string.settings_section_behavior),
+                            value = stringResource(R.string.task_manager_tab_processes),
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
             Spacer(Modifier.height(20.dp))
         }
     }
@@ -1341,6 +1653,8 @@ private fun CpuWaveformCard(
     snapshot: SystemPerformanceSnapshot?,
 ) {
     val colorScheme = MaterialTheme.colorScheme
+
+    val idleStr = stringResource(R.string.performance_cpu_idle)
 
     val accentColor = when {
         cpuUsage > 75.0 -> Color(0xFFEF4444)
@@ -1381,13 +1695,13 @@ private fun CpuWaveformCard(
                 Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Processador (CPU)",
+                        text = stringResource(R.string.performance_cpu_title),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = colorScheme.onSurface,
                     )
                     Text(
-                        text = "Utilização total do processador",
+                        text = stringResource(R.string.performance_cpu_subtitle),
                         fontSize = 11.sp,
                         color = colorScheme.onSurface.copy(alpha = 0.55f),
                     )
@@ -1437,7 +1751,7 @@ private fun CpuWaveformCard(
                         for (i in 0..3) {
                             val freq = coreFrequencies.getOrNull(i) ?: 0L
                             Text(
-                                text = "CPU $i: ${if (freq > 0) "$freq MHz" else "Ocioso"}",
+                                text = "CPU $i: ${if (freq > 0) "$freq MHz" else idleStr}",
                                 fontSize = 11.5.sp,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
@@ -1461,7 +1775,7 @@ private fun CpuWaveformCard(
                         for (i in 4..7) {
                             val freq = coreFrequencies.getOrNull(i) ?: 0L
                             Text(
-                                text = "CPU $i: ${if (freq > 0) "$freq MHz" else "Ocioso"}",
+                                text = "CPU $i: ${if (freq > 0) "$freq MHz" else idleStr}",
                                 fontSize = 11.5.sp,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
