@@ -23,4 +23,4 @@
   - [x] Chamada de persistencia sincronizada forcada (`persistStateSynchronously`) imediatamente antes da execucao do instalador root (`installViaRoot`).
   - [x] Bump de versao para v1.0.5 (code 6) e atualizacao do changelog.
   - [x] Validacao completa na branch `test` via GitHub Actions concluida com sucesso.
-  - [ ] Merge para a branch `main` e publicacao da Release oficial no GitHub Actions.
+  - [x] Merge para a branch `main` e publicacao da Release oficial no GitHub Actions concluida com sucesso.
