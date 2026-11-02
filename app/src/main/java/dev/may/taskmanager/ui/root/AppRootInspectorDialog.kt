@@ -741,7 +741,7 @@ fun AppRootInspectorDialog(
                                     modifier = Modifier.weight(1f),
                                 )
                                 TabButton(
-                                    title = "Ações",
+                                    title = stringResource(R.string.root_inspector_tab_actions),
                                     icon = Icons.Filled.Settings,
                                     selected = selectedTab == InspectorTab.ACTIONS,
                                     onClick = { selectedTab = InspectorTab.ACTIONS },
@@ -1931,19 +1931,19 @@ private fun BatteryTabContent(data: AppInspectionData) {
         ) {
             MetricCard(
                 modifier = Modifier.weight(1f),
-                title = "Dreno Estimado",
+                title = stringResource(R.string.root_inspector_battery_estimated_drain),
                 value = "${String.format(Locale.US, "%.1f", battery.totalMah)} mAh",
                 icon = Icons.Filled.BatteryChargingFull,
                 accentColor = Color(0xFF10B981),
-                subtitle = "${String.format(Locale.US, "%.2f", battery.percentTotalDrain)}% da bateria",
+                subtitle = stringResource(R.string.root_inspector_battery_percent_battery, String.format(Locale.US, "%.2f", battery.percentTotalDrain)),
             )
             MetricCard(
                 modifier = Modifier.weight(1f),
-                title = "Wakelocks em BG",
+                title = stringResource(R.string.root_inspector_battery_bg_wakelocks),
                 value = formatDurationSecLabel(battery.wakelockTimeSec),
                 icon = Icons.Filled.Security,
                 accentColor = if (battery.wakelockTimeSec > 60) Color(0xFFF97316) else Color(0xFF3B82F6),
-                subtitle = "${battery.wakeupAlarmsCount} alarmes",
+                subtitle = stringResource(R.string.root_inspector_battery_alarms_count, battery.wakeupAlarmsCount),
             )
         }
 
@@ -1951,7 +1951,7 @@ private fun BatteryTabContent(data: AppInspectionData) {
 
         // Foreground vs Background Drain Bars
         Text(
-            text = "DIVISÃO DE CONSUMO (PRIMEIRO PLANO vs SEGUNDO PLANO)",
+            text = stringResource(R.string.root_inspector_battery_split_title),
             color = colorScheme.onSurface.copy(alpha = 0.55f),
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
@@ -1983,7 +1983,7 @@ private fun BatteryTabContent(data: AppInspectionData) {
 
         // Component breakdown: CPU, Wakelocks, Mobile, Wi-Fi
         Text(
-            text = "CONSUMO POR COMPONENTE DE HARDWARE",
+            text = stringResource(R.string.root_inspector_battery_hardware_title),
             color = colorScheme.onSurface.copy(alpha = 0.55f),
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
@@ -1995,7 +1995,7 @@ private fun BatteryTabContent(data: AppInspectionData) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("Processamento (CPU):", fontSize = 11.sp, color = colorScheme.onSurface.copy(alpha = 0.7f))
+            Text(stringResource(R.string.root_inspector_battery_cpu), fontSize = 11.sp, color = colorScheme.onSurface.copy(alpha = 0.7f))
             Text("${String.format(Locale.US, "%.1f", battery.cpuMah)} mAh", fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold, color = colorScheme.onSurface)
         }
         Spacer(Modifier.height(4.dp))
@@ -2003,7 +2003,7 @@ private fun BatteryTabContent(data: AppInspectionData) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("CPU Acordada (Wakelocks):", fontSize = 11.sp, color = colorScheme.onSurface.copy(alpha = 0.7f))
+            Text(stringResource(R.string.root_inspector_battery_wakelocks), fontSize = 11.sp, color = colorScheme.onSurface.copy(alpha = 0.7f))
             Text("${String.format(Locale.US, "%.1f", battery.wakelockMah)} mAh", fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold, color = colorScheme.onSurface)
         }
         Spacer(Modifier.height(4.dp))
@@ -2011,7 +2011,7 @@ private fun BatteryTabContent(data: AppInspectionData) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("Rede Móvel (4G/5G):", fontSize = 11.sp, color = colorScheme.onSurface.copy(alpha = 0.7f))
+            Text(stringResource(R.string.root_inspector_battery_mobile_radio), fontSize = 11.sp, color = colorScheme.onSurface.copy(alpha = 0.7f))
             Text("${String.format(Locale.US, "%.1f", battery.mobileRadioMah)} mAh", fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold, color = colorScheme.onSurface)
         }
         Spacer(Modifier.height(4.dp))
@@ -2019,7 +2019,7 @@ private fun BatteryTabContent(data: AppInspectionData) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text("Wi-Fi:", fontSize = 11.sp, color = colorScheme.onSurface.copy(alpha = 0.7f))
+            Text(stringResource(R.string.root_inspector_battery_wifi), fontSize = 11.sp, color = colorScheme.onSurface.copy(alpha = 0.7f))
             Text("${String.format(Locale.US, "%.1f", battery.wifiMah)} mAh", fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold, color = colorScheme.onSurface)
         }
 

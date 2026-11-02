@@ -1329,10 +1329,20 @@
 
     <!-- App Inspector Feedback & Titles -->
     <string name="root_inspector_actions_title">App Actions</string>
-    <string name="root_inspector_tab_memory">Memory &amp; Processes</string>
+    <string name="root_inspector_tab_actions">Actions</string>
     <string name="root_inspector_processes_title">Processes</string>
     <string name="root_inspector_root_failed">Failed to collect data with superuser.</string>
     <string name="root_inspector_action_unavailable">Action unavailable</string>
+    <string name="root_inspector_battery_estimated_drain">Estimated Drain</string>
+    <string name="root_inspector_battery_percent_battery">%1$s%% of battery</string>
+    <string name="root_inspector_battery_bg_wakelocks">BG Wakelocks</string>
+    <string name="root_inspector_battery_alarms_count">%1$d alarms</string>
+    <string name="root_inspector_battery_split_title">CONSUMPTION DIVISION (FOREGROUND vs BACKGROUND)</string>
+    <string name="root_inspector_battery_hardware_title">HARDWARE COMPONENT CONSUMPTION</string>
+    <string name="root_inspector_battery_cpu">Processing (CPU):</string>
+    <string name="root_inspector_battery_wakelocks">CPU Awake (Wakelocks):</string>
+    <string name="root_inspector_battery_mobile_radio">Mobile Network (4G/5G):</string>
+    <string name="root_inspector_battery_wifi">Wi-Fi:</string>
 
     <!-- Tools & Shortcuts -->
     <string name="task_manager_tab_tools">Tools</string>

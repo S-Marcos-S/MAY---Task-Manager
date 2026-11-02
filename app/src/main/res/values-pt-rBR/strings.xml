@@ -1290,10 +1290,20 @@
 
     <!-- Mensagens e Titulos do Inspetor de Processos -->
     <string name="root_inspector_actions_title">Ações do Aplicativo</string>
-    <string name="root_inspector_tab_memory">Memória e Processos</string>
+    <string name="root_inspector_tab_actions">Ações</string>
     <string name="root_inspector_processes_title">Processos</string>
     <string name="root_inspector_root_failed">Falha ao coletar dados com superusuário.</string>
     <string name="root_inspector_action_unavailable">Ação indisponível</string>
+    <string name="root_inspector_battery_estimated_drain">Dreno Estimado</string>
+    <string name="root_inspector_battery_percent_battery">%1$s%% da bateria</string>
+    <string name="root_inspector_battery_bg_wakelocks">Wakelocks em BG</string>
+    <string name="root_inspector_battery_alarms_count">%1$d alarmes</string>
+    <string name="root_inspector_battery_split_title">DIVISÃO DE CONSUMO (PRIMEIRO PLANO vs SEGUNDO PLANO)</string>
+    <string name="root_inspector_battery_hardware_title">CONSUMO POR COMPONENTE DE HARDWARE</string>
+    <string name="root_inspector_battery_cpu">Processamento (CPU):</string>
+    <string name="root_inspector_battery_wakelocks">CPU Acordada (Wakelocks):</string>
+    <string name="root_inspector_battery_mobile_radio">Rede Móvel (4G/5G):</string>
+    <string name="root_inspector_battery_wifi">Wi-Fi:</string>
 
     <!-- Ferramentas e Atalhos -->
     <string name="task_manager_tab_tools">Ferramentas</string>
