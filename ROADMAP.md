@@ -24,3 +24,13 @@
   - [x] Bump de versao para v1.0.5 (code 6) e atualizacao do changelog.
   - [x] Validacao completa na branch `test` via GitHub Actions concluida com sucesso.
   - [x] Merge para a branch `main` e publicacao da Release oficial no GitHub Actions concluida com sucesso.
+- [x] **Evolucoes de Bateria, Ferramentas e Instalador de Pacotes Root (v1.0.6)**
+  - [x] Opcao de reset automatico ao conectar o carregador (`auto_reset_on_plug_connected`).
+  - [x] Reorganizacao dos cards em tempo real: Total ao lado de Tela desligada na linha superior, Sono profundo na linha inferior.
+  - [x] Modo de carregamento: recolhimento animado dos cards inferiores e exibicao de % carregada/h e mAh carregados nos 3 cards superiores.
+  - [x] Correcao de mensagens de feedback na aba de Acoes do inspetor de processos (banner interno visivel na janela).
+  - [x] Nova tela "Ferramentas" com gravacao de logs contínua e comando de atalho para abrir o MAY pelos botoes de volume simultaneos.
+  - [x] Instalador de pacotes Root na tela de Ferramentas com seletor de arquivos APK e instalacao via comandos de superusuario.
+  - [x] Registro do MAY como instalador de pacotes no Android (Intent Filter para arquivos APK em gerenciadores de arquivos).
+  - [x] Dialogo minimalista e compacto de instalacao de APK com efeito completo Liquid Glass e opcoes de abrir app ou concluir.
+  - [x] Extracao estrita de strings, verificacao de imports e fluxo de testes na branch `test` antes do merge na `main`.

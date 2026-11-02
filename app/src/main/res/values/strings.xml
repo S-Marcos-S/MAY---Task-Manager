@@ -1321,4 +1321,56 @@
     <string name="background_infraction_cpu">%1$dx CPU</string>
 
     <string name="log_action_save_zip">Save ZIP</string>
+
+    <!-- Battery Reset on Plug & Live Charge Monitoring -->
+    <string name="battery_reset_on_plug_title">Reset on charger connected</string>
+    <string name="battery_reset_on_plug_desc">Reset session metrics immediately upon connecting charger</string>
+    <string name="total_charged">Charged</string>
+
+    <!-- App Inspector Feedback & Titles -->
+    <string name="root_inspector_actions_title">App Actions</string>
+    <string name="root_inspector_tab_memory">Memory &amp; Processes</string>
+    <string name="root_inspector_processes_title">Processes</string>
+    <string name="root_inspector_root_failed">Failed to collect data with superuser.</string>
+    <string name="root_inspector_action_unavailable">Action unavailable</string>
+
+    <!-- Tools & Shortcuts -->
+    <string name="task_manager_tab_tools">Tools</string>
+    <string name="accessibility_service_description">Enables detecting simultaneous volume button presses to bring MAY Task Manager to the foreground.</string>
+    <string name="tools_screen_title">Tools</string>
+    <string name="tools_log_recording_title">Logcat Recording</string>
+    <string name="tools_log_recording_desc">Real-time background system logcat capture for debugging and telemetry</string>
+    <string name="tools_log_recording_status_active">Recording active</string>
+    <string name="tools_log_recording_status_idle">Recording idle</string>
+    <string name="tools_start_recording">Start Recording</string>
+    <string name="tools_stop_recording">Stop &amp; Save</string>
+    <string name="tools_discard_recording">Discard</string>
+    <string name="tools_view_recordings">View Logs</string>
+    <string name="tools_system_logs_label">System</string>
+    <string name="tools_commands_title">Quick Commands</string>
+    <string name="tools_commands_desc">Configure hardware shortcuts and rapid triggers</string>
+    <string name="tools_cmd_open_may_title">Open MAY with Volume Keys</string>
+    <string name="tools_cmd_open_may_desc">Press Volume Up and Volume Down together to open MAY immediately</string>
+    <string name="tools_accessibility_active">Service Active</string>
+    <string name="tools_accessibility_inactive">Service Inactive</string>
+    <string name="tools_enable_accessibility">Enable in Settings</string>
+    <string name="tools_action_label">Action:</string>
+    <string name="tools_action_open_may">Open MAY</string>
+
+    <!-- Package Installer -->
+    <string name="tools_installer_title">APK Installer (Root)</string>
+    <string name="tools_installer_desc">Install APK packages directly from storage via Superuser</string>
+    <string name="tools_installer_select_btn">Select APK</string>
+    <string name="installer_dialog_title">Package Installation</string>
+    <string name="installer_installing">Installing via Root…</string>
+    <string name="installer_success">App installed successfully!</string>
+    <string name="installer_failed">Installation failed</string>
+    <string name="installer_action_install">Install</string>
+    <string name="installer_action_cancel">Cancel</string>
+    <string name="installer_action_open">Open</string>
+    <string name="installer_action_done">Done</string>
+    <string name="installer_action_close">Close</string>
+    <string name="installer_version_label">Version %1$s (%2$d)</string>
+    <string name="installer_reading_apk">Reading APK data…</string>
+    <string name="installer_invalid_apk">Could not parse information from this APK file.</string>
 </resources>

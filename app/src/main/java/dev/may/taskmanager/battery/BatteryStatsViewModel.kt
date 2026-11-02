@@ -179,6 +179,11 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
     // Backward compatibility for autoResetEnabled
     val autoResetEnabled: StateFlow<Boolean> = _autoResetChargingEnabled.asStateFlow()
 
+    private val _autoResetOnPlugConnected = MutableStateFlow(
+        prefs.getBoolean("auto_reset_on_plug_connected", false)
+    )
+    val autoResetOnPlugConnected: StateFlow<Boolean> = _autoResetOnPlugConnected.asStateFlow()
+
     private val _autoResetPercent = MutableStateFlow(prefs.getInt("auto_reset_percent", 100))
     val autoResetPercent: StateFlow<Int> = _autoResetPercent.asStateFlow()
 
@@ -209,6 +214,11 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
             .putBoolean("auto_reset_enabled", enabled)
             .apply()
         _autoResetChargingEnabled.value = enabled
+    }
+
+    fun setAutoResetOnPlugConnected(enabled: Boolean) {
+        prefs.edit().putBoolean("auto_reset_on_plug_connected", enabled).apply()
+        _autoResetOnPlugConnected.value = enabled
     }
 
     fun setAutoResetEnabled(enabled: Boolean) = setAutoResetChargingEnabled(enabled)

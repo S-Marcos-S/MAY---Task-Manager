@@ -52,6 +52,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.Build as BuildIcon
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.Bedtime
@@ -145,6 +146,7 @@ import dev.may.taskmanager.ui.theme.LocalGlassThemeActive
 import dev.may.taskmanager.ui.theme.dynamicBorderColor
 import dev.may.taskmanager.ui.theme.dynamicSurfaceColor
 import dev.may.taskmanager.ui.theme.glass.GlassCard
+import dev.may.taskmanager.ui.tools.ToolsScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -158,6 +160,7 @@ private enum class TaskManagerTab {
     NETWORK,
     BATTERY,
     CYCLES,
+    TOOLS,
     SETTINGS,
 }
 
@@ -444,6 +447,10 @@ fun TaskManagerScreen(
                         )
                     }
 
+                    TaskManagerTab.TOOLS -> {
+                        ToolsScreen()
+                    }
+
                     TaskManagerTab.SETTINGS -> {
                         SettingsScreen(
                             activeThemeId = activeThemeId,
@@ -537,6 +544,7 @@ private fun CleanTaskManagerTopBar(
                         TaskManagerTab.NETWORK -> stringResource(R.string.task_manager_tab_network) to Icons.Filled.Wifi
                         TaskManagerTab.BATTERY -> stringResource(R.string.task_manager_tab_battery) to Icons.Filled.BatteryChargingFull
                         TaskManagerTab.CYCLES -> stringResource(R.string.task_manager_tab_cycles) to Icons.Filled.Autorenew
+                        TaskManagerTab.TOOLS -> stringResource(R.string.task_manager_tab_tools) to BuildIcon
                         TaskManagerTab.SETTINGS -> stringResource(R.string.task_manager_tab_settings) to Icons.Filled.Settings
                     }
                     ExpressiveTabPill(

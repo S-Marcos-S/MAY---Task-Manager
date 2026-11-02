@@ -68,6 +68,7 @@ import dev.may.taskmanager.battery.DrainState
 import dev.may.taskmanager.battery.formatDuration
 import dev.may.taskmanager.battery.formatDrainRate
 import dev.may.taskmanager.battery.formatDrainPercentage
+import dev.may.taskmanager.battery.formatChargePercentage
 import dev.may.taskmanager.root.SystemTaskInspector
 import dev.may.taskmanager.ui.root.RealtimeTelemetryGraph
 import kotlinx.coroutines.delay
@@ -642,46 +643,69 @@ private fun RealtimeDrainCard(
                     ) {
                         DrainMetricItem(
                             label = stringResource(R.string.screen_on),
-                            rate = formatDrainPercentage(drainState.screenOnDrainRatePercent),
-                            time = formatDuration(drainState.screenOnTimeMs),
-                            color = Color(0xFFEAB308)
+                            rate = if (drainState.isCharging) {
+                                formatChargePercentage(if (drainState.screenOnChargeRatePercent > 0.0) drainState.screenOnChargeRatePercent else drainState.currentChargeRatePercent)
+                            } else {
+                                formatDrainPercentage(drainState.screenOnDrainRatePercent)
+                            },
+                            time = formatDuration(if (drainState.isCharging && drainState.screenOnChargeTimeMs > 0) drainState.screenOnChargeTimeMs else drainState.screenOnTimeMs),
+                            color = if (drainState.isCharging) Color(0xFF10B981) else Color(0xFFEAB308)
                         )
                         DrainMetricItem(
                             label = stringResource(R.string.screen_off),
-                            rate = formatDrainPercentage(drainState.screenOffDrainRatePercent),
-                            time = formatDuration(drainState.screenOffTimeMs),
+                            rate = if (drainState.isCharging) {
+                                formatChargePercentage(if (drainState.screenOffChargeRatePercent > 0.0) drainState.screenOffChargeRatePercent else drainState.currentChargeRatePercent)
+                            } else {
+                                formatDrainPercentage(drainState.screenOffDrainRatePercent)
+                            },
+                            time = formatDuration(if (drainState.isCharging && drainState.screenOffChargeTimeMs > 0) drainState.screenOffChargeTimeMs else drainState.screenOffTimeMs),
                             color = Color(0xFF3B82F6)
                         )
                         DrainMetricItem(
-                            label = stringResource(R.string.deep_sleep),
-                            rate = formatDrainPercentage(drainState.deepSleepDrainRatePercent),
-                            time = "${formatDuration(drainState.deepSleepTimeMs)} (${String.format(Locale.getDefault(), "%.0f%%", drainState.deepSleepPercentage)})",
-                            color = Color(0xFF10B981)
+                            label = if (drainState.isCharging) stringResource(R.string.total_charged) else stringResource(R.string.total),
+                            rate = String.format(Locale.getDefault(), "%.1f mAh", if (drainState.isCharging) drainState.totalChargeMah else drainState.totalDrainMah),
+                            time = formatDuration(drainState.totalTimeMs),
+                            color = if (drainState.isCharging) Color(0xFF10B981) else MaterialTheme.colorScheme.primary
                         )
                     }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    AnimatedVisibility(
+                        visible = !drainState.isCharging,
+                        enter = expandVertically(
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        ) + fadeIn(),
+                        exit = shrinkVertically(
+                            animationSpec = spring(
+                                stiffness = Spring.StiffnessMediumLow
+                            )
+                        ) + fadeOut()
                     ) {
-                        DrainMetricItem(
-                            label = stringResource(R.string.active),
-                            rate = formatDrainPercentage(drainState.activeDrainRatePercent),
-                            time = formatDuration(drainState.activeTimeMs),
-                            color = Color(0xFFEF4444)
-                        )
-                        DrainMetricItem(
-                            label = stringResource(R.string.idle),
-                            rate = formatDrainPercentage(drainState.idleDrainRatePercent),
-                            time = formatDuration(drainState.idleTimeMs),
-                            color = Color(0xFF8B5CF6)
-                        )
-                        DrainMetricItem(
-                            label = stringResource(R.string.total),
-                            rate = String.format(Locale.getDefault(), "%.1f mAh", drainState.totalDrainMah),
-                            time = formatDuration(drainState.totalTimeMs),
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            DrainMetricItem(
+                                label = stringResource(R.string.active),
+                                rate = formatDrainPercentage(drainState.activeDrainRatePercent),
+                                time = formatDuration(drainState.activeTimeMs),
+                                color = Color(0xFFEF4444)
+                            )
+                            DrainMetricItem(
+                                label = stringResource(R.string.idle),
+                                rate = formatDrainPercentage(drainState.idleDrainRatePercent),
+                                time = formatDuration(drainState.idleTimeMs),
+                                color = Color(0xFF8B5CF6)
+                            )
+                            DrainMetricItem(
+                                label = stringResource(R.string.deep_sleep),
+                                rate = formatDrainPercentage(drainState.deepSleepDrainRatePercent),
+                                time = "${formatDuration(drainState.deepSleepTimeMs)} (${String.format(Locale.getDefault(), "%.0f%%", drainState.deepSleepPercentage)})",
+                                color = Color(0xFF10B981)
+                            )
+                        }
                     }
                 }
             }
@@ -2962,6 +2986,7 @@ private fun formatBytes(bytes: Long): String {
 @Composable
 fun BatterySettingsTab(vm: BatteryStatsViewModel) {
     val autoResetChargingEnabled by vm.autoResetChargingEnabled.collectAsStateWithLifecycle()
+    val autoResetOnPlugConnected by vm.autoResetOnPlugConnected.collectAsStateWithLifecycle()
     val autoResetPercent by vm.autoResetPercent.collectAsStateWithLifecycle()
     val autoResetRebootEnabled by vm.autoResetRebootEnabled.collectAsStateWithLifecycle()
     val notifShowRates by vm.notifShowRates.collectAsStateWithLifecycle()
@@ -2979,6 +3004,22 @@ fun BatterySettingsTab(vm: BatteryStatsViewModel) {
             FrostedCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.battery_auto_reset_title), fontWeight = FontWeight.Bold)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.battery_reset_on_plug_title), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.battery_reset_on_plug_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = autoResetOnPlugConnected,
+                            onCheckedChange = { vm.setAutoResetOnPlugConnected(it) },
+                            modifier = Modifier.scale(0.80f)
+                        )
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),

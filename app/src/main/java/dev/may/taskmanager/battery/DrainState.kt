@@ -53,8 +53,29 @@ data class DrainState(
 
     // Network stats for the session
     val networkRxBytes: Long = 0L,
-    val networkTxBytes: Long = 0L
+    val networkTxBytes: Long = 0L,
+
+    // Cumulative charge by state (mAh) & time (ms)
+    val screenOnChargeMah: Double = 0.0,
+    val screenOffChargeMah: Double = 0.0,
+    val screenOnChargeTimeMs: Long = 0L,
+    val screenOffChargeTimeMs: Long = 0L,
+    val screenOnChargeRate: Double = 0.0,
+    val screenOffChargeRate: Double = 0.0,
+    val currentChargeRateMa: Double = 0.0
 ) {
+
+    val totalChargeMah: Double
+        get() = screenOnChargeMah + screenOffChargeMah
+
+    val screenOnChargeRatePercent: Double
+        get() = if (batteryCapacityMah > 0) (screenOnChargeRate / batteryCapacityMah * 100.0) else 0.0
+
+    val screenOffChargeRatePercent: Double
+        get() = if (batteryCapacityMah > 0) (screenOffChargeRate / batteryCapacityMah * 100.0) else 0.0
+
+    val currentChargeRatePercent: Double
+        get() = if (batteryCapacityMah > 0) (currentChargeRateMa / batteryCapacityMah * 100.0) else 0.0
 
     val totalDrainMah: Double
         get() = screenOnDrainMah + screenOffDrainMah
@@ -156,5 +177,13 @@ fun formatDrainPercentage(rate: Double): String {
         rate <= 0.0 -> "0.0%/h"
         rate < 0.1 -> "< 0.1%/h"
         else -> String.format(Locale.getDefault(), "%.1f%%/h", rate)
+    }
+}
+
+fun formatChargePercentage(rate: Double): String {
+    return when {
+        rate <= 0.0 -> "+0.0%/h"
+        rate < 0.1 -> "< +0.1%/h"
+        else -> String.format(Locale.getDefault(), "+%.1f%%/h", rate)
     }
 }

@@ -1282,4 +1282,56 @@
     <string name="background_infraction_cpu">%1$dx CPU</string>
 
     <string name="log_action_save_zip">Salvar ZIP</string>
+
+    <!-- Reset ao Conectar Carregador e Monitoramento Ao Vivo -->
+    <string name="battery_reset_on_plug_title">Resetar ao conectar carregador</string>
+    <string name="battery_reset_on_plug_desc">Zera as estatísticas da sessão imediatamente ao plugar o cabo</string>
+    <string name="total_charged">Carregado</string>
+
+    <!-- Mensagens e Titulos do Inspetor de Processos -->
+    <string name="root_inspector_actions_title">Ações do Aplicativo</string>
+    <string name="root_inspector_tab_memory">Memória e Processos</string>
+    <string name="root_inspector_processes_title">Processos</string>
+    <string name="root_inspector_root_failed">Falha ao coletar dados com superusuário.</string>
+    <string name="root_inspector_action_unavailable">Ação indisponível</string>
+
+    <!-- Ferramentas e Atalhos -->
+    <string name="task_manager_tab_tools">Ferramentas</string>
+    <string name="accessibility_service_description">Permite detectar o acionamento simultâneo dos botões de volume para abrir o MAY Task Manager.</string>
+    <string name="tools_screen_title">Ferramentas</string>
+    <string name="tools_log_recording_title">Gravação de Logs</string>
+    <string name="tools_log_recording_desc">Captura contínua do logcat do sistema em segundo plano para análise e telemetria</string>
+    <string name="tools_log_recording_status_active">Gravação ativa</string>
+    <string name="tools_log_recording_status_idle">Gravação inativa</string>
+    <string name="tools_start_recording">Iniciar Gravação</string>
+    <string name="tools_stop_recording">Parar e Salvar</string>
+    <string name="tools_discard_recording">Descartar</string>
+    <string name="tools_view_recordings">Ver Gravações</string>
+    <string name="tools_system_logs_label">Sistema</string>
+    <string name="tools_commands_title">Comandos Rápidos</string>
+    <string name="tools_commands_desc">Configure atalhos físicos e acionamentos rápidos</string>
+    <string name="tools_cmd_open_may_title">Abrir MAY com botões de volume</string>
+    <string name="tools_cmd_open_may_desc">Pressione os botões Aumentar e Diminuir Volume juntos para abrir o MAY instantaneamente</string>
+    <string name="tools_accessibility_active">Serviço Ativo</string>
+    <string name="tools_accessibility_inactive">Serviço Inativo</string>
+    <string name="tools_enable_accessibility">Ativar nas Configurações</string>
+    <string name="tools_action_label">Ação:</string>
+    <string name="tools_action_open_may">Abrir MAY</string>
+
+    <!-- Instalador de Pacotes -->
+    <string name="tools_installer_title">Instalador de APK (Root)</string>
+    <string name="tools_installer_desc">Instale pacotes APK do armazenamento diretamente via Superusuário</string>
+    <string name="tools_installer_select_btn">Selecionar APK</string>
+    <string name="installer_dialog_title">Instalação de Pacote</string>
+    <string name="installer_installing">Instalando via Root…</string>
+    <string name="installer_success">Aplicativo instalado com sucesso!</string>
+    <string name="installer_failed">Falha na instalação</string>
+    <string name="installer_action_install">Instalar</string>
+    <string name="installer_action_cancel">Cancelar</string>
+    <string name="installer_action_open">Abrir</string>
+    <string name="installer_action_done">Concluir</string>
+    <string name="installer_action_close">Fechar</string>
+    <string name="installer_version_label">Versão %1$s (%2$d)</string>
+    <string name="installer_reading_apk">Lendo dados do APK…</string>
+    <string name="installer_invalid_apk">Não foi possível ler as informações deste arquivo APK.</string>
 </resources>

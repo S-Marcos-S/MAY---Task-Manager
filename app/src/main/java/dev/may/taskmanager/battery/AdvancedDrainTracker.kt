@@ -158,6 +158,12 @@ class AdvancedDrainTracker private constructor(
     private var cumulativeActiveDrain: Double = 0.0
     private var cumulativeIdleDrain: Double = 0.0
 
+    // Cumulative charge (mAh) & time (ms)
+    private var cumulativeScreenOnChargeMah: Double = 0.0
+    private var cumulativeScreenOffChargeMah: Double = 0.0
+    private var cumulativeScreenOnChargeTime: Long = 0L
+    private var cumulativeScreenOffChargeTime: Long = 0L
+
     private var cumulativeNetworkRxBytes: Long = 0L
     private var cumulativeNetworkTxBytes: Long = 0L
 
@@ -180,10 +186,17 @@ class AdvancedDrainTracker private constructor(
                         val pct = if (scale > 0 && level >= 0) (level * 100) / scale else level
 
                         val prefs = context.getSharedPreferences("battery_prefs", Context.MODE_PRIVATE)
+                        val resetOnPlug = prefs.getBoolean("auto_reset_on_plug_connected", false)
                         val autoResetCharging = prefs.getBoolean("auto_reset_charging_enabled", prefs.getBoolean("auto_reset_enabled", true))
                         val target = prefs.getInt("auto_reset_percent", 100).coerceIn(50, 100)
 
-                        if (autoResetCharging && (pct >= target || pct >= 100 || status == BatteryManager.BATTERY_STATUS_FULL)) {
+                        if (resetOnPlug && !hasResetForCurrentChargeCycle) {
+                            hasResetForCurrentChargeCycle = true
+                            scope.launch {
+                                resetSession()
+                                updateDrainState()
+                            }
+                        } else if (autoResetCharging && (pct >= target || pct >= 100 || status == BatteryManager.BATTERY_STATUS_FULL)) {
                             if (!hasResetForCurrentChargeCycle) {
                                 hasResetForCurrentChargeCycle = true
                                 scope.launch {
@@ -202,7 +215,13 @@ class AdvancedDrainTracker private constructor(
 
     fun onPowerConnected() {
         hasResetForCurrentChargeCycle = false
+        val prefs = context.getSharedPreferences("battery_prefs", Context.MODE_PRIVATE)
+        val resetOnPlug = prefs.getBoolean("auto_reset_on_plug_connected", false)
         scope.launch {
+            if (resetOnPlug) {
+                hasResetForCurrentChargeCycle = true
+                resetSession()
+            }
             takeSnapshot()?.let { snapshot ->
                 lastSnapshot = snapshot
                 updateDrainState()
@@ -522,6 +541,11 @@ class AdvancedDrainTracker private constructor(
         cumulativeActiveDrain = 0.0
         cumulativeIdleDrain = 0.0
 
+        cumulativeScreenOnChargeMah = 0.0
+        cumulativeScreenOffChargeMah = 0.0
+        cumulativeScreenOnChargeTime = 0L
+        cumulativeScreenOffChargeTime = 0L
+
         cumulativeNetworkRxBytes = 0L
         cumulativeNetworkTxBytes = 0L
 
@@ -652,10 +676,25 @@ class AdvancedDrainTracker private constructor(
 
     private fun processSnapshot(current: DrainSnapshot, wasScreenOn: Boolean) {
         val previous = lastSnapshot ?: return
-        if (current.isCharging || previous.isCharging) return
-
         val timeDelta = current.timestamp - previous.timestamp
         if (timeDelta <= 0) return
+
+        if (current.isCharging || previous.isCharging) {
+            val liveCurrentMa = abs(getCurrentNowMa().toDouble())
+            val currentMah = current.batteryMah ?: 0.0
+            val previousMah = previous.batteryMah ?: 0.0
+            val deltaMah = max(0.0, currentMah - previousMah)
+            val addedMah = if (deltaMah > 0.0) deltaMah else if (liveCurrentMa > 0.0) (liveCurrentMa * (timeDelta / 3600000.0)) else 0.0
+
+            if (wasScreenOn) {
+                cumulativeScreenOnChargeMah += addedMah
+                cumulativeScreenOnChargeTime += timeDelta
+            } else {
+                cumulativeScreenOffChargeMah += addedMah
+                cumulativeScreenOffChargeTime += timeDelta
+            }
+            return
+        }
 
         val previousMah = previous.batteryMah ?: return
         val currentMah = current.batteryMah ?: return
@@ -719,6 +758,15 @@ class AdvancedDrainTracker private constructor(
         val deepSleepDrainRate = calculateRate(cumulativeDeepSleepDrain, deepSleepTimeMs)
         val awakeDrainRate = calculateRate(cumulativeAwakeDrain, awakeTimeMs)
 
+        val isNowCharging = isCharging()
+        val liveChargeMa = if (isNowCharging) abs(getCurrentNowMa().toDouble()).let { if (it > 0) it else 1500.0 } else 0.0
+        val screenOnChargeRate = calculateRate(cumulativeScreenOnChargeMah, cumulativeScreenOnChargeTime).let {
+            if (it > 0.0) it else if (isNowCharging && powerManager.isInteractive) liveChargeMa else 0.0
+        }
+        val screenOffChargeRate = calculateRate(cumulativeScreenOffChargeMah, cumulativeScreenOffChargeTime).let {
+            if (it > 0.0) it else if (isNowCharging && !powerManager.isInteractive) liveChargeMa else 0.0
+        }
+
         _drainState.value = DrainState(
             timestamp = now,
             batteryLevel = getBatteryLevel(),
@@ -726,7 +774,7 @@ class AdvancedDrainTracker private constructor(
             batteryTemperatureC = getBatteryTemperatureC(),
             batteryCapacityMah = estimatedCapacityMah,
             isScreenOn = powerManager.isInteractive,
-            isCharging = isCharging(),
+            isCharging = isNowCharging,
             isDeepSleep = !powerManager.isInteractive && (nowRealtime - nowUptime > 0),
             isDozing = powerManager.isDeviceIdleMode,
 
@@ -755,7 +803,15 @@ class AdvancedDrainTracker private constructor(
             lastUpdateTime = now,
 
             networkRxBytes = cumulativeNetworkRxBytes,
-            networkTxBytes = cumulativeNetworkTxBytes
+            networkTxBytes = cumulativeNetworkTxBytes,
+
+            screenOnChargeMah = cumulativeScreenOnChargeMah,
+            screenOffChargeMah = cumulativeScreenOffChargeMah,
+            screenOnChargeTimeMs = cumulativeScreenOnChargeTime,
+            screenOffChargeTimeMs = cumulativeScreenOffChargeTime,
+            screenOnChargeRate = screenOnChargeRate,
+            screenOffChargeRate = screenOffChargeRate,
+            currentChargeRateMa = liveChargeMa
         )
     }
 

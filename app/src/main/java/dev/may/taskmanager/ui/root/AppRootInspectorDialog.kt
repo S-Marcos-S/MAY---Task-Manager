@@ -46,10 +46,12 @@ import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.PlayArrow
@@ -316,6 +318,21 @@ fun AppRootInspectorDialog(
     val maxBubbleX = (screenWidthPx - with(density) { 72.dp.toPx() }).roundToInt().coerceAtLeast(0)
     val maxBubbleY = (screenHeightPx - with(density) { 80.dp.toPx() }).roundToInt().coerceAtLeast(0)
 
+    var feedbackMessage by remember { mutableStateOf<String?>(null) }
+    var feedbackIsError by remember { mutableStateOf(false) }
+
+    LaunchedEffect(feedbackMessage) {
+        if (feedbackMessage != null) {
+            delay(2800L)
+            feedbackMessage = null
+        }
+    }
+
+    val onShowFeedback: (String, Boolean) -> Unit = { msg, isErr ->
+        feedbackMessage = msg
+        feedbackIsError = isErr
+    }
+
     fun refreshData(showIndicator: Boolean = false) {
         scope.launch {
             if (showIndicator) isRefreshing = true
@@ -384,11 +401,12 @@ fun AppRootInspectorDialog(
                     tonalElevation = 8.dp,
                     shadowElevation = 16.dp,
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                    ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                        ) {
                         // Drag handle pill at the top (draggable!)
                         Box(
                             modifier = Modifier
@@ -636,7 +654,7 @@ fun AppRootInspectorDialog(
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    text = "Falha ao coletar dados com superusuário.",
+                                    text = stringResource(R.string.root_inspector_root_failed),
                                     color = colorScheme.error,
                                     fontSize = 13.sp,
                                 )
@@ -716,7 +734,7 @@ fun AppRootInspectorDialog(
                                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                             ) {
                                 TabButton(
-                                    title = "Memória e Processos",
+                                    title = stringResource(R.string.root_inspector_tab_memory),
                                     icon = Icons.Filled.Memory,
                                     selected = selectedTab == InspectorTab.MEMORY,
                                     onClick = { selectedTab = InspectorTab.MEMORY },
@@ -773,7 +791,7 @@ fun AppRootInspectorDialog(
                                         InspectorTab.MEMORY -> {
                                             MemoryTabContent(data)
                                             Spacer(Modifier.height(16.dp))
-                                            Text("Processos", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
+                                            Text(stringResource(R.string.root_inspector_processes_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
                                             Spacer(Modifier.height(8.dp))
                                             ProcessesTabContent(
                                                 data = data,
@@ -781,10 +799,10 @@ fun AppRootInspectorDialog(
                                                     scope.launch {
                                                         val killed = AppRootInspector.killProcess(pid)
                                                         if (killed) {
-                                                            Toast.makeText(context, context.getString(R.string.root_inspector_toast_kill_success, pid), Toast.LENGTH_SHORT).show()
+                                                            onShowFeedback(context.getString(R.string.root_inspector_toast_kill_success, pid), false)
                                                             refreshData(showIndicator = true)
                                                         } else {
-                                                            Toast.makeText(context, context.getString(R.string.root_inspector_toast_kill_error), Toast.LENGTH_SHORT).show()
+                                                            onShowFeedback(context.getString(R.string.root_inspector_toast_kill_error), true)
                                                         }
                                                     }
                                                 },
@@ -796,7 +814,8 @@ fun AppRootInspectorDialog(
                                                 context = context,
                                                 scope = scope,
                                                 onRefreshData = { refreshData(showIndicator = true) },
-                                                onDismissRequest = onDismissRequest
+                                                onDismissRequest = onDismissRequest,
+                                                onShowFeedback = onShowFeedback
                                             )
                                         }
                                         InspectorTab.NETWORK -> {
@@ -814,6 +833,43 @@ fun AppRootInspectorDialog(
                         }
                     }
 
+                    // Animated In-Dialog Feedback Banner
+                    AnimatedVisibility(
+                        visible = feedbackMessage != null,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically(),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 12.dp, start = 14.dp, end = 14.dp)
+                    ) {
+                        feedbackMessage?.let { msg ->
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (feedbackIsError) colorScheme.errorContainer else colorScheme.primaryContainer,
+                                border = BorderStroke(1.dp, if (feedbackIsError) colorScheme.error else colorScheme.primary),
+                                shadowElevation = 8.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (feedbackIsError) Icons.Filled.ErrorOutline else Icons.Filled.CheckCircle,
+                                        contentDescription = null,
+                                        tint = if (feedbackIsError) colorScheme.onErrorContainer else colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = msg,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (feedbackIsError) colorScheme.onErrorContainer else colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1557,7 +1613,7 @@ private fun NetworkTabContent(data: AppInspectionData) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "Ver mais",
+                text = stringResource(R.string.action_show_more),
                 color = colorScheme.primary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -1578,7 +1634,7 @@ private fun NetworkTabContent(data: AppInspectionData) {
                                 }
                                 context.startActivity(fallback)
                             } catch (e2: Exception) {
-                                Toast.makeText(context, "Ação indisponível", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.root_inspector_action_unavailable), Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -2111,10 +2167,17 @@ private fun ActionButton(
 
 
 @Composable
-private fun ActionsTabContent(app: AppInfo, context: android.content.Context, scope: kotlinx.coroutines.CoroutineScope, onRefreshData: () -> Unit, onDismissRequest: () -> Unit) {
+private fun ActionsTabContent(
+    app: AppInfo,
+    context: android.content.Context,
+    scope: kotlinx.coroutines.CoroutineScope,
+    onRefreshData: () -> Unit,
+    onDismissRequest: () -> Unit,
+    onShowFeedback: (String, Boolean) -> Unit
+) {
     val colorScheme = MaterialTheme.colorScheme
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Ações do Aplicativo", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
+        Text(stringResource(R.string.root_inspector_actions_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
         Spacer(Modifier.height(4.dp))
         ActionButton(
             modifier = Modifier.fillMaxWidth(),
@@ -2135,8 +2198,10 @@ private fun ActionsTabContent(app: AppInfo, context: android.content.Context, sc
             onClick = {
                 scope.launch {
                     if (AppRootInspector.forceStopApp(app.packageName)) {
-                        Toast.makeText(context, context.getString(R.string.root_inspector_toast_stopped), Toast.LENGTH_SHORT).show()
+                        onShowFeedback(context.getString(R.string.root_inspector_toast_stopped), false)
                         onRefreshData()
+                    } else {
+                        onShowFeedback(context.getString(R.string.root_inspector_toast_kill_error), true)
                     }
                 }
             }
@@ -2151,8 +2216,10 @@ private fun ActionsTabContent(app: AppInfo, context: android.content.Context, sc
             onClick = {
                 scope.launch {
                     if (AppRootInspector.clearAppCache(app.packageName)) {
-                        Toast.makeText(context, context.getString(R.string.root_inspector_toast_cache_cleared), Toast.LENGTH_SHORT).show()
+                        onShowFeedback(context.getString(R.string.root_inspector_toast_cache_cleared), false)
                         onRefreshData()
+                    } else {
+                        onShowFeedback(context.getString(R.string.root_inspector_toast_kill_error), true)
                     }
                 }
             }
@@ -2179,10 +2246,10 @@ private fun ActionsTabContent(app: AppInfo, context: android.content.Context, sc
             onClick = {
                 scope.launch {
                     if (AppRootInspector.uninstallApp(app.packageName)) {
-                        Toast.makeText(context, context.getString(R.string.root_inspector_toast_stopped), Toast.LENGTH_SHORT).show()
+                        onShowFeedback(context.getString(R.string.root_inspector_toast_stopped), false)
                         onDismissRequest()
                     } else {
-                        Toast.makeText(context, context.getString(R.string.root_inspector_toast_kill_error), Toast.LENGTH_SHORT).show()
+                        onShowFeedback(context.getString(R.string.root_inspector_toast_kill_error), true)
                     }
                 }
             }
@@ -2197,8 +2264,10 @@ private fun ActionsTabContent(app: AppInfo, context: android.content.Context, sc
             onClick = {
                 scope.launch {
                     if (AppRootInspector.restrictBackgroundUsage(app.packageName, context)) {
-                        Toast.makeText(context, context.getString(R.string.root_inspector_toast_stopped), Toast.LENGTH_SHORT).show()
+                        onShowFeedback(context.getString(R.string.root_inspector_toast_stopped), false)
                         onRefreshData()
+                    } else {
+                        onShowFeedback(context.getString(R.string.root_inspector_toast_kill_error), true)
                     }
                 }
             }

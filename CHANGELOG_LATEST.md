@@ -1,5 +1,8 @@
-### MAY Task Manager v1.0.5
-- Resolucao de race condition na inicializacao dos Ciclos de Bateria: carga sincronica de dados antes de escutar eventos de hardware.
-- Gravacao atomica em disco para arquivos de ciclos (active_cycle.json e cycles.json), evitando corrupcao ou perda em encerramentos abruptos.
-- Forcada persistencia sincronizada do ciclo ativo imediatamente antes de instalar atualizacoes via root ou pelo instalador do sistema.
+### MAY Task Manager v1.0.6
+- Opcao de reset automatico das estatisticas de bateria ao conectar carregador.
+- Reorganizacao dos cards de consumo ao vivo: Total na linha superior e recolhimento animado dos cards inferiores ao carregar.
+- Cards superiores adaptados durante o carregamento com taxa (%/h) e mAh carregados.
+- Correcao de mensagens de feedback na aba de Acoes do inspetor de processos com banner interno animado.
+- Nova tela Ferramentas: gravacao continua de logs do sistema e comando para abrir o MAY pelos botoes de volume.
+- Instalador de pacotes APK via Root integrado na tela de Ferramentas e registrado como instalador no Android com suporte completo a Liquid Glass.
 ---
