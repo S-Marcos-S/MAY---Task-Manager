@@ -62,7 +62,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.may.taskmanager.R
 import dev.may.taskmanager.ui.theme.dynamicBorderColor
-import dev.may.taskmanager.ui.theme.glass.FrostedCard
+import dev.may.taskmanager.ui.theme.glass.GlassCard
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -111,11 +111,9 @@ fun PackageInstallDialog(
             usePlatformDefaultWidth = false,
         )
     ) {
-        FrostedCard(
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .clip(RoundedCornerShape(20.dp))
-                .border(1.dp, dynamicBorderColor(), RoundedCornerShape(20.dp))
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(0.92f),
+            cornerRadiusDp = 20.dp,
         ) {
             Column(
                 modifier = Modifier

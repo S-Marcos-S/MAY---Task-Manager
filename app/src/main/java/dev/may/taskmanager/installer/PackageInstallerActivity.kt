@@ -58,7 +58,7 @@ class PackageInstallerActivity : ComponentActivity() {
         }
 
         setContent {
-            MayTheme(themeId = activeThemeId) {
+            MayTheme(activeThemeId = activeThemeId) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     PackageInstallDialog(
                         apkUri = uri,

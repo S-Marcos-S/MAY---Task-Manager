@@ -52,7 +52,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Autorenew
-import androidx.compose.material.icons.filled.Build as BuildIcon
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.Bedtime
@@ -544,7 +544,7 @@ private fun CleanTaskManagerTopBar(
                         TaskManagerTab.NETWORK -> stringResource(R.string.task_manager_tab_network) to Icons.Filled.Wifi
                         TaskManagerTab.BATTERY -> stringResource(R.string.task_manager_tab_battery) to Icons.Filled.BatteryChargingFull
                         TaskManagerTab.CYCLES -> stringResource(R.string.task_manager_tab_cycles) to Icons.Filled.Autorenew
-                        TaskManagerTab.TOOLS -> stringResource(R.string.task_manager_tab_tools) to BuildIcon
+                        TaskManagerTab.TOOLS -> stringResource(R.string.task_manager_tab_tools) to Icons.Filled.Build
                         TaskManagerTab.SETTINGS -> stringResource(R.string.task_manager_tab_settings) to Icons.Filled.Settings
                     }
                     ExpressiveTabPill(

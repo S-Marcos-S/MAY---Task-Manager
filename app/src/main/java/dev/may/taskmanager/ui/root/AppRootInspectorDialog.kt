@@ -965,6 +965,7 @@ fun AppRootInspectorDialog(
         }
     }
 }
+}
 
 @Composable
 private fun MetricCard(

@@ -73,7 +73,7 @@ import dev.may.taskmanager.root.AppLogCaptureService
 import dev.may.taskmanager.service.MayAccessibilityService
 import dev.may.taskmanager.ui.root.AppLogViewerDialog
 import dev.may.taskmanager.ui.theme.dynamicBorderColor
-import dev.may.taskmanager.ui.theme.glass.FrostedCard
+import dev.may.taskmanager.ui.theme.glass.GlassCard
 
 @Composable
 fun ToolsScreen(
@@ -132,7 +132,7 @@ fun ToolsScreen(
     ) {
         // Section 1: Gravação de Logs do Sistema
         item {
-            FrostedCard(modifier = Modifier.fillMaxWidth()) {
+            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadiusDp = 16.dp) {
                 Column(
                     modifier = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -289,7 +289,7 @@ fun ToolsScreen(
 
         // Section 2: Instalador de APK (Root)
         item {
-            FrostedCard(modifier = Modifier.fillMaxWidth()) {
+            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadiusDp = 16.dp) {
                 Column(
                     modifier = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -353,7 +353,7 @@ fun ToolsScreen(
 
         // Section 3: Criação de Comandos e Atalhos
         item {
-            FrostedCard(modifier = Modifier.fillMaxWidth()) {
+            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadiusDp = 16.dp) {
                 Column(
                     modifier = Modifier.padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
