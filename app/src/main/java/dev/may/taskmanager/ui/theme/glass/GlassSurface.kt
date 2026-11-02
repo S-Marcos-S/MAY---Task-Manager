@@ -1,0 +1,228 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package dev.may.taskmanager.ui.theme.glass
+
+import android.graphics.RectF
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import dev.may.taskmanager.ui.theme.LocalGlassThemeActive
+import dev.may.taskmanager.ui.theme.dynamicBorderColor
+import dev.may.taskmanager.ui.theme.dynamicSurfaceColor
+
+/**
+ * Universal glass container that renders refractive liquid/frosted glass backdrop
+ * mapped 1:1 to screen wallpaper coordinates.
+ */
+@Composable
+fun GlassSurface(
+    modifier: Modifier = Modifier,
+    cornerPx: Float? = null,
+    topCornerPx: Float? = null,
+    bottomCornerPx: Float? = null,
+    cornerFraction: Float = 0.28f,
+    tintOpacity: Int = 20,
+    style: GlassStyle = GlassStyle.DEFAULT,
+    surfaceColor: Int = MaterialTheme.colorScheme.secondaryContainer.toArgb(),
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val isDark = isSystemInDarkTheme()
+    val density = LocalDensity.current.density
+    val context = LocalContext.current
+    val view = LocalView.current
+    val configuration = LocalConfiguration.current
+    val (screenWidthPx, screenHeightPx) = remember(context, view, configuration) {
+        WallpaperGlassProvider.getRealWindowSize(context, view)
+    }
+    var positionInWindow by remember { mutableStateOf(Offset.Zero) }
+    val elementBounds = remember { RectF() }
+
+    LaunchedEffect(Unit) {
+        WallpaperGlassProvider.init(context)
+    }
+    val wallpaperTick by WallpaperGlassProvider.wallpaperTick.collectAsState()
+
+    Box(
+        modifier = modifier
+            .onGloballyPositioned { coords ->
+                positionInWindow = coords.positionInWindow()
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        val tick = wallpaperTick
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val dummy = tick
+            drawIntoCanvas { composeCanvas ->
+                val defaultCorner = cornerPx ?: (size.width * cornerFraction)
+                val resolvedTopCorner = topCornerPx ?: defaultCorner
+                val resolvedBottomCorner = bottomCornerPx ?: defaultCorner
+                elementBounds.set(0f, 0f, size.width, size.height)
+                WallpaperGlassProvider.drawGlassElement(
+                    canvas = composeCanvas.nativeCanvas,
+                    bounds = elementBounds,
+                    positionInWindow = positionInWindow,
+                    screenWidth = screenWidthPx,
+                    screenHeight = screenHeightPx,
+                    topCorner = resolvedTopCorner,
+                    bottomCorner = resolvedBottomCorner,
+                    style = style,
+                    surfaceColor = surfaceColor,
+                    tintOpacity = tintOpacity,
+                    density = density,
+                    night = isDark,
+                )
+            }
+        }
+        content()
+    }
+}
+
+/**
+ * Universal container for modal dialogs and sheets that automatically
+ * applies full refractive liquid glass backdrop when the Glass theme is active.
+ */
+@Composable
+fun GlassDialogContainer(
+    modifier: Modifier = Modifier,
+    cornerRadiusDp: Dp = 24.dp,
+    topCornerDp: Dp = cornerRadiusDp,
+    bottomCornerDp: Dp = cornerRadiusDp,
+    isGlassActive: Boolean = LocalGlassThemeActive.current,
+    style: GlassStyle = GlassStyle.DIALOG,
+    tintOpacity: Int? = null,
+    surfaceColor: Int = dynamicSurfaceColor(alpha = 1f).toArgb(),
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val isDark = isSystemInDarkTheme()
+    val resolvedTintOpacity = tintOpacity ?: if (isDark) 55 else 62
+    val density = LocalDensity.current
+    val topPx = with(density) { topCornerDp.toPx() }
+    val bottomPx = with(density) { bottomCornerDp.toPx() }
+    val shape = RoundedCornerShape(
+        topStart = topCornerDp,
+        topEnd = topCornerDp,
+        bottomEnd = bottomCornerDp,
+        bottomStart = bottomCornerDp,
+    )
+
+    if (isGlassActive) {
+        GlassSurface(
+            modifier = modifier.clip(shape),
+            topCornerPx = topPx,
+            bottomCornerPx = bottomPx,
+            style = style,
+            tintOpacity = resolvedTintOpacity,
+            surfaceColor = surfaceColor,
+            content = content,
+        )
+    } else {
+        Surface(
+            modifier = modifier.clip(shape),
+            shape = shape,
+            color = dynamicSurfaceColor(),
+            border = BorderStroke(1.dp, dynamicBorderColor()),
+            tonalElevation = 6.dp,
+        ) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+                content = content,
+            )
+        }
+    }
+}
+
+/**
+ * Universal container for cards across Task Manager and Settings screens.
+ * Renders refractive liquid glass when Glass theme is active,
+ * or smooth dynamic surface with subtle border when standard Monet theme is active.
+ */
+@Composable
+fun GlassCard(
+    modifier: Modifier = Modifier,
+    cornerRadiusDp: Dp = 16.dp,
+    topCornerDp: Dp = cornerRadiusDp,
+    bottomCornerDp: Dp = cornerRadiusDp,
+    isGlassActive: Boolean = LocalGlassThemeActive.current,
+    style: GlassStyle = GlassStyle.DIALOG,
+    tintOpacity: Int? = null,
+    surfaceColor: Int = dynamicSurfaceColor(alpha = 1f).toArgb(),
+    fallbackColor: Color = dynamicSurfaceColor(alpha = 0.52f, tintFraction = 0.14f),
+    border: BorderStroke? = BorderStroke(1.dp, dynamicBorderColor(alpha = 0.20f, tintFraction = 0.20f)),
+    onClick: (() -> Unit)? = null,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val isDark = isSystemInDarkTheme()
+    val resolvedTintOpacity = tintOpacity ?: if (isDark) 48 else 58
+    val density = LocalDensity.current
+    val topPx = with(density) { topCornerDp.toPx() }
+    val bottomPx = with(density) { bottomCornerDp.toPx() }
+    val shape = RoundedCornerShape(
+        topStart = topCornerDp,
+        topEnd = topCornerDp,
+        bottomEnd = bottomCornerDp,
+        bottomStart = bottomCornerDp,
+    )
+
+    val baseModifier = if (onClick != null) {
+        modifier
+            .clip(shape)
+            .clickable(onClick = onClick)
+    } else {
+        modifier.clip(shape)
+    }
+
+    if (isGlassActive) {
+        GlassSurface(
+            modifier = baseModifier,
+            topCornerPx = topPx,
+            bottomCornerPx = bottomPx,
+            style = style,
+            tintOpacity = resolvedTintOpacity,
+            surfaceColor = surfaceColor,
+            content = content,
+        )
+    } else {
+        Surface(
+            modifier = baseModifier,
+            shape = shape,
+            color = fallbackColor,
+            border = border,
+            tonalElevation = 2.dp,
+        ) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                content = content,
+            )
+        }
+    }
+}

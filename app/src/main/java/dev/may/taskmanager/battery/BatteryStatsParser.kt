@@ -1,0 +1,1207 @@
+package dev.may.taskmanager.battery
+
+import kotlin.math.roundToLong
+
+/**
+ * Comprehensive parser for `dumpsys batterystats --checkin` and related commands.
+ * Extracts detailed per-app and system-wide battery statistics.
+ */
+object BatteryStatsParser {
+
+    const val PER_USER_RANGE = 100_000
+    const val FIRST_APPLICATION_UID = 10_000
+    const val SYSTEM_UID = 1000
+
+    fun appId(uid: Int): Int = uid % PER_USER_RANGE
+
+    fun isSystemUid(uid: Int): Boolean = appId(uid) < FIRST_APPLICATION_UID
+
+    fun displayNameFor(uid: Int, packages: List<String>): String = when {
+        appId(uid) == SYSTEM_UID -> "System"
+        packages.size == 1 -> packages.single()
+        packages.size > 1 -> "Shared UID $uid"
+        else -> "uid:$uid"
+    }
+
+    fun isUserApp(uid: Int, packages: List<String>): Boolean {
+        if (isSystemUid(uid)) return false
+        val names = if (packages.isNotEmpty()) packages else emptyList()
+        if (names.isEmpty()) return true
+        return names.none {
+            it == "android" ||
+                it.startsWith("com.android.") ||
+                it.startsWith("com.google.android")
+        }
+    }
+
+    fun packagesFor(uid: Int, map: Map<Int, Collection<String>>): List<String> =
+        map[uid]?.toList().orEmpty()
+
+    data class FullSnapshot(
+        val capturedAt: Long = System.currentTimeMillis(),
+        val statsSinceCharged: Boolean = true,
+        val batteryRealtimeMs: Long = 0L,
+        val batteryUptimeMs: Long = 0L,
+        val screenOnTimeMs: Long = 0L,
+        val screenOffDischargePercent: Float = 0f,
+        val screenOnDischargePercent: Float = 0f,
+        val estimatedCapacityMah: Int = 0,
+        val apps: List<AppPowerStats> = emptyList(),
+        val wakelocks: List<WakelockStats> = emptyList(),
+        val kernelWakelocks: List<KernelWakelockStats> = emptyList(),
+        val alarms: List<AlarmStats> = emptyList(),
+        val jobs: List<JobStats> = emptyList(),
+        val syncs: List<SyncStats> = emptyList(),
+        val network: List<NetworkStats> = emptyList(),
+        val sensors: List<SensorStats> = emptyList(),
+        val signalStrength: List<SignalStrengthStats> = emptyList(),
+        val wifiSignal: List<WifiSignalStats> = emptyList(),
+        val bluetooth: BluetoothStats? = null,
+        val doze: DozeStats? = null,
+        val cpuFrequency: List<CpuFrequencyStats> = emptyList(),
+        val processStats: List<ProcessStats> = emptyList()
+    )
+
+    data class AppPowerStats(
+        val uid: Int,
+        val packageName: String,
+        val powerMah: Double,
+        val packages: List<String> = emptyList(),
+        val cpuTimeMs: Long = 0L,
+        val cpuPowerMah: Double = 0.0,
+        val wakeLockTimeMs: Long = 0L,
+        val wakeLockPowerMah: Double = 0.0,
+        val mobilePowerMah: Double = 0.0,
+        val wifiPowerMah: Double = 0.0,
+        val gpsPowerMah: Double = 0.0,
+        val sensorPowerMah: Double = 0.0,
+        val cameraPowerMah: Double = 0.0,
+        val flashlightPowerMah: Double = 0.0,
+        val audioPowerMah: Double = 0.0,
+        val videoPowerMah: Double = 0.0,
+        val bluetoothPowerMah: Double = 0.0,
+        val screenPowerMah: Double = 0.0,
+        val proportionalSmearMah: Double = 0.0,
+        val foregroundTimeMs: Long = 0L,
+        val foregroundServiceTimeMs: Long = 0L,
+        val backgroundTimeMs: Long = 0L,
+        val cachedTimeMs: Long = 0L,
+        val topTimeMs: Long = 0L,
+        val mobileRxBytes: Long = 0L,
+        val mobileTxBytes: Long = 0L,
+        val wifiRxBytes: Long = 0L,
+        val wifiTxBytes: Long = 0L,
+        val mobileRxPackets: Long = 0L,
+        val mobileTxPackets: Long = 0L,
+        val wifiRxPackets: Long = 0L,
+        val wifiTxPackets: Long = 0L,
+        val gpsTimeMs: Long = 0L,
+        val sensorTimeMs: Long = 0L,
+        val cameraTimeMs: Long = 0L,
+        val flashlightTimeMs: Long = 0L,
+        val audioTimeMs: Long = 0L,
+        val videoTimeMs: Long = 0L,
+        val bluetoothScanTimeMs: Long = 0L,
+        val bluetoothUnoptimizedScanTimeMs: Long = 0L
+    )
+
+    private data class StateTimes(
+        val topTimeMs: Long = 0L,
+        val foregroundServiceTimeMs: Long = 0L,
+        val topSleepingTimeMs: Long = 0L,
+        val foregroundTimeMs: Long = 0L,
+        val backgroundTimeMs: Long = 0L,
+        val cachedTimeMs: Long = 0L
+    )
+
+    data class WakelockStats(
+        val uid: Int,
+        val packageName: String,
+        val packages: List<String> = emptyList(),
+        val tag: String,
+        val type: WakelockType,
+        val count: Int,
+        val totalTimeMs: Long,
+        val maxTimeMs: Long = 0L,
+        val backgroundTimeMs: Long = 0L,
+        val backgroundCount: Int = 0
+    )
+
+    enum class WakelockType { PARTIAL, FULL, WINDOW, DRAW }
+
+    data class KernelWakelockStats(
+        val name: String,
+        val count: Int,
+        val totalTimeMs: Long,
+        val activeCount: Int = 0,
+        val maxTimeMs: Long = 0L,
+        val lastChangeMs: Long = 0L,
+        val preventSuspendTimeMs: Long = 0L
+    )
+
+    data class AlarmStats(
+        val uid: Int,
+        val packageName: String,
+        val packages: List<String> = emptyList(),
+        val tag: String,
+        val count: Int,
+        val wakeups: Int,
+        val totalTimeMs: Long,
+        val backgroundCount: Int = 0,
+        val backgroundTimeMs: Long = 0L
+    )
+
+    data class JobStats(
+        val uid: Int,
+        val packageName: String,
+        val packages: List<String> = emptyList(),
+        val jobName: String,
+        val count: Int,
+        val totalTimeMs: Long,
+        val backgroundCount: Int = 0,
+        val backgroundTimeMs: Long = 0L
+    )
+
+    data class SyncStats(
+        val uid: Int,
+        val packageName: String,
+        val packages: List<String> = emptyList(),
+        val authority: String,
+        val count: Int,
+        val totalTimeMs: Long,
+        val backgroundCount: Int = 0,
+        val backgroundTimeMs: Long = 0L
+    )
+
+    data class NetworkStats(
+        val uid: Int,
+        val packageName: String,
+        val packages: List<String> = emptyList(),
+        val mobileRxBytes: Long,
+        val mobileTxBytes: Long,
+        val wifiRxBytes: Long,
+        val wifiTxBytes: Long,
+        val btRxBytes: Long = 0L,
+        val btTxBytes: Long = 0L,
+        val mobileActiveTimeMs: Long = 0L,
+        val mobileActiveCount: Int = 0
+    )
+
+    data class SensorStats(
+        val uid: Int,
+        val packageName: String,
+        val packages: List<String> = emptyList(),
+        val sensorHandle: Int,
+        val sensorName: String,
+        val count: Int,
+        val totalTimeMs: Long,
+        val backgroundTimeMs: Long = 0L,
+        val backgroundCount: Int = 0
+    )
+
+    data class SignalStrengthStats(
+        val level: Int, // 0 (none) to 4 (great)
+        val durationMs: Long,
+        val percentOfTotal: Float
+    )
+
+    data class WifiSignalStats(
+        val level: Int, // 0 (none) to 4 (great)
+        val durationMs: Long,
+        val percentOfTotal: Float
+    )
+
+    data class BluetoothStats(
+        val idleTimeMs: Long,
+        val rxTimeMs: Long,
+        val txTimeMs: Long,
+        val powerMah: Double,
+        val scanTimeMs: Long = 0L
+    )
+
+    data class DozeStats(
+        val idleModeTimeMs: Long,
+        val idleModeCount: Int,
+        val deepIdleTimeMs: Long,
+        val deepIdleCount: Int,
+        val lightIdleTimeMs: Long,
+        val lightIdleCount: Int,
+        val deepIdlingTimeMs: Long,
+        val deepIdlingCount: Int,
+        val lightIdlingTimeMs: Long,
+        val lightIdlingCount: Int
+    )
+
+    data class CpuFrequencyStats(
+        val cluster: Int,
+        val frequency: Long,
+        val timeMs: Long,
+        val percentOfTotal: Float
+    )
+
+    data class ProcessStats(
+        val uid: Int,
+        val packageName: String,
+        val packages: List<String> = emptyList(),
+        val processName: String,
+        val userTimeMs: Long,
+        val systemTimeMs: Long,
+        val foregroundTimeMs: Long,
+        val starts: Int
+    )
+
+    fun parseCheckin(raw: String): FullSnapshot {
+        val lines = raw.lineSequence()
+        val uidToPackages = mutableMapOf<Int, LinkedHashSet<String>>()
+        val appStats = mutableMapOf<Int, AppPowerStats>()
+        val wakelocks = mutableListOf<WakelockStats>()
+        val kernelWakelocks = mutableListOf<KernelWakelockStats>()
+        val alarms = mutableListOf<AlarmStats>()
+        val jobs = mutableListOf<JobStats>()
+        val syncs = mutableListOf<SyncStats>()
+        val network = mutableListOf<NetworkStats>()
+        val sensors = mutableListOf<SensorStats>()
+        val signalStrength = mutableListOf<SignalStrengthStats>()
+        val wifiSignal = mutableListOf<WifiSignalStats>()
+        var bluetooth: BluetoothStats? = null
+        var doze: DozeStats? = null
+        val cpuFreq = mutableListOf<CpuFrequencyStats>()
+        val processStats = mutableListOf<ProcessStats>()
+        val uidStateTimes = mutableMapOf<Int, StateTimes>()
+        val uidFgsTimes = mutableMapOf<Int, Long>()
+        val uidApkServiceTimes = mutableMapOf<Int, Long>()
+
+        var batteryRealtimeMs = 0L
+        var batteryUptimeMs = 0L
+        var screenOnTimeMs = 0L
+        var screenOffDischarge = 0f
+        var screenOnDischarge = 0f
+        var estCapacity = 0
+
+        lines.forEach { line ->
+            val parts = splitCheckinLine(line)
+            if (parts.size < 4) return@forEach
+
+            try {
+                when {
+                    // UID mapping: 9,0,i,uid,<uid>,<package>
+                    // One UID may map to many packages (shared UID) â€” keep them all.
+                    parts.getOrNull(2) == "i" && parts.getOrNull(3) == "uid" && parts.size >= 6 -> {
+                        val uid = parts[4].toIntOrNull() ?: return@forEach
+                        uidToPackages.getOrPut(uid) { linkedSetOf() }.add(parts[5])
+                    }
+
+                    // Power use item: 9,<uid>,l,pwi,<type>,<mAh>,...
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "pwi" -> {
+                        parsePowerUseItem(parts, uidToPackages, appStats)
+                    }
+
+                    // Wakelock: 9,<uid>,l,wl,<name>,<type>,<count>,<time>...
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "wl" -> {
+                        parseWakelock(parts, uidToPackages, wakelocks)
+                    }
+
+                    // Kernel wakelock: 9,0,l,kwl,<name>,<count>,<time>...
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "kwl" -> {
+                        parseKernelWakelock(parts, kernelWakelocks)
+                    }
+
+                    // Alarm: 9,<uid>,l,wua,<tag>,<count>,<time>,<wakeups>
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "wua" -> {
+                        parseAlarm(parts, uidToPackages, alarms)
+                    }
+
+                    // Job: 9,<uid>,l,jb,<job>,<count>,<time>
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "jb" -> {
+                        parseJob(parts, uidToPackages, jobs)
+                    }
+
+                    // Sync: 9,<uid>,l,sy,<authority>,<count>,<time>
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "sy" -> {
+                        parseSync(parts, uidToPackages, syncs)
+                    }
+
+                    // Network: 9,<uid>,l,nt,<rxB>,<txB>,...
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "nt" -> {
+                        parseNetwork(parts, uidToPackages, network)
+                    }
+
+                    // Sensor: 9,<uid>,l,sr,<handle>,<count>,<time>
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "sr" -> {
+                        parseSensor(parts, uidToPackages, sensors)
+                    }
+
+                    // Signal strength: 9,0,l,sgt,<time0>,<time1>,<time2>,<time3>,<time4>
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "sgt" -> {
+                        parseSignalStrength(parts, signalStrength)
+                    }
+
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "wsgt" -> {
+                        parseWifiSignal(parts, wifiSignal)
+                    }
+
+                    // Bluetooth controller: 9,0,l,ble,<idle>,<rx>,<tx>,<power>
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "ble" -> {
+                        bluetooth = parseBluetooth(parts)
+                    }
+
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "dc" -> {
+                        parts.getOrNull(6)?.toFloatOrNull()?.let { screenOnDischarge = it }
+                        parts.getOrNull(7)?.toFloatOrNull()?.let { screenOffDischarge = it }
+                    }
+
+                    // Battery core: 9,0,l,bt,startCount,battRealtime,battUptime,...
+                    parts[2] in listOf("l", "u", "c", "a") && parts[3] == "bt" -> {
+                        batteryRealtimeMs = parts.getOrNull(5)?.toLongOrNull() ?: 0L
+                        batteryUptimeMs = parts.getOrNull(6)?.toLongOrNull() ?: 0L
+                    }
+
+                    parts[2] in listOf("l", "u", "c", "a") && parts[3] == "m" -> {
+                        screenOnTimeMs = parts.getOrNull(4)?.toLongOrNull() ?: 0L
+                        doze = parseDoze(parts) ?: doze
+                    }
+
+                    // Power summary: 9,0,l,pws,capacity,computed,minDrained,maxDrained
+                    parts[2] in listOf("l", "u", "c", "a") && parts[3] == "pws" -> {
+                        estCapacity = parts.getOrNull(4)?.toDoubleOrNull()?.roundToLong()?.toInt() ?: 0
+                    }
+
+                    // Process stats: 9,<uid>,l,pr,<process>,<user>,<sys>,<fg>,<starts>
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "pr" -> {
+                        parseProcess(parts, uidToPackages, processStats)
+                    }
+
+                    // State times: 9,<uid>,l,st,<top>,<fgs>,<top_sleeping>,<fg>,<bg>,<cached>
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "st" -> {
+                        val uid = parts.getOrNull(1)?.toIntOrNull() ?: return@forEach
+                        val top = parts.getOrNull(4)?.toLongOrNull() ?: 0L
+                        val fgs = parts.getOrNull(5)?.toLongOrNull() ?: 0L
+                        val topSleeping = parts.getOrNull(6)?.toLongOrNull() ?: 0L
+                        val fg = parts.getOrNull(7)?.toLongOrNull() ?: 0L
+                        val bg = parts.getOrNull(8)?.toLongOrNull() ?: 0L
+                        val cached = parts.getOrNull(9)?.toLongOrNull() ?: 0L
+
+                        val cur = uidStateTimes[uid] ?: StateTimes()
+                        uidStateTimes[uid] = StateTimes(
+                            topTimeMs = cur.topTimeMs + top,
+                            foregroundServiceTimeMs = cur.foregroundServiceTimeMs + fgs,
+                            topSleepingTimeMs = cur.topSleepingTimeMs + topSleeping,
+                            foregroundTimeMs = cur.foregroundTimeMs + fg,
+                            backgroundTimeMs = cur.backgroundTimeMs + bg,
+                            cachedTimeMs = cur.cachedTimeMs + cached
+                        )
+                    }
+
+                    // Foreground service: 9,<uid>,l,fgs,<service_name>,<time_ms>,<starts>
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "fgs" -> {
+                        val uid = parts.getOrNull(1)?.toIntOrNull() ?: return@forEach
+                        val timeMs = parts.getOrNull(5)?.toLongOrNull() ?: 0L
+                        uidFgsTimes[uid] = (uidFgsTimes[uid] ?: 0L) + timeMs
+                    }
+
+                    // Service in APK: 9,<uid>,l,apk,<wakeups>,<apk_name>,<service_name>,<start_time_ms>,<starts>,<launches>
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "apk" -> {
+                        val uid = parts.getOrNull(1)?.toIntOrNull() ?: return@forEach
+                        val startTimeMs = parts.getOrNull(7)?.toLongOrNull() ?: 0L
+                        uidApkServiceTimes[uid] = (uidApkServiceTimes[uid] ?: 0L) + startTimeMs
+                    }
+                }
+            } catch (_: Exception) {
+                // Skip malformed lines
+            }
+        }
+
+        // Build merged lists for snapshot
+        val mergedWakelocks = wakelocks
+            .mergeBy({ it.uid to it.tag }) { a, b ->
+                a.copy(
+                    count = a.count + b.count,
+                    totalTimeMs = a.totalTimeMs + b.totalTimeMs,
+                    maxTimeMs = maxOf(a.maxTimeMs, b.maxTimeMs),
+                    backgroundTimeMs = a.backgroundTimeMs + b.backgroundTimeMs,
+                    backgroundCount = a.backgroundCount + b.backgroundCount
+                )
+            }
+            .sortedByDescending { it.totalTimeMs }
+
+        val mergedKernelWakelocks = kernelWakelocks
+            .mergeBy({ it.name }) { a, b ->
+                a.copy(count = a.count + b.count, totalTimeMs = a.totalTimeMs + b.totalTimeMs)
+            }
+            .sortedByDescending { it.totalTimeMs }
+
+        val mergedAlarms = alarms
+            .mergeBy({ it.uid to it.tag }) { a, b ->
+                a.copy(
+                    count = a.count + b.count,
+                    wakeups = a.wakeups + b.wakeups,
+                    totalTimeMs = a.totalTimeMs + b.totalTimeMs
+                )
+            }
+            .sortedByDescending { it.count }
+
+        val mergedJobs = jobs
+            .mergeBy({ it.uid to it.jobName }) { a, b ->
+                a.copy(count = a.count + b.count, totalTimeMs = a.totalTimeMs + b.totalTimeMs)
+            }
+            .sortedByDescending { it.totalTimeMs }
+
+        val mergedSyncs = syncs
+            .mergeBy({ it.uid to it.authority }) { a, b ->
+                a.copy(count = a.count + b.count, totalTimeMs = a.totalTimeMs + b.totalTimeMs)
+            }
+            .sortedByDescending { it.totalTimeMs }
+
+        val mergedNetwork = network
+            .mergeBy({ it.uid }) { a, b ->
+                a.copy(
+                    mobileRxBytes = a.mobileRxBytes + b.mobileRxBytes,
+                    mobileTxBytes = a.mobileTxBytes + b.mobileTxBytes,
+                    wifiRxBytes = a.wifiRxBytes + b.wifiRxBytes,
+                    wifiTxBytes = a.wifiTxBytes + b.wifiTxBytes,
+                    mobileActiveTimeMs = a.mobileActiveTimeMs + b.mobileActiveTimeMs,
+                    mobileActiveCount = a.mobileActiveCount + b.mobileActiveCount
+                )
+            }
+            .sortedByDescending {
+                it.mobileRxBytes + it.mobileTxBytes + it.wifiRxBytes + it.wifiTxBytes
+            }
+
+        val mergedSensors = sensors
+            .mergeBy({ it.uid to it.sensorHandle }) { a, b ->
+                a.copy(count = a.count + b.count, totalTimeMs = a.totalTimeMs + b.totalTimeMs)
+            }
+            .sortedByDescending { it.totalTimeMs }
+
+        val mergedProcessStats = processStats
+            .mergeBy({ it.uid to it.processName }) { a, b ->
+                a.copy(
+                    userTimeMs = a.userTimeMs + b.userTimeMs,
+                    systemTimeMs = a.systemTimeMs + b.systemTimeMs,
+                    foregroundTimeMs = a.foregroundTimeMs + b.foregroundTimeMs,
+                    starts = a.starts + b.starts
+                )
+            }
+            .sortedByDescending { it.userTimeMs + it.systemTimeMs }
+
+        // Build complete aggregated AppPowerStats for every active UID
+        val allUids = LinkedHashSet<Int>().apply {
+            addAll(appStats.keys)
+            addAll(mergedProcessStats.map { it.uid })
+            addAll(mergedWakelocks.map { it.uid })
+            addAll(mergedNetwork.map { it.uid })
+            addAll(mergedSensors.map { it.uid })
+            addAll(uidStateTimes.keys)
+            addAll(uidFgsTimes.keys)
+            addAll(uidApkServiceTimes.keys)
+            addAll(mergedJobs.map { it.uid })
+            addAll(mergedSyncs.map { it.uid })
+        }
+
+        val procByUid = mergedProcessStats.groupBy { it.uid }
+        val wlByUid = mergedWakelocks.groupBy { it.uid }
+        val netByUid = mergedNetwork.associateBy { it.uid }
+        val sensorByUid = mergedSensors.groupBy { it.uid }
+        val jobsByUid = mergedJobs.groupBy { it.uid }
+        val syncsByUid = mergedSyncs.groupBy { it.uid }
+
+        val completeApps = allUids.mapNotNull { uid ->
+            val pkgs = packagesFor(uid, uidToPackages)
+            val label = displayNameFor(uid, pkgs)
+            val existing = appStats[uid]
+
+            val procs = procByUid[uid].orEmpty()
+            val totalCpuTime = procs.sumOf { it.userTimeMs + it.systemTimeMs }
+            val totalFgTime = procs.sumOf { it.foregroundTimeMs }
+
+            val wls = wlByUid[uid].orEmpty()
+            val totalWlTime = wls.sumOf { it.totalTimeMs }
+            val totalBgWlTime = wls.sumOf { it.backgroundTimeMs }
+
+            val net = netByUid[uid]
+            val mobRx = net?.mobileRxBytes ?: 0L
+            val mobTx = net?.mobileTxBytes ?: 0L
+            val wifiRx = net?.wifiRxBytes ?: 0L
+            val wifiTx = net?.wifiTxBytes ?: 0L
+
+            val sns = sensorByUid[uid].orEmpty()
+            val gpsTime = sns.filter { it.sensorHandle == -10000 }.sumOf { it.totalTimeMs }
+            val sensorTime = sns.filter { it.sensorHandle != -10000 }.sumOf { it.totalTimeMs }
+
+            val st = uidStateTimes[uid]
+            val fgsFromLines = uidFgsTimes[uid] ?: 0L
+            val apkServiceTime = uidApkServiceTimes[uid] ?: 0L
+            val jobsBgTime = jobsByUid[uid].orEmpty().sumOf { it.backgroundTimeMs.takeIf { t -> t > 0L } ?: it.totalTimeMs }
+            val syncsBgTime = syncsByUid[uid].orEmpty().sumOf { it.backgroundTimeMs.takeIf { t -> t > 0L } ?: it.totalTimeMs }
+            val bgCpuTime = (totalCpuTime - totalFgTime).coerceAtLeast(0L)
+
+            val finalFgTime = maxOf(totalFgTime, st?.foregroundTimeMs ?: 0L, st?.topTimeMs ?: 0L)
+            val finalFgsTime = maxOf(st?.foregroundServiceTimeMs ?: 0L, fgsFromLines)
+            val finalBgTime = maxOf(
+                st?.backgroundTimeMs ?: 0L,
+                apkServiceTime,
+                totalBgWlTime,
+                jobsBgTime + syncsBgTime,
+                bgCpuTime
+            )
+
+            val rawPower = existing?.powerMah ?: 0.0
+            val estimatedCpuMah = (totalCpuTime / 3600000.0) * 350.0
+            val estimatedWlMah = (totalWlTime / 3600000.0) * 60.0
+
+            val cpuPowerMah = if (existing != null && existing.cpuPowerMah > 0.0) {
+                existing.cpuPowerMah
+            } else if (rawPower > 0.0 && totalCpuTime > 0L) {
+                val wlPortion = if (totalWlTime > 0L) (rawPower * 0.15).coerceAtMost(estimatedWlMah) else 0.0
+                val derivedCpu = (rawPower - wlPortion).coerceAtLeast(0.0)
+                if (derivedCpu > 0.0) derivedCpu else estimatedCpuMah
+            } else {
+                estimatedCpuMah
+            }
+
+            val wakeLockPowerMah = if (existing != null && existing.wakeLockPowerMah > 0.0) {
+                existing.wakeLockPowerMah
+            } else if (totalWlTime > 0L) {
+                if (rawPower > 0.0 && rawPower > cpuPowerMah) {
+                    (rawPower - cpuPowerMah).coerceAtMost(estimatedWlMah).coerceAtLeast(0.0)
+                } else {
+                    estimatedWlMah
+                }
+            } else 0.0
+
+            val otherComponentsPower = (existing?.mobilePowerMah ?: 0.0) +
+                (existing?.wifiPowerMah ?: 0.0) +
+                (existing?.gpsPowerMah ?: 0.0) +
+                (existing?.sensorPowerMah ?: 0.0) +
+                (existing?.cameraPowerMah ?: 0.0) +
+                (existing?.bluetoothPowerMah ?: 0.0) +
+                (existing?.screenPowerMah ?: 0.0)
+
+            val componentsSum = cpuPowerMah + wakeLockPowerMah + otherComponentsPower
+            val finalPower = maxOf(
+                rawPower,
+                componentsSum,
+                if (totalCpuTime > 0L || totalWlTime > 0L) estimatedCpuMah + estimatedWlMah else 0.0
+            )
+
+            if (finalPower <= 0.0 && totalCpuTime == 0L && totalWlTime == 0L && (mobRx + mobTx + wifiRx + wifiTx) == 0L && finalBgTime == 0L && finalFgsTime == 0L && finalFgTime == 0L) {
+                return@mapNotNull null
+            }
+
+            AppPowerStats(
+                uid = uid,
+                packageName = existing?.packageName ?: label,
+                packages = if (existing != null && existing.packages.isNotEmpty()) existing.packages else pkgs,
+                powerMah = finalPower,
+                cpuTimeMs = totalCpuTime,
+                cpuPowerMah = cpuPowerMah,
+                wakeLockTimeMs = totalWlTime,
+                wakeLockPowerMah = wakeLockPowerMah,
+                mobilePowerMah = existing?.mobilePowerMah ?: 0.0,
+                wifiPowerMah = existing?.wifiPowerMah ?: 0.0,
+                gpsPowerMah = existing?.gpsPowerMah ?: 0.0,
+                sensorPowerMah = existing?.sensorPowerMah ?: 0.0,
+                cameraPowerMah = existing?.cameraPowerMah ?: 0.0,
+                flashlightPowerMah = existing?.flashlightPowerMah ?: 0.0,
+                audioPowerMah = existing?.audioPowerMah ?: 0.0,
+                videoPowerMah = existing?.videoPowerMah ?: 0.0,
+                bluetoothPowerMah = existing?.bluetoothPowerMah ?: 0.0,
+                screenPowerMah = existing?.screenPowerMah ?: 0.0,
+                proportionalSmearMah = existing?.proportionalSmearMah ?: 0.0,
+                foregroundTimeMs = finalFgTime,
+                foregroundServiceTimeMs = finalFgsTime,
+                backgroundTimeMs = finalBgTime,
+                cachedTimeMs = st?.cachedTimeMs ?: (existing?.cachedTimeMs ?: 0L),
+                topTimeMs = st?.topTimeMs ?: (existing?.topTimeMs ?: 0L),
+                mobileRxBytes = mobRx,
+                mobileTxBytes = mobTx,
+                wifiRxBytes = wifiRx,
+                wifiTxBytes = wifiTx,
+                mobileRxPackets = existing?.mobileRxPackets ?: 0L,
+                mobileTxPackets = existing?.mobileTxPackets ?: 0L,
+                wifiRxPackets = existing?.wifiRxPackets ?: 0L,
+                wifiTxPackets = existing?.wifiTxPackets ?: 0L,
+                gpsTimeMs = gpsTime,
+                sensorTimeMs = sensorTime,
+                cameraTimeMs = existing?.cameraTimeMs ?: 0L,
+                flashlightTimeMs = existing?.flashlightTimeMs ?: 0L,
+                audioTimeMs = existing?.audioTimeMs ?: 0L,
+                videoTimeMs = existing?.videoTimeMs ?: 0L,
+                bluetoothScanTimeMs = existing?.bluetoothScanTimeMs ?: 0L,
+                bluetoothUnoptimizedScanTimeMs = existing?.bluetoothUnoptimizedScanTimeMs ?: 0L
+            )
+        }.sortedByDescending { it.powerMah }
+
+        return FullSnapshot(
+            capturedAt = System.currentTimeMillis(),
+            batteryRealtimeMs = batteryRealtimeMs,
+            batteryUptimeMs = batteryUptimeMs,
+            screenOnTimeMs = screenOnTimeMs,
+            screenOffDischargePercent = screenOffDischarge,
+            screenOnDischargePercent = screenOnDischarge,
+            estimatedCapacityMah = estCapacity,
+            apps = completeApps,
+            wakelocks = mergedWakelocks,
+            kernelWakelocks = mergedKernelWakelocks,
+            alarms = mergedAlarms,
+            jobs = mergedJobs,
+            syncs = mergedSyncs,
+            network = mergedNetwork,
+            sensors = mergedSensors,
+            signalStrength = signalStrength,
+            wifiSignal = wifiSignal,
+            bluetooth = bluetooth,
+            doze = doze,
+            cpuFrequency = cpuFreq,
+            processStats = mergedProcessStats
+        )
+    }
+
+    private inline fun <T, K> List<T>.mergeBy(key: (T) -> K, combine: (T, T) -> T): List<T> {
+        if (size < 2) return this
+        val merged = LinkedHashMap<K, T>(size)
+        for (item in this) {
+            val k = key(item)
+            val existing = merged[k]
+            merged[k] = if (existing == null) item else combine(existing, item)
+        }
+        return merged.values.toList()
+    }
+
+    private fun parsePowerUseItem(
+        parts: List<String>,
+        uidToPackages: Map<Int, Collection<String>>,
+        appStats: MutableMap<Int, AppPowerStats>
+    ) {
+        val uid = parts[1].toIntOrNull() ?: return
+        val type = parts.getOrNull(4) ?: return
+        val mah = parts.getOrNull(5)?.toDoubleOrNull() ?: 0.0
+        val smear = parts.getOrNull(6)?.toDoubleOrNull() ?: 0.0
+        val screen = parts.getOrNull(7)?.toDoubleOrNull() ?: 0.0
+        val cpu = parts.getOrNull(8)?.toDoubleOrNull() ?: 0.0
+
+        if (type == "uid") {
+            val pkgs = packagesFor(uid, uidToPackages)
+            val label = displayNameFor(uid, pkgs)
+            val existing = appStats[uid] ?: AppPowerStats(uid = uid, packageName = label, packages = pkgs, powerMah = 0.0)
+            appStats[uid] = existing.copy(
+                packageName = label,
+                packages = pkgs,
+                powerMah = maxOf(existing.powerMah, mah),
+                proportionalSmearMah = if (smear > 0.0) maxOf(smear, existing.proportionalSmearMah) else existing.proportionalSmearMah,
+                screenPowerMah = if (screen > 0.0) maxOf(screen, existing.screenPowerMah) else existing.screenPowerMah,
+                cpuPowerMah = if (cpu > 0.0) maxOf(cpu, existing.cpuPowerMah) else existing.cpuPowerMah
+            )
+        }
+    }
+
+    private fun parseWakelock(
+        parts: List<String>,
+        uidToPackages: Map<Int, Collection<String>>,
+        wakelocks: MutableList<WakelockStats>
+    ) {
+        val uid = parts[1].toIntOrNull() ?: return
+        val pkgs = packagesFor(uid, uidToPackages)
+        val label = displayNameFor(uid, pkgs)
+        val tag = parts.getOrNull(4) ?: return
+
+        val pIndex = parts.indexOfFrom(6) { it == "p" }
+        val bpIndex = parts.indexOfFrom(6) { it == "bp" }
+
+        val partialTimeMs = if (pIndex > 0) {
+            parts.getOrNull(pIndex - 1)?.toLongOrNull() ?: 0L
+        } else 0L
+        val partialCount = if (pIndex >= 0) {
+            parts.getOrNull(pIndex + 1)?.toIntOrNull() ?: 0
+        } else 0
+
+        val bgPartialTimeMs = if (bpIndex > 0) {
+            parts.getOrNull(bpIndex - 1)?.toLongOrNull() ?: 0L
+        } else 0L
+        val bgPartialCount = if (bpIndex >= 0) {
+            parts.getOrNull(bpIndex + 1)?.toIntOrNull() ?: 0
+        } else 0
+
+        wakelocks.add(
+            WakelockStats(
+                uid = uid,
+                packageName = label,
+                packages = pkgs,
+                tag = tag,
+                type = WakelockType.PARTIAL,
+                count = partialCount,
+                totalTimeMs = partialTimeMs,
+                backgroundTimeMs = bgPartialTimeMs,
+                backgroundCount = bgPartialCount
+            )
+        )
+    }
+
+    private fun parseKernelWakelock(
+        parts: List<String>,
+        kernelWakelocks: MutableList<KernelWakelockStats>
+    ) {
+        val name = parts.getOrNull(4) ?: return
+        val count = parts.getOrNull(5)?.toIntOrNull() ?: 0
+        val timeMs = parts.getOrNull(6)?.toLongOrNull() ?: 0L
+        val currentMs = parts.getOrNull(7)?.toLongOrNull() ?: 0L
+        val maxMs = parts.getOrNull(8)?.toLongOrNull() ?: 0L
+
+        kernelWakelocks.add(
+            KernelWakelockStats(
+                name = name,
+                count = count,
+                totalTimeMs = timeMs,
+                activeCount = if (currentMs > 0) 1 else 0,
+                maxTimeMs = maxMs
+            )
+        )
+    }
+
+    private fun parseAlarm(
+        parts: List<String>,
+        uidToPackages: Map<Int, Collection<String>>,
+        alarms: MutableList<AlarmStats>
+    ) {
+        val uid = parts[1].toIntOrNull() ?: return
+        val pkgs = packagesFor(uid, uidToPackages)
+        val label = displayNameFor(uid, pkgs)
+        val tag = parts.getOrNull(4) ?: return
+        val count = parts.getOrNull(5)?.toIntOrNull() ?: 0
+        val timeMs = parts.getOrNull(6)?.toLongOrNull() ?: 0L
+        val wakeups = parts.getOrNull(7)?.toIntOrNull() ?: 0
+
+        alarms.add(
+            AlarmStats(
+                uid = uid,
+                packageName = label,
+                packages = pkgs,
+                tag = tag,
+                count = count,
+                totalTimeMs = timeMs,
+                wakeups = wakeups
+            )
+        )
+    }
+
+    private fun parseJob(
+        parts: List<String>,
+        uidToPackages: Map<Int, Collection<String>>,
+        jobs: MutableList<JobStats>
+    ) {
+        val uid = parts[1].toIntOrNull() ?: return
+        val pkgs = packagesFor(uid, uidToPackages)
+        val label = displayNameFor(uid, pkgs)
+        val jobName = parts.getOrNull(4) ?: return
+        val timeMs = parts.getOrNull(5)?.toLongOrNull() ?: 0L
+        val count = parts.getOrNull(6)?.toIntOrNull() ?: 0
+
+        jobs.add(
+            JobStats(
+                uid = uid,
+                packageName = label,
+                packages = pkgs,
+                jobName = jobName,
+                count = count,
+                totalTimeMs = timeMs,
+                backgroundCount = parts.backgroundCount(8),
+                backgroundTimeMs = parts.backgroundTime(7)
+            )
+        )
+    }
+
+    private fun parseSync(
+        parts: List<String>,
+        uidToPackages: Map<Int, Collection<String>>,
+        syncs: MutableList<SyncStats>
+    ) {
+        val uid = parts[1].toIntOrNull() ?: return
+        val pkgs = packagesFor(uid, uidToPackages)
+        val label = displayNameFor(uid, pkgs)
+        val authority = parts.getOrNull(4) ?: return
+        val timeMs = parts.getOrNull(5)?.toLongOrNull() ?: 0L
+        val count = parts.getOrNull(6)?.toIntOrNull() ?: 0
+
+        syncs.add(
+            SyncStats(
+                uid = uid,
+                packageName = label,
+                packages = pkgs,
+                authority = authority,
+                count = count,
+                totalTimeMs = timeMs,
+                backgroundCount = parts.backgroundCount(8),
+                backgroundTimeMs = parts.backgroundTime(7)
+            )
+        )
+    }
+
+    private fun parseNetwork(
+        parts: List<String>,
+        uidToPackages: Map<Int, Collection<String>>,
+        network: MutableList<NetworkStats>
+    ) {
+        val uid = parts[1].toIntOrNull() ?: return
+        val pkgs = packagesFor(uid, uidToPackages)
+        val label = displayNameFor(uid, pkgs)
+
+        val mobileRx = parts.getOrNull(4)?.toLongOrNull() ?: 0L
+        val mobileTx = parts.getOrNull(5)?.toLongOrNull() ?: 0L
+        val wifiRx = parts.getOrNull(6)?.toLongOrNull() ?: 0L
+        val wifiTx = parts.getOrNull(7)?.toLongOrNull() ?: 0L
+        val mobileActiveTime = parts.getOrNull(12)?.toLongOrNull() ?: 0L
+        val mobileActiveCount = parts.getOrNull(13)?.toIntOrNull() ?: 0
+
+        network.add(
+            NetworkStats(
+                uid = uid,
+                packageName = label,
+                packages = pkgs,
+                mobileRxBytes = mobileRx,
+                mobileTxBytes = mobileTx,
+                wifiRxBytes = wifiRx,
+                wifiTxBytes = wifiTx,
+                mobileActiveTimeMs = mobileActiveTime,
+                mobileActiveCount = mobileActiveCount
+            )
+        )
+    }
+
+    private fun parseSensor(
+        parts: List<String>,
+        uidToPackages: Map<Int, Collection<String>>,
+        sensors: MutableList<SensorStats>
+    ) {
+        val uid = parts[1].toIntOrNull() ?: return
+        val pkgs = packagesFor(uid, uidToPackages)
+        val label = displayNameFor(uid, pkgs)
+        val handle = parts.getOrNull(4)?.toIntOrNull() ?: return
+        val timeMs = parts.getOrNull(5)?.toLongOrNull() ?: 0L
+        val count = parts.getOrNull(6)?.toIntOrNull() ?: 0
+
+        sensors.add(
+            SensorStats(
+                uid = uid,
+                packageName = label,
+                packages = pkgs,
+                sensorHandle = handle,
+                sensorName = getSensorName(handle),
+                count = count,
+                totalTimeMs = timeMs
+            )
+        )
+    }
+
+    private fun parseSignalStrength(
+        parts: List<String>,
+        signalStrength: MutableList<SignalStrengthStats>
+    ) {
+        val times = (4..8).mapNotNull { parts.getOrNull(it)?.toLongOrNull() }
+        if (times.size < 5) return
+        val total = times.sum().toFloat().coerceAtLeast(1f)
+        times.forEachIndexed { level, time ->
+            signalStrength.add(
+                SignalStrengthStats(
+                    level = level,
+                    durationMs = time,
+                    percentOfTotal = time / total
+                )
+            )
+        }
+    }
+
+    private fun parseWifiSignal(
+        parts: List<String>,
+        wifiSignal: MutableList<WifiSignalStats>
+    ) {
+        val times = (4..8).mapNotNull { parts.getOrNull(it)?.toLongOrNull() }
+        if (times.size < 5) return
+        val total = times.sum().toFloat().coerceAtLeast(1f)
+        times.forEachIndexed { level, time ->
+            wifiSignal.add(
+                WifiSignalStats(
+                    level = level,
+                    durationMs = time,
+                    percentOfTotal = time / total
+                )
+            )
+        }
+    }
+
+    private fun parseBluetooth(parts: List<String>): BluetoothStats? {
+        val idle = parts.getOrNull(4)?.toLongOrNull() ?: return null
+        val rx = parts.getOrNull(5)?.toLongOrNull() ?: 0L
+        val tx = parts.getOrNull(6)?.toLongOrNull() ?: 0L
+        val power = parts.getOrNull(7)?.toDoubleOrNull() ?: 0.0
+        return BluetoothStats(
+            idleTimeMs = idle,
+            rxTimeMs = rx,
+            txTimeMs = tx,
+            powerMah = power
+        )
+    }
+
+    /**
+     * `9,0,l,m,...` misc line. Deep idle is index 13/14 and light idle 19/20; the idling sub-timers
+     * that AOSP emits for each mode follow at 15/16 and 21/22. Nothing on this line is a doze
+     * maintenance window, so it is not reported.
+     */
+    private fun parseDoze(parts: List<String>): DozeStats? {
+        if (parts.size <= 20) return null
+
+        val deepTime = parts.getOrNull(13)?.toLongOrNull() ?: return null
+        val deepCount = parts.getOrNull(14)?.toIntOrNull() ?: 0
+        val deepIdlingTime = parts.getOrNull(15)?.toLongOrNull() ?: 0L
+        val deepIdlingCount = parts.getOrNull(16)?.toIntOrNull() ?: 0
+        val lightTime = parts.getOrNull(19)?.toLongOrNull() ?: 0L
+        val lightCount = parts.getOrNull(20)?.toIntOrNull() ?: 0
+        val lightIdlingTime = parts.getOrNull(21)?.toLongOrNull() ?: 0L
+        val lightIdlingCount = parts.getOrNull(22)?.toIntOrNull() ?: 0
+
+
+        return DozeStats(
+            idleModeTimeMs = deepTime + lightTime,
+            idleModeCount = deepCount + lightCount,
+            deepIdleTimeMs = deepTime,
+            deepIdleCount = deepCount,
+            lightIdleTimeMs = lightTime,
+            lightIdleCount = lightCount,
+            deepIdlingTimeMs = deepIdlingTime,
+            deepIdlingCount = deepIdlingCount,
+            lightIdlingTimeMs = lightIdlingTime,
+            lightIdlingCount = lightIdlingCount
+        )
+    }
+
+    // Job/sync producers emit -1 for an absent sub-timer, which is not a duration or a count.
+    private fun List<String>.backgroundTime(i: Int) = getOrNull(i)?.toLongOrNull()?.takeIf { it >= 0 } ?: 0L
+    private fun List<String>.backgroundCount(i: Int) = getOrNull(i)?.toIntOrNull()?.takeIf { it >= 0 } ?: 0
+
+    internal fun splitCheckinLine(line: String): List<String> {
+        if ('"' !in line) return line.split(',')
+
+        val fields = ArrayList<String>(16)
+        val field = StringBuilder()
+        var inQuotes = false
+        var i = 0
+        while (i < line.length) {
+            val c = line[i]
+            when {
+                c == '"' && inQuotes && i + 1 < line.length && line[i + 1] == '"' -> {
+                    field.append('"')
+                    i++
+                }
+                c == '"' -> inQuotes = !inQuotes
+                c == ',' && !inQuotes -> {
+                    fields.add(field.toString())
+                    field.setLength(0)
+                }
+                else -> field.append(c)
+            }
+            i++
+        }
+        fields.add(field.toString())
+        return fields
+    }
+
+    private fun parseProcess(
+        parts: List<String>,
+        uidToPackages: Map<Int, Collection<String>>,
+        processStats: MutableList<ProcessStats>
+    ) {
+        val uid = parts[1].toIntOrNull() ?: return
+        val pkgs = packagesFor(uid, uidToPackages)
+        val label = displayNameFor(uid, pkgs)
+        val process = parts.getOrNull(4) ?: return
+        val userMs = parts.getOrNull(5)?.toLongOrNull() ?: 0L
+        val sysMs = parts.getOrNull(6)?.toLongOrNull() ?: 0L
+        val fgMs = parts.getOrNull(7)?.toLongOrNull() ?: 0L
+        val starts = parts.getOrNull(8)?.toIntOrNull() ?: 0
+
+        processStats.add(
+            ProcessStats(
+                uid = uid,
+                packageName = label,
+                packages = pkgs,
+                processName = process,
+                userTimeMs = userMs,
+                systemTimeMs = sysMs,
+                foregroundTimeMs = fgMs,
+                starts = starts
+            )
+        )
+    }
+
+    private fun getSensorName(handle: Int): String = when (handle) {
+        -10000 -> "GPS"
+        else -> "Sensor #$handle"
+    }
+
+    private inline fun List<String>.indexOfFrom(start: Int, predicate: (String) -> Boolean): Int {
+        for (i in start until size) if (predicate(this[i])) return i
+        return -1
+    }
+
+    data class DeviceIdleInfo(
+        val currentState: String,
+        val lightState: String,
+        val deepEnabled: Boolean,
+        val lightEnabled: Boolean,
+        val screenOnTime: Long,
+        val screenOffTime: Long,
+        val whitelistedApps: List<String>,
+        val tempWhitelistedApps: List<String>
+    )
+
+    fun parseDeviceIdle(raw: String): DeviceIdleInfo {
+        var currentState = "UNKNOWN"
+        var lightState = "UNKNOWN"
+        var deepEnabled = true
+        var lightEnabled = true
+        var screenOnTime = 0L
+        var screenOffTime = 0L
+        val whitelisted = mutableListOf<String>()
+        val tempWhitelisted = mutableListOf<String>()
+
+        var inWhitelist = false
+        var inTempWhitelist = false
+
+        raw.lineSequence().forEach { line ->
+            val trimmed = line.trim()
+            when {
+                trimmed.startsWith("mState=") -> currentState = trimmed.removePrefix("mState=")
+                trimmed.startsWith("State: ") -> currentState = trimmed.removePrefix("State: ")
+                trimmed.startsWith("mLightState=") -> lightState = trimmed.removePrefix("mLightState=")
+                trimmed.startsWith("Light state: ") -> lightState = trimmed.removePrefix("Light state: ")
+                trimmed.startsWith("mDeepEnabled=") -> deepEnabled = trimmed.contains("true")
+                trimmed.startsWith("mLightEnabled=") -> lightEnabled = trimmed.contains("true")
+                trimmed.startsWith("mScreenOnTime=") -> screenOnTime = trimmed.removePrefix("mScreenOnTime=").toLongOrNull() ?: 0L
+                trimmed.startsWith("mScreenOffTime=") -> screenOffTime = trimmed.removePrefix("mScreenOffTime=").toLongOrNull() ?: 0L
+                trimmed.startsWith("Whitelist") && trimmed.endsWith("apps:") -> {
+                    inWhitelist = true
+                    inTempWhitelist = false
+                }
+                trimmed.startsWith("Temp whitelist") -> {
+                    inWhitelist = false
+                    inTempWhitelist = true
+                }
+                trimmed.endsWith(":") && !trimmed.contains("=") -> {
+                    inWhitelist = false
+                    inTempWhitelist = false
+                }
+                trimmed.isEmpty() -> {
+                    inWhitelist = false
+                    inTempWhitelist = false
+                }
+                inWhitelist && trimmed.isNotBlank() -> whitelisted.add(trimmed)
+                inTempWhitelist && trimmed.isNotBlank() -> tempWhitelisted.add(trimmed.substringBefore(":"))
+            }
+        }
+
+        return DeviceIdleInfo(
+            currentState = currentState,
+            lightState = lightState,
+            deepEnabled = deepEnabled,
+            lightEnabled = lightEnabled,
+            screenOnTime = screenOnTime,
+            screenOffTime = screenOffTime,
+            whitelistedApps = whitelisted,
+            tempWhitelistedApps = tempWhitelisted
+        )
+    }
+
+    data class PowerManagerInfo(
+        val screenBrightness: Int,
+        val isScreenOn: Boolean,
+        val holdingWakeLocks: List<String>,
+        val suspendBlockers: List<String>,
+        val batteryLevel: Int,
+        val batteryStatus: String,
+        val lowPowerMode: Boolean,
+        val deviceIdleMode: String
+    )
+
+    fun parsePowerManager(raw: String): PowerManagerInfo {
+        var brightness = 0
+        var screenOn = false
+        var batteryLevel = 0
+        var batteryStatus = "UNKNOWN"
+        var lowPowerMode = false
+        var deviceIdleMode = "UNKNOWN"
+        val wakeLocks = mutableListOf<String>()
+        val suspendBlockers = mutableListOf<String>()
+
+        var inWakeLocks = false
+        var inBlockers = false
+
+        raw.lineSequence().forEach { line ->
+            val trimmed = line.trim()
+            when {
+                trimmed.startsWith("mScreenBrightnessSetting=") -> {
+                    brightness = trimmed.substringAfter("=").toIntOrNull() ?: 0
+                }
+                trimmed.startsWith("Display Power: state=") -> {
+                    screenOn = trimmed.substringAfter("=").startsWith("ON")
+                }
+                trimmed.startsWith("mWakefulness=") -> {
+                    screenOn = trimmed.substringAfter("=").equals("Awake", ignoreCase = true)
+                }
+                trimmed.startsWith("Wakefulness: ") -> {
+                    screenOn = trimmed.substringAfter("Wakefulness: ").equals("Awake", ignoreCase = true)
+                }
+                trimmed.startsWith("mBatteryLevel=") -> {
+                    batteryLevel = trimmed.substringAfter("=").toIntOrNull() ?: 0
+                }
+                trimmed.startsWith("mBatteryStatus=") -> {
+                    batteryStatus = trimmed.substringAfter("=")
+                }
+                // dumpsys power reports the plug state rather than a status string.
+                trimmed.startsWith("mIsPowered=") -> {
+                    if (batteryStatus == "UNKNOWN") {
+                        batteryStatus = if (trimmed.contains("true")) "Charging" else "Discharging"
+                    }
+                }
+                trimmed.startsWith("mLowPowerModeEnabled=") ||
+                    trimmed.startsWith("mBatterySaverEnabled=") -> {
+                    lowPowerMode = trimmed.contains("true")
+                }
+                trimmed.startsWith("mDeviceIdleMode=") -> {
+                    deviceIdleMode = trimmed.substringAfter("=")
+                }
+                trimmed.startsWith("Device idle mode: ") -> {
+                    deviceIdleMode = trimmed.substringAfter("Device idle mode: ")
+                }
+                trimmed.startsWith("mLightDeviceIdleMode=") -> {
+                    if (deviceIdleMode == "UNKNOWN") deviceIdleMode = trimmed.substringAfter("=")
+                }
+                // Headings carry a size suffix: "Wake Locks: size=3".
+                trimmed.startsWith("Wake Locks:") -> {
+                    inWakeLocks = true
+                    inBlockers = false
+                }
+                trimmed.startsWith("Suspend Blockers:") -> {
+                    inWakeLocks = false
+                    inBlockers = true
+                }
+                trimmed.isEmpty() -> {
+                    inWakeLocks = false
+                    inBlockers = false
+                }
+                inWakeLocks && trimmed.isNotBlank() -> wakeLocks.add(trimmed)
+                inBlockers && trimmed.isNotBlank() -> suspendBlockers.add(trimmed)
+            }
+        }
+
+        return PowerManagerInfo(
+            screenBrightness = brightness,
+            isScreenOn = screenOn,
+            holdingWakeLocks = wakeLocks,
+            suspendBlockers = suspendBlockers,
+            batteryLevel = batteryLevel,
+            batteryStatus = batteryStatus,
+            lowPowerMode = lowPowerMode,
+            deviceIdleMode = deviceIdleMode
+        )
+    }
+}
+

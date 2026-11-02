@@ -1,0 +1,249 @@
+<resources>
+    <string name="app_name">MAY - Task Manager</string>
+
+    <!-- Navigation & Common Actions -->
+    <string name="action_back">Back</string>
+    <string name="action_close">Close</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_share">Share</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_reset">Reset</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_clear_all">Clear All</string>
+    <string name="action_discard">Discard</string>
+    <string name="action_install">Install</string>
+    <string name="action_install_root">Install (Root)</string>
+    <string name="action_download_update">Download Update</string>
+    <string name="action_check_updates">Check Updates</string>
+    <string name="action_inspect_logs">Inspect Logs</string>
+
+    <!-- Themes -->
+    <string name="theme_system_dynamic_title">Dynamic Monet</string>
+    <string name="theme_glass_title">Liquid Glass</string>
+    <string name="theme_oled_black_title">OLED Black</string>
+    <string name="theme_dark_modern_title">Modern Dark</string>
+    <string name="theme_light_clean_title">Light Clean</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_appearance">Appearance &amp; Theme</string>
+    <string name="settings_section_updates">Updates</string>
+    <string name="settings_section_about">System &amp; About</string>
+    <string name="settings_root_access_label">Root Access (Superuser)</string>
+    <string name="settings_root_granted">Granted</string>
+    <string name="settings_root_not_detected">Not Detected</string>
+
+    <!-- Updates -->
+    <string name="update_available_title">Update Available</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_up_to_date">App is up to date</string>
+    <string name="update_current_version">Current version</string>
+    <string name="update_version_label">Version</string>
+    <string name="update_installing_root">Installing via Superuser…</string>
+    <string name="update_download_failed">Download failed</string>
+    <string name="update_toast_root_success">Updated successfully via Root!</string>
+    <string name="update_toast_root_failed">Root install failed: %1$s</string>
+
+    <!-- Task Manager Tabs -->
+    <string name="task_manager_title">Task Manager</string>
+    <string name="task_manager_tab_processes">Processes</string>
+    <string name="task_manager_tab_performance">Performance</string>
+    <string name="task_manager_tab_background">Background</string>
+    <string name="task_manager_tab_battery">Battery</string>
+    <string name="task_manager_tab_logs">Logs</string>
+    <string name="task_manager_tab_history">History</string>
+    <string name="task_manager_tab_cycles">Cycles</string>
+    <string name="task_manager_tab_network">Network</string>
+
+    <!-- Process Groups & Search -->
+    <string name="task_manager_group_foreground">Foreground Apps</string>
+    <string name="task_manager_group_background">Background Processes</string>
+    <string name="task_manager_group_system">System Processes</string>
+    <string name="task_manager_search_hint">Search apps, processes or PID…</string>
+    <string name="task_manager_live_badge">LIVE</string>
+    <string name="task_manager_end_task">End Task</string>
+    <string name="task_manager_badge_foreground">Foreground</string>
+    <string name="task_manager_badge_background">Background</string>
+    <string name="task_manager_badge_system">System</string>
+
+    <!-- Telemetry & Specs -->
+    <string name="task_manager_cpu_cores">Cores</string>
+    <string name="task_manager_cpu_speed">Speed</string>
+    <string name="task_manager_cpu_threads">Processes / Threads</string>
+    <string name="task_manager_cpu_uptime">Uptime</string>
+    <string name="task_manager_ram_used">In Use</string>
+    <string name="task_manager_ram_available">Available</string>
+    <string name="task_manager_ram_zram">zRAM / Swap</string>
+    <string name="task_manager_net_download">Download</string>
+    <string name="task_manager_net_upload">Upload</string>
+    <string name="task_manager_total_traffic">Total Traffic</string>
+    <string name="task_manager_storage_title">Storage</string>
+    <string name="task_manager_storage_used">Used</string>
+    <string name="task_manager_storage_free">Free</string>
+    <string name="task_manager_storage_total">Total Capacity</string>
+    <string name="task_manager_battery_title">Battery &amp; Power</string>
+    <string name="task_manager_power_impact">Power Impact</string>
+    <string name="task_manager_battery_voltage">Voltage</string>
+    <string name="task_manager_battery_temp">Temperature</string>
+    <string name="task_manager_battery_health">Health</string>
+    <string name="task_manager_battery_charging">Charging</string>
+    <string name="task_manager_battery_discharging">Discharging</string>
+    <string name="task_manager_battery_power_supply">Battery Power</string>
+
+    <!-- GPU -->
+    <string name="task_manager_gpu_load">GPU Load</string>
+    <string name="task_manager_gpu_freq">Current Frequency</string>
+    <string name="task_manager_gpu_accel">Acceleration</string>
+    <string name="task_manager_gpu_active_kernel">Kernel Active</string>
+    <string name="task_manager_gpu_dynamic">Dynamic</string>
+    <string name="task_manager_gpu_hardware_vulkan">Hardware Vulkan</string>
+
+    <!-- Root Inspector -->
+    <string name="root_inspector_cpu">CPU</string>
+    <string name="root_inspector_ram">RAM (PSS)</string>
+    <string name="root_inspector_download">Download</string>
+    <string name="root_inspector_upload">Upload</string>
+    <string name="root_inspector_tab_memory">Memory</string>
+    <string name="root_inspector_tab_processes">Processes</string>
+    <string name="root_inspector_tab_network">Network</string>
+    <string name="root_inspector_tab_battery">Battery</string>
+    <string name="root_inspector_tab_permissions">Permissions</string>
+    <string name="root_inspector_action_force_stop">Force Stop</string>
+    <string name="root_inspector_action_clear_cache">Clear Cache</string>
+    <string name="root_inspector_action_launch">Launch</string>
+    <string name="root_inspector_action_kill_pid">Kill PID</string>
+    <string name="root_inspector_toast_cache_cleared">App cache cleared successfully!</string>
+    <string name="root_inspector_toast_stopped">App force-stopped via root!</string>
+    <string name="root_inspector_toast_kill_success">Process PID %1$d killed!</string>
+    <string name="root_inspector_toast_kill_error">Failed to kill process.</string>
+    <string name="root_inspector_no_connections">No active network connections</string>
+    <string name="root_inspector_no_services">No running services</string>
+    <string name="root_inspector_loading">Inspecting application via Superuser…</string>
+    <string name="root_inspector_status_foreground">Foreground</string>
+    <string name="root_inspector_status_background">Background</string>
+    <string name="root_inspector_status_stopped">Stopped</string>
+    <string name="root_inspector_period_today">Today</string>
+    <string name="root_inspector_period_7days">7 Days</string>
+    <string name="root_inspector_period_total">Total</string>
+    <string name="root_inspector_data_usage">Data Usage</string>
+    <string name="root_inspector_speed_download">Download Speed</string>
+    <string name="root_inspector_speed_upload">Upload Speed</string>
+    <string name="root_inspector_total_data">Total Data</string>
+    <string name="root_inspector_mem_dalvik">Dalvik / ART Heap</string>
+    <string name="root_inspector_mem_native">Native Heap (C/C++)</string>
+    <string name="root_inspector_mem_graphics">Graphics / GPU (EGL)</string>
+    <string name="root_inspector_net_today">Today (00:00 - Now)</string>
+    <string name="root_inspector_net_7days">Last 7 Days</string>
+    <string name="root_inspector_net_total">Total History</string>
+    <string name="root_inspector_battery_foreground">Foreground (Screen On)</string>
+    <string name="root_inspector_battery_background">Background (Silent Processes)</string>
+    <string name="root_inspector_action_app_info">App Info</string>
+    <string name="root_inspector_action_uninstall">Uninstall App</string>
+    <string name="root_inspector_action_prevent_bg">Prevent Background Use</string>
+
+    <!-- Background Watcher -->
+    <string name="anomaly_dialog_title">Background Watcher</string>
+    <string name="anomaly_channel_name">Background Anomalies</string>
+    <string name="anomaly_channel_desc">Notifications for apps with excessive resource consumption in background</string>
+    <string name="anomaly_enable_watcher">Enable Watcher</string>
+    <string name="anomaly_status_active">Monitoring background activity</string>
+    <string name="anomaly_status_disabled">Watcher is disabled</string>
+    <string name="anomaly_sensitivity_label">Alert Sensitivity</string>
+    <string name="anomaly_sensitivity_high">High (Strict)</string>
+    <string name="anomaly_sensitivity_balanced">Balanced (Recommended)</string>
+    <string name="anomaly_sensitivity_low">Low (Conservative)</string>
+    <string name="anomaly_categories_label">Monitored Metrics</string>
+    <string name="anomaly_opt_network">Network Data</string>
+    <string name="anomaly_opt_cpu">CPU Usage</string>
+    <string name="anomaly_opt_ram">RAM Leaks</string>
+    <string name="anomaly_opt_deep_sleep">Deep Sleep Interruption</string>
+    <string name="anomaly_recent_alerts">Recent Alerts</string>
+    <string name="anomaly_no_recent_alerts">No anomalies detected recently</string>
+    <string name="anomaly_action_force_stop">Force Stop</string>
+    <string name="anomaly_action_mute_1h">Mute 1h</string>
+    <string name="anomaly_action_inspect">Inspect</string>
+    <string name="anomaly_notif_net_title">Excessive background data: %1$s</string>
+    <string name="anomaly_notif_cpu_title">High background CPU: %1$s</string>
+    <string name="anomaly_notif_ram_title">High RAM usage: %1$s</string>
+    <string name="anomaly_notif_deep_sleep_title">Preventing deep sleep: %1$s</string>
+    <string name="anomaly_desc_net_screen_off">%1$s transferred %2$s with screen off (%3$s).</string>
+    <string name="anomaly_desc_net_screen_on">%1$s transferred %2$s in background (%3$s).</string>
+    <string name="anomaly_desc_cpu">%1$s consumed %2$d%% CPU in background (%3$s).</string>
+    <string name="anomaly_desc_ram">%1$s is using %2$s of RAM in background (%3$s).</string>
+    <string name="anomaly_desc_deep_sleep">%1$s caused %2$d wakeups in deep sleep (%3$s).</string>
+    <string name="anomaly_cause_download">Background download</string>
+    <string name="anomaly_cause_upload">Background upload</string>
+    <string name="anomaly_cause_sync">Periodic sync</string>
+    <string name="anomaly_cause_backup">Cloud backup</string>
+    <string name="anomaly_cause_messages">Messaging active</string>
+    <string name="anomaly_cause_call">Voice/video call</string>
+    <string name="anomaly_cause_service_active">Foreground service running</string>
+    <string name="anomaly_cause_update">Background app update</string>
+    <string name="anomaly_cause_general_bg">Unknown background process</string>
+    <string name="anomaly_toast_force_stopped">“%1$s” force-stopped via Superuser</string>
+    <string name="anomaly_toast_muted">Alerts for “%1$s” muted for 1 hour</string>
+    <string name="anomaly_toast_open_settings">Configuring %1$s…</string>
+
+    <!-- Background Watcher Screen -->
+    <string name="background_total_flagged">Flagged Apps</string>
+    <string name="background_total_data">Background Data</string>
+    <string name="background_total_sleep_loss">Sleep Loss</string>
+    <string name="background_empty_title">All Quiet in Background</string>
+    <string name="background_empty_desc">No applications have shown abnormal resource drain recently.</string>
+    <string name="background_filter_all">All</string>
+    <string name="background_filter_deep_sleep">Deep Sleep</string>
+    <string name="background_filter_network">Network</string>
+    <string name="background_filter_cpu_ram">CPU &amp; RAM</string>
+    <string name="background_service_label">Active Service</string>
+    <string name="background_btn_stop">Stop</string>
+    <string name="background_btn_inspect">Inspect</string>
+    <string name="background_btn_mute">Mute</string>
+
+    <!-- Log Viewer & Terminal -->
+    <string name="log_global_system_title">System Logcat</string>
+    <string name="log_notif_channel_name">Log Recording</string>
+    <string name="log_notif_channel_desc">Active background logcat recording notifications</string>
+    <string name="log_notif_crashes_channel_name">Crash Alerts</string>
+    <string name="log_notif_crashes_channel_desc">Notifications when apps crash</string>
+    <string name="log_notif_recording_title">Capturing Logs</string>
+    <string name="log_notif_saved_title">Log Recording Saved</string>
+    <string name="log_notif_saved_text">Log saved: %1$s</string>
+    <string name="log_notif_action_save">Save</string>
+    <string name="log_notif_action_discard">Discard</string>
+    <string name="log_notif_action_share">Share</string>
+    <string name="log_notif_action_view">View</string>
+    <string name="log_notif_action_delete">Delete</string>
+    <string name="log_notif_crash_title">Crash Detected: %1$s</string>
+    <string name="log_action_view_crash">View Crash</string>
+    <string name="log_action_copy_trace">Copy Stacktrace</string>
+    <string name="log_toast_saved">Log recording saved successfully!</string>
+    <string name="log_toast_discarded">Log recording discarded.</string>
+    <string name="log_toast_deleted">Log recording deleted.</string>
+    <string name="log_toast_crash_detected">Crash detected for %1$s</string>
+    <string name="log_toast_copied_trace">Stacktrace copied to clipboard!</string>
+    <string name="log_header_title">Logcat &amp; Diagnostics Center</string>
+    <string name="log_header_subtitle">Logcat • Crashes • ANRs • Log Engine</string>
+    <string name="log_filter_app_label">Filter App</string>
+    <string name="log_search_hint">Search tag, message, PID…</string>
+    <string name="log_btn_save_zip">Save ZIP</string>
+    <string name="log_btn_new_filter">New Filter</string>
+    <string name="log_empty_recordings">No saved recordings yet.</string>
+    <string name="log_empty_crashes">No crashes or ANRs recorded.</string>
+    <string name="log_crashes_monitoring_desc">Active monitoring for Java exceptions, native signals, and ANRs.</string>
+    <string name="log_empty_filters">No custom filters configured.</string>
+    <string name="log_permission_read_logs">Permission android.permission.READ_LOGS:</string>
+    <string name="log_permission_root">Root Access (Superuser):</string>
+    <string name="log_copy_adb_cmd">Copy ADB Command:</string>
+    <string name="log_line_details_title">Log Line Details</string>
+    <string name="log_line_message_label">Message:</string>
+
+    <!-- Enforce Doze -->
+    <string name="enforce_doze_channel_name">Deep Doze Control</string>
+    <string name="enforce_doze_channel_desc">Notifications for deep power saving doze mode</string>
+    <string name="enforce_doze_notif_title">Deep Doze Enforced</string>
+    <string name="enforce_doze_notif_content">Device forced into Deep Sleep mode</string>
+    <string name="enforce_doze_notif_big_text">Device is in forced deep sleep mode. Background jobs and network syncing are frozen until screen turns on.</string>
+</resources>
