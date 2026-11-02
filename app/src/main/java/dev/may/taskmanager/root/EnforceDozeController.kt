@@ -16,6 +16,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import dev.may.taskmanager.MainActivity
 import dev.may.taskmanager.R
+import dev.may.taskmanager.battery.DrainNotificationManager
+import dev.may.taskmanager.battery.ShellRunner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

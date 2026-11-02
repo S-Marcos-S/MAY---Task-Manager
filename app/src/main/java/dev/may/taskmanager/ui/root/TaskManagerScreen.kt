@@ -78,6 +78,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Settings
 import dev.may.taskmanager.history.DailyHistoryRepository
 import dev.may.taskmanager.ui.network.NetworkStatsScreen
 import dev.may.taskmanager.ui.battery.BatteryStatsScreen
@@ -165,9 +166,10 @@ private enum class TaskManagerTab {
 @Composable
 fun TaskManagerScreen(
     allApps: List<AppInfo>,
-    onNavigateBack: () -> Unit,
+    onNavigateBack: () -> Unit = {},
     onNavigateToNetworkStats: () -> Unit = {},
     onNavigateToBatteryStats: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
@@ -314,6 +316,7 @@ fun TaskManagerScreen(
                     }
                 },
                 onNavigateBack = onNavigateBack,
+                onOpenSettings = onOpenSettings,
                 onOpenAnomalySettings = { showAnomalySettingsDialog = true },
                 isWatcherActive = anomalyConfig.isEnabled,
                 isGlassActive = isGlassActive,
@@ -487,6 +490,7 @@ private fun CleanTaskManagerTopBar(
     selectedTab: TaskManagerTab,
     onTabSelect: (TaskManagerTab) -> Unit,
     onNavigateBack: () -> Unit,
+    onOpenSettings: () -> Unit = {},
     onOpenAnomalySettings: () -> Unit,
     isWatcherActive: Boolean,
     isGlassActive: Boolean = LocalGlassThemeActive.current,
@@ -567,6 +571,17 @@ private fun CleanTaskManagerTopBar(
                     imageVector = if (isWatcherActive) Icons.Filled.NotificationsActive else Icons.Filled.NotificationsNone,
                     contentDescription = stringResource(R.string.anomaly_dialog_title),
                     tint = if (isWatcherActive) colorScheme.primary else colorScheme.onSurfaceVariant,
+                )
+            }
+
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier.size(38.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = stringResource(R.string.settings_title),
+                    tint = colorScheme.onSurfaceVariant,
                 )
             }
         }

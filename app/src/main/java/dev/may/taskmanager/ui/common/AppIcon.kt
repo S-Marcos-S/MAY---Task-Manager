@@ -49,7 +49,9 @@ fun AppIcon(
     packageName: String,
     modifier: Modifier = Modifier,
     size: Dp = 32.dp,
+    sizeDp: Int? = null,
 ) {
+    val actualSize = sizeDp?.dp ?: size
     val context = LocalContext.current
     var bitmap by remember(packageName) { mutableStateOf(IconMemoryCache.get(packageName)) }
 
@@ -59,7 +61,7 @@ fun AppIcon(
                 try {
                     val pm = context.packageManager
                     val drawable = pm.getApplicationIcon(packageName)
-                    val px = (36 * context.resources.displayMetrics.density).toInt().coerceAtLeast(32)
+                    val px = (actualSize.value * context.resources.displayMetrics.density).toInt().coerceAtLeast(32)
                     drawableToBitmap(drawable, px).asImageBitmap()
                 } catch (_: Throwable) {
                     null
@@ -74,8 +76,8 @@ fun AppIcon(
 
     Box(
         modifier = modifier
-            .size(size)
-            .clip(RoundedCornerShape(size * 0.22f)),
+            .size(actualSize)
+            .clip(RoundedCornerShape(actualSize * 0.22f)),
         contentAlignment = Alignment.Center,
     ) {
         val bmp = bitmap
@@ -83,12 +85,12 @@ fun AppIcon(
             Image(
                 bitmap = bmp,
                 contentDescription = null,
-                modifier = Modifier.size(size),
+                modifier = Modifier.size(actualSize),
             )
         } else {
             Box(
                 modifier = Modifier
-                    .size(size)
+                    .size(actualSize)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center,
             ) {
@@ -96,7 +98,7 @@ fun AppIcon(
                     imageVector = Icons.Filled.Android,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(size * 0.65f),
+                    modifier = Modifier.size(actualSize * 0.65f),
                 )
             }
         }
@@ -108,11 +110,13 @@ fun AppIcon(
     app: AppInfo,
     modifier: Modifier = Modifier,
     size: Dp = 32.dp,
+    sizeDp: Int? = null,
 ) {
     AppIcon(
         packageName = app.packageName,
         modifier = modifier,
         size = size,
+        sizeDp = sizeDp,
     )
 }
 

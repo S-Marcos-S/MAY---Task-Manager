@@ -1,7 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">MAY - Gerenciador de Tarefas</string>
 
-    <!-- Navegação e Ações Comuns -->
+    
     <string name="action_back">Voltar</string>
     <string name="action_close">Fechar</string>
     <string name="action_save">Salvar</string>
@@ -20,14 +21,14 @@
     <string name="action_check_updates">Buscar atualizações</string>
     <string name="action_inspect_logs">Inspecionar logs</string>
 
-    <!-- Temas -->
+    
     <string name="theme_system_dynamic_title">Monet Dinâmico</string>
     <string name="theme_glass_title">Vidro Líquido</string>
     <string name="theme_oled_black_title">Preto OLED</string>
     <string name="theme_dark_modern_title">Modern Dark</string>
     <string name="theme_light_clean_title">Light Clean</string>
 
-    <!-- Tela de Configurações -->
+    
     <string name="settings_title">Configurações</string>
     <string name="settings_section_appearance">Aparência &amp; Tema</string>
     <string name="settings_section_updates">Atualizações</string>
@@ -36,7 +37,7 @@
     <string name="settings_root_granted">Concedido</string>
     <string name="settings_root_not_detected">Não detectado</string>
 
-    <!-- Atualizações -->
+    
     <string name="settings_beta_tester_title">Testador de Versões Beta</string>
     <string name="settings_beta_tester_desc">Receber atualizações de teste e pré-lançamentos antes da versão estável pública</string>
     <string name="update_beta_badge">BETA</string>
@@ -50,7 +51,7 @@
     <string name="update_toast_root_success">Atualizado com sucesso via Root!</string>
     <string name="update_toast_root_failed">Falha na instalação via Root: %1$s</string>
 
-    <!-- Abas do Gerenciador de Tarefas -->
+    
     <string name="task_manager_title">Gerenciador de Tarefas</string>
     <string name="task_manager_tab_processes">Processos</string>
     <string name="task_manager_tab_performance">Desempenho</string>
@@ -61,7 +62,7 @@
     <string name="task_manager_tab_cycles">Ciclos</string>
     <string name="task_manager_tab_network">Rede</string>
 
-    <!-- Grupos de Processos e Busca -->
+    
     <string name="task_manager_group_foreground">Apps em 1º Plano</string>
     <string name="task_manager_group_background">Processos em 2º Plano</string>
     <string name="task_manager_group_system">Processos do Sistema</string>
@@ -72,7 +73,7 @@
     <string name="task_manager_badge_background">2º Plano</string>
     <string name="task_manager_badge_system">Sistema</string>
 
-    <!-- Telemetria & Especificações -->
+    
     <string name="task_manager_cpu_cores">Núcleos</string>
     <string name="task_manager_cpu_speed">Frequência</string>
     <string name="task_manager_cpu_threads">Processos / Threads</string>
@@ -96,7 +97,7 @@
     <string name="task_manager_battery_discharging">Em Descarga</string>
     <string name="task_manager_battery_power_supply">Alimentação via Bateria</string>
 
-    <!-- GPU -->
+    
     <string name="task_manager_gpu_load">Carga de GPU</string>
     <string name="task_manager_gpu_freq">Frequência Atual</string>
     <string name="task_manager_gpu_accel">Aceleração</string>
@@ -104,7 +105,7 @@
     <string name="task_manager_gpu_dynamic">Dinâmica</string>
     <string name="task_manager_gpu_hardware_vulkan">Hardware Vulkan</string>
 
-    <!-- Inspetor Root -->
+    
     <string name="root_inspector_cpu">CPU</string>
     <string name="root_inspector_ram">RAM (PSS)</string>
     <string name="root_inspector_download">Download</string>
@@ -147,7 +148,7 @@
     <string name="root_inspector_action_uninstall">Desinstalar app</string>
     <string name="root_inspector_action_prevent_bg">Impedir uso em 2º plano</string>
 
-    <!-- Monitor de Anomalias em Segundo Plano -->
+    
     <string name="anomaly_dialog_title">Monitor de Segundo Plano</string>
     <string name="anomaly_channel_name">Anomalias em Segundo Plano</string>
     <string name="anomaly_channel_desc">Notificações de aplicativos com consumo abusivo em segundo plano</string>
@@ -190,7 +191,7 @@
     <string name="anomaly_toast_muted">Alertas de “%1$s” silenciados por 1 hora</string>
     <string name="anomaly_toast_open_settings">Configurando %1$s…</string>
 
-    <!-- Tela do Monitor de Segundo Plano -->
+    
     <string name="background_total_flagged">Apps Sinalizados</string>
     <string name="background_total_data">Dados em 2º Plano</string>
     <string name="background_total_sleep_loss">Sono Perdido</string>
@@ -205,7 +206,7 @@
     <string name="background_btn_inspect">Inspecionar</string>
     <string name="background_btn_mute">Silenciar</string>
 
-    <!-- Visualizador de Logs & Terminal -->
+    
     <string name="log_global_system_title">Logcat do Sistema</string>
     <string name="log_notif_channel_name">Gravação de Logs</string>
     <string name="log_notif_channel_desc">Notificações de captura ativa de logcat em segundo plano</string>
@@ -243,10 +244,1024 @@
     <string name="log_line_details_title">Detalhes da Linha de Log</string>
     <string name="log_line_message_label">Mensagem:</string>
 
-    <!-- Enforce Doze -->
+    
     <string name="enforce_doze_channel_name">Controle Deep Doze</string>
     <string name="enforce_doze_channel_desc">Notificações para modo de economia profunda Doze</string>
     <string name="enforce_doze_notif_title">Deep Doze Forçado</string>
     <string name="enforce_doze_notif_content">Dispositivo forçado em modo Sono Profundo</string>
     <string name="enforce_doze_notif_big_text">O dispositivo está em modo forçado de economia profunda. Tarefas em segundo plano e sincronizações foram congeladas até ligar a tela.</string>
+<string name="accessibility_description">Permite que o gesto de deslizar para baixo abra o painel de notificações e que o toque duplo desligue a tela. O Viagara Launcher não lê nem interage com o conteúdo da tela.</string>
+    <string name="accessibility_service_label">Gestos do Viagara Launcher</string>
+    <string name="notification_service_label">Músicas em Reprodução do Viagara Launcher</string>
+
+    
+    <string name="action_download">Baixar</string>
+    <string name="action_create">Criar</string>
+    <string name="action_done">Concluído</string>
+    <string name="action_remove">Remover</string>
+    <string name="action_app_info">Informações do app</string>
+    <string name="action_edit_layout">Editar layout</string>
+    <string name="action_align_elements">Alinhar elementos</string>
+    <string name="toast_aligned_elements">Todos os elementos foram alinhados com base nos aplicativos</string>
+    <string name="action_resize">Redimensionar</string>
+    <string name="action_edit_icon_and_name">Editar ícone e nome</string>
+    <string name="action_move_to_folder">Mover para pasta…</string>
+    <string name="action_change_icon">Alterar ícone…</string>
+    <string name="action_open_settings">Configurações do Viagara Launcher</string>
+    <string name="action_not_now">Agora não</string>
+    <string name="action_set_default">Definir como padrão</string>
+    <string name="default_launcher_dialog_title">Definir como inicializador padrão</string>
+    <string name="default_launcher_dialog_message">Defina o Viagara Launcher como seu aplicativo de tela inicial padrão para desfrutar de uma experiência limpa, ultra rápida e sem distrações sempre que pressionar o botão Home ou desbloquear o aparelho.</string>
+    <string name="default_launcher_feature_home">Acesso instantâneo ao pressionar o botão Home</string>
+    <string name="default_launcher_feature_apps">Navegação A-Z fluida e pesquisa universal</string>
+    <string name="default_launcher_feature_minimal">Interface limpa, focada e personalizável</string>
+    <string name="settings_default_launcher">Inicializador padrão</string>
+    <string name="settings_default_launcher_is_default">Viagara Launcher é o app padrão</string>
+    <string name="settings_default_launcher_set">Toque para definir como padrão</string>
+
+    
+    <string name="options_title">Opções</string>
+    <string name="home_option_wallpaper">Papel de parede</string>
+    <string name="wallpaper_picker_title">Papéis de Parede</string>
+    <string name="wallpaper_picker_gallery">Fotos e Galeria</string>
+    <string name="wallpaper_picker_gallery_desc">Escolha uma imagem do seu aparelho ou Google Fotos</string>
+    <string name="wallpaper_picker_curated">Coleção Oficial</string>
+    <string name="wallpaper_picker_empty">Nenhum papel de parede disponível no momento.</string>
+    <string name="wallpaper_apply_title">Aplicar Papel de Parede</string>
+    <string name="wallpaper_apply_home">Tela inicial</string>
+    <string name="wallpaper_apply_lock">Bloqueio</string>
+    <string name="wallpaper_apply_both">Ambas</string>
+    <string name="wallpaper_applied_success">Papel de parede aplicado com sucesso!</string>
+    <string name="wallpaper_apply_error">Erro ao aplicar papel de parede.</string>
+    <string name="wallpaper_applying">Aplicando papel de parede…</string>
+    <string name="wallpaper_loading">Carregando papel de parede…</string>
+    <string name="wallpaper_category_all">Todos</string>
+    <string name="wallpaper_category_oled">OLED</string>
+    <string name="wallpaper_category_minimal">Minimalista</string>
+    <string name="wallpaper_category_abstract">Abstrato</string>
+    <string name="wallpaper_category_space">Espaço</string>
+    <string name="wallpaper_category_nature">Natureza</string>
+    <string name="wallpaper_category_anime">Anime</string>
+    <string name="wallpaper_category_games">Jogos</string>
+    <string name="wallpaper_category_cyberpunk">Cyberpunk</string>
+    <string name="wallpaper_category_city">Cidades</string>
+    <string name="wallpaper_category_cars">Carros</string>
+    <string name="wallpaper_category_animals">Animais</string>
+    <string name="wallpaper_category_fantasy">Fantasia</string>
+    <string name="wallpaper_notification_channel_name">Papéis de Parede</string>
+    <string name="wallpaper_notification_channel_desc">Notificações sobre novos papéis de parede adicionados ao catálogo</string>
+    <string name="wallpaper_new_notification_title">Novos papéis de parede disponíveis!</string>
+    <string name="wallpaper_new_notification_single">1 novo papel de parede foi adicionado ao catálogo.</string>
+    <string name="wallpaper_new_notification_multiple">%1$d novos papéis de parede foram adicionados ao catálogo.</string>
+    <string name="daily_wallpaper_title">Papel de parede diário</string>
+    <string name="daily_wallpaper_desc">Mudar o wallpaper automaticamente todo dia</string>
+    <string name="daily_wallpaper_prompt">Gostou do papel de parede?</string>
+    <string name="daily_wallpaper_like">Gostei (favoritar)</string>
+    <string name="daily_wallpaper_dislike">Não gostei (próximo)</string>
+    <string name="daily_wallpaper_liked_feedback">Salvo nos favoritos</string>
+    <string name="daily_wallpaper_disliked_feedback">Papel de parede ignorado</string>
+    <string name="clock_notification_channel_name">Estilos de Relógio</string>
+    <string name="clock_notification_channel_desc">Notificações sobre novos widgets de relógio adicionados ao repositório</string>
+    <string name="clock_new_notification_title">Novos estilos de relógio disponíveis!</string>
+    <string name="clock_new_notification_single">1 novo estilo de relógio foi adicionado ao repositório.</string>
+    <string name="clock_new_notification_multiple">%1$d novos estilos de relógio foram adicionados ao repositório.</string>
+    <string name="home_option_themes">Temas</string>
+    <string name="themes_title">Temas</string>
+    <string name="themes_subtitle">Personalize a aparência e cores do seu launcher</string>
+    <string name="theme_system_dynamic_desc">Cores extraídas do papel de parede com Material You</string>
+    <string name="theme_glass_desc">Efeito de refração líquida e vidro fosco em toda a launcher</string>
+    <string name="theme_oled_black_desc">Superfícies em preto absoluto, ideal para telas AMOLED</string>
+    <string name="theme_dark_modern_desc">Paleta escura balanceada com contraste suave</string>
+    <string name="theme_light_clean_desc">Design brilhante, limpo e minimalista</string>
+    <string name="themes_custom_header">Catálogo de Temas</string>
+    <string name="themes_coming_soon_title">Temas Personalizados</string>
+    <string name="themes_coming_soon_desc">Novos temas exclusivos e paletas de cores estarão disponíveis em breve</string>
+    <string name="home_reorder_hint">Segure e arraste para reordenar</string>
+    <string name="home_no_favorites_title">Nenhum favorito ainda</string>
+    <string name="home_no_favorites_body">Toque na borda da tela para abrir a lista de apps ou escolha seus favoritos na lista abaixo.</string>
+    <string name="home_choose_favorites">Escolher favoritos</string>
+    <string name="home_folder_choose_apps">Escolher apps…</string>
+    <string name="home_folder_delete">Excluir pasta</string>
+    <string name="home_folder_empty">Vazia — pressione e segure a pasta para escolher apps</string>
+    <string name="home_folder_name_label">Nome da pasta</string>
+    <string name="home_folder_use_previews">Usar prévias dos apps</string>
+    <string name="home_display_name_label">Nome de exibição</string>
+
+    
+    <string name="update_action_changelog">Mudanças</string>
+    <string name="update_action_download">Atualizar</string>
+    <string name="update_action_install">Instalar</string>
+    <string name="update_dialog_title">O que há de novo</string>
+    <string name="update_build_prefix">Build %1$s</string>
+    <string name="update_compiled_at">Compilada em %1$s</string>
+    <string name="update_downloading_notification_desc">Baixando atualização%1$s…</string>
+    <string name="update_downloading_progress">Baixando %1$d%%…</string>
+    <string name="update_toast_downloading">Baixando atualização… Acompanhe pela barra de notificações</string>
+    <string name="update_toast_download_completed">Download concluído! APK salvo na pasta Downloads</string>
+    <string name="update_toast_error">Erro ao iniciar download: %1$s</string>
+    <string name="update_notification_channel_name">Atualizações do aplicativo</string>
+    <string name="update_notification_channel_desc">Avisos sobre novas versões disponíveis do Viagara Launcher</string>
+    <string name="update_notification_title">Viagara Launcher %1$s disponível</string>
+    <string name="update_notification_text">Toque para ver o que há de novo e atualizar</string>
+    <string name="update_root_install_option">Instalar via Root (Sem Play Protect)</string>
+    <string name="update_root_install_desc">Instalação silenciosa direta sem passar pelo Google Play Protect</string>
+    <string name="update_action_install_root">Instalar via Root</string>
+    <string name="update_status_installing_root">Instalando via Root…</string>
+    <string name="handle_side_padding">↔ Espaçamento lateral · %1$ddp</string>
+    <string name="handle_alphabet_side_padding">↔ Espaçamento lateral do alfabeto · %1$ddp</string>
+    <string name="handle_vertical">↕ %1$s · %2$ddp</string>
+    <string name="handle_widget_top">Topo do widget</string>
+    <string name="handle_widget_bottom">Base do widget</string>
+    <string name="handle_widget_height">Altura do widget</string>
+    <string name="handle_favorites_top">Topo dos favoritos</string>
+    <string name="handle_favorites_bottom">Base dos favoritos</string>
+    <string name="handle_now_playing_top">Topo do player de música</string>
+    <string name="handle_now_playing_bottom">Base do player de música</string>
+    <string name="handle_now_playing_height">Altura do player de música</string>
+
+    
+    <string name="applist_add_favorite">Adicionar aos favoritos</string>
+    <string name="applist_remove_favorite">Remover dos favoritos</string>
+    <string name="applist_hide">Ocultar da lista</string>
+
+    
+    <string name="toast_enable_accessibility_shade">Ative o Viagara Launcher em Configurações → Acessibilidade para abrir as notificações</string>
+    <string name="toast_enable_accessibility_lock">Ative o Viagara Launcher em Configurações → Acessibilidade para desligar a tela</string>
+
+    
+    <string name="settings_theme_colors">Cores</string>
+    <string name="settings_section_behavior">Comportamento</string>
+    <string name="settings_section_now_playing">Em Reprodução</string>
+    <string name="settings_section_apps">Aplicativos</string>
+    <string name="settings_preview">Prévia</string>
+    <string name="settings_preview_sample">App de exemplo</string>
+    <string name="settings_icon_pack">Pacote de ícones</string>
+    <string name="settings_icon_pack_default">Padrão</string>
+    <string name="settings_icon_pack_none">Nenhum pacote de ícones encontrado neste dispositivo.</string>
+    <string name="settings_themed_icons">Ícones temáticos</string>
+    <string name="settings_themed_icons_detail">Aplica cores dinâmicas do Monet do papel de parede a todos os aplicativos</string>
+    <string name="settings_themed_icons_style">Estilo dos ícones</string>
+    <string name="settings_themed_icons_style_material_you">Material You</string>
+    <string name="settings_themed_icons_style_minimalist">Minimalista</string>
+    <string name="settings_themed_icons_style_oled_dark">OLED Escuro</string>
+    <string name="settings_themed_icons_style_glass">Vidro</string>
+    <string name="settings_icon_shape">Formato dos ícones</string>
+    <string name="settings_icon_shape_circle">Redondo</string>
+    <string name="settings_icon_shape_ios">Estilo iOS</string>
+    <string name="settings_icon_shape_material_you">Material You</string>
+    <string name="settings_icon_shape_square">Quadrado</string>
+    <string name="settings_icon_size">Tamanho dos ícones</string>
+    <string name="settings_text_size">Tamanho do texto</string>
+    <string name="settings_favorite_spacing">Espaçamento entre favoritos</string>
+    <string name="settings_font">Fonte</string>
+    <string name="settings_text_colour">Cor do texto</string>
+    <string name="settings_text_colour_detail">Lê automaticamente o papel de parede e escolhe a cor mais legível</string>
+    <string name="settings_right_handed">Layout para destros</string>
+    <string name="settings_right_handed_detail">Alinha os ícones e nomes junto à borda direita</string>
+    <string name="settings_show_names">Mostrar nomes sob os favoritos</string>
+    <string name="settings_clock_style">Estilo do relógio</string>
+    <string name="settings_clock_style_detail">Personalize o visual do relógio na tela inicial</string>
+    <string name="clock_style_classic">Clássico</string>
+    <string name="clock_style_stacked">Empilhado</string>
+    <string name="clock_style_minimal">Minimalista</string>
+    <string name="clock_style_analog">Analógico</string>
+    <string name="clock_style_digital_card">Cartão Digital</string>
+    <string name="clock_style_day_focus">Dia em Destaque</string>
+    <string name="clock_style_tech_hud">HUD Futurista</string>
+    <string name="clock_style_tech_hud_pro">HUD Futurista Pro</string>
+    <string name="clock_style_system_monitor">Monitor do Sistema</string>
+    <string name="clock_style_minimal_specs">Minimalista com Métricas</string>
+    <string name="clock_style_retro_terminal">Terminal Geek</string>
+    <string name="clock_style_daily_reflection">Reflexão Diária</string>
+    <string name="clock_style_daily_reflection_stats">Reflexão Diária + Métricas</string>
+    <string name="clock_style_nothing_dots">Nothing Dot-Matrix</string>
+    <string name="clock_style_centered_pill">Cápsula de Vidro Centralizada</string>
+    <string name="clock_style_dual_tone_stack">Tipografia Dupla Centralizada</string>
+    <string name="clock_style_calligraphy_large">Caligrafia Elegante</string>
+    <string name="clock_style_calligraphy_stacked">Caligrafia Empilhada</string>
+    <string name="clock_style_calligraphy_minimal">Escrita Artística à Mão</string>
+    <string name="clock_style_handwritten_canvas">Traço à Mão em Canvas</string>
+    <string name="clock_style_handwritten_canvas_stats">Traço à Mão + Métricas</string>
+    <string name="clock_style_canvas_shimmer">Canvas Clássico com Brilho</string>
+    <string name="clock_style_custom">Personalizado</string>
+    <string name="clock_style_apply">Aplicar</string>
+    <string name="clock_layout">Layout do relógio</string>
+    <string name="clock_single_line">Linha única</string>
+    <string name="clock_two_lines">Duas linhas</string>
+    <string name="clock_week">Semana</string>
+    <string name="clock_sacramento">Sacramento</string>
+    <string name="clock_bokor">Bokor</string>
+    <string name="clock_plaster">Plaster</string>
+    <string name="clock_double_plaster">Double Plaster</string>
+    <string name="clock_monoton">Monoton</string>
+    <string name="clock_lucky">Lucky</string>
+    <string name="clock_sacramento_week">Sacramento Semana</string>
+    <string name="clock_weight">Espessura da fonte</string>
+    <string name="clock_size">Tamanho da fonte</string>
+    <string name="clock_letter_spacing">Espaçamento de letras</string>
+    <string name="clock_digit_spacing">Espaçamento entre dígitos</string>
+    <string name="clock_hour_minute_spacing">Espaçamento hora–minuto</string>
+    <string name="clock_font_shadow">Sombra da fonte</string>
+    <string name="clock_separate_digits">Separar dígitos</string>
+    <string name="clock_separate_digits_summary">Adiciona um contorno transparente ao sobrepor caracteres</string>
+    <string name="clock_show_colon">Exibir dois-pontos</string>
+    <string name="clock_show_colon_summary">Separar horas e minutos com dois-pontos</string>
+    <string name="clock_reset_value">Restaurar valor padrão</string>
+    <string name="clock_font">Fonte</string>
+    <string name="clock_font_import">Importar fonte (TTF/OTF)</string>
+    <string name="clock_editor_tab_custom">Personalizar</string>
+    <string name="clock_editor_tab_presets">Integrados</string>
+    <string name="clock_editor_tab_catalog">Repositório</string>
+    <string name="action_resize_clock">Redimensionar relógio</string>
+    <string name="action_reset_size">Redefinir tamanho</string>
+    <string name="quote_of_the_day_tag">Reflexão do dia</string>
+    <string name="quote_copied">Frase copiada para a área de transferência</string>
+    <string name="settings_hide_status_bar">Ocultar barra de status</string>
+    <string name="settings_dim_home">Escurecer papel de parede na tela inicial</string>
+    <string name="settings_dim_applist">Escurecer papel de parede na lista de apps</string>
+    <string name="settings_haptics">Resposta tátil</string>
+    <string name="settings_haptics_detail">Segue a configuração de vibração ao toque do sistema</string>
+    <string name="settings_edge_side">Borda que abre a lista de apps</string>
+    <string name="settings_double_tap_lock">Toque duplo para desligar a tela</string>
+    <string name="settings_double_tap_lock_detail">Toque duas vezes em um espaço vazio na tela inicial</string>
+    <string name="settings_double_tap_lock_not_ready">Serviço de acessibilidade necessário para desligar a tela; toque em Ativar para conceder permissão</string>
+    <string name="settings_always_show_az">Sempre exibir índice A-Z</string>
+    <string name="settings_shade_gesture">Deslizar para baixo para notificações</string>
+    <string name="settings_shade_ready">Pronto — puxe para baixo na tela inicial</string>
+    <string name="settings_shade_not_ready">O Android não possui API pública para abrir o painel; ative o Viagara Launcher em Acessibilidade para permitir</string>
+    <string name="settings_enable">Ativar</string>
+    <string name="settings_now_playing_show">Exibir widget Em Reprodução</string>
+    <string name="settings_notification_access_granted">Acesso a notificações concedido</string>
+    <string name="settings_notification_access_missing">Acesso a notificações não concedido</string>
+    <string name="settings_notification_access_detail">Necessário para exibir a faixa que está tocando no momento</string>
+    <string name="settings_open_settings">Abrir configurações</string>
+    <string name="settings_favorites">Favoritos</string>
+    <string name="settings_favorites_detail">Escolha quais aplicativos ficam na tela inicial</string>
+    <string name="settings_hidden_apps">Aplicativos ocultos</string>
+    <string name="settings_hidden_none">Nenhum oculto</string>
+    <string name="settings_hidden_count">%1$d oculto(s)</string>
+    <string name="settings_show_notifications">Exibir notificações nos apps</string>
+    <string name="settings_show_notifications_detail">Exibe notificações recentes abaixo dos nomes dos apps</string>
+    <string name="notification_open">Abrir</string>
+    <string name="notification_dismiss">Dispensar</string>
+    <string name="settings_version">Versão %1$s</string>
+    <string name="settings_less">Menos</string>
+    <string name="settings_more">Mais</string>
+
+    
+    <string name="font_system">Sistema</string>
+    <string name="font_sans_serif">Sem serifa</string>
+    <string name="font_serif">Com serifa</string>
+    <string name="font_monospace">Monoespaçada</string>
+
+    
+    <string name="text_colour_auto">Automático</string>
+    <string name="text_colour_light">Claro</string>
+    <string name="text_colour_dark">Escuro</string>
+
+    
+    <string name="edge_left">Esquerda</string>
+    <string name="edge_right">Direita</string>
+    <string name="edge_both">Ambas</string>
+
+    
+    <string name="favorites_title">Favoritos</string>
+    <string name="favorites_count">%1$d na sua tela inicial</string>
+    <string name="settings_folder_window_popup">Janela flutuante para pastas</string>
+    <string name="settings_folder_window_popup_detail">Abre os apps da pasta em uma janela flutuante em vez de expandir na lista de favoritos</string>
+    <string name="folder_title_fallback">Pasta</string>
+    <string name="folder_gone">Esta pasta não existe mais.</string>
+    <string name="folder_member_count">%1$d nesta pasta</string>
+    <string name="folder_picker_title">Mover %1$s para…</string>
+    <string name="folder_picker_app_count">%1$d apps</string>
+    <string name="folder_picker_new">Nova pasta</string>
+    <string name="folder_picker_new_detail">O app será movido para uma nova pasta na sua tela inicial.</string>
+
+    
+    <string name="icon_picker_title">Ícone para %1$s</string>
+    <string name="icon_picker_gallery">Galeria…</string>
+    <string name="icon_picker_reset">Restaurar padrão</string>
+    <string name="icon_picker_no_packs">Nenhum pacote de ícones instalado. Instale um pacote da Play Store ou escolha uma imagem da galeria.</string>
+    <string name="icon_picker_search">Pesquisar ícones</string>
+    <string name="icon_picker_clear_search">Limpar pesquisa</string>
+    <string name="icon_picker_not_browsable">Este pacote não disponibiliza uma lista navegável de ícones.</string>
+    <string name="icon_picker_no_matches">Nenhum ícone corresponde a “%1$s”.</string>
+
+    
+    <string name="widget_title">Widget</string>
+    <string name="widget_add">Adicionar widget</string>
+    <string name="widget_add_custom">Adicionar widget personalizado</string>
+    <string name="widget_change_settings">Configurações do widget</string>
+    <string name="widget_none_found">Nenhum widget encontrado neste dispositivo.</string>
+    <string name="widget_search_hint">Buscar widgets ou aplicativos…</string>
+    <string name="widget_count">%1$d widgets</string>
+    <string name="widget_count_single">1 widget</string>
+    <string name="widget_no_matches">Nenhum widget encontrado para “%1$s”.</string>
+    <string name="widget_unavailable">Widget indisponível</string>
+    <string name="widget_tap_to_remove">Toque ou segure para remover</string>
+
+    
+    <string name="now_playing_enable_access">Permitir acesso ao Em Reprodução</string>
+    <string name="now_playing_prompt_title">Visualizar música?</string>
+    <string name="now_playing_prompt_grant">Permitir</string>
+    <string name="now_playing_prompt_deny">Não</string>
+    <string name="now_playing_open_failed">Não foi possível abrir o app em reprodução</string>
+    <string name="now_playing_unknown_title">Título desconhecido</string>
+    <string name="now_playing_previous">Anterior</string>
+    <string name="now_playing_play_pause">Reproduzir/Pausar</string>
+    <string name="now_playing_next">Próxima</string>
+
+    
+    <string name="settings_dynamic_button">Botão dinâmico</string>
+    <string name="settings_dynamic_button_detail">Botão de atalho com gestos na parte inferior da tela inicial</string>
+    <string name="settings_dynamic_button_title">Botão dinâmico</string>
+    <string name="settings_dynamic_button_enable">Exibir botão dinâmico</string>
+    <string name="settings_dynamic_button_enable_detail">Mostra um botão dinâmico ao lado do alfabeto na tela inicial</string>
+    <string name="settings_dynamic_button_preview">Prévia interativa</string>
+    <string name="settings_dynamic_button_preview_hint">Toque ou puxe para cima/baixo para sentir a animação de borracha</string>
+    <string name="settings_dynamic_button_tap_action">Ação ao tocar</string>
+    <string name="settings_dynamic_button_swipe_up_action">Ação ao puxar para cima</string>
+    <string name="settings_dynamic_button_swipe_down_action">Ação ao puxar para baixo</string>
+    <string name="settings_dynamic_button_none">Nenhum</string>
+    <string name="settings_dynamic_button_select_app">Selecionar app…</string>
+    <string name="settings_dynamic_button_pick_title">Escolher app para %1$s</string>
+    <string name="settings_dynamic_button_search_hint">Buscar apps instalados…</string>
+    <string name="settings_dynamic_button_clear">Limpar ação</string>
+    <string name="dynamic_button_swipe_up_hint">Puxar para cima</string>
+    <string name="dynamic_button_swipe_down_hint">Puxar para baixo</string>
+
+    
+    <string name="settings_root_access">Acesso Root</string>
+    <string name="settings_root_available">Binário de superusuário detectado (Magisk / KernelSU / APatch)</string>
+    <string name="settings_root_unavailable">Dispositivo sem permissão root</string>
+    <string name="settings_root_badge_detected">ROOT ATIVO</string>
+    <string name="settings_root_badge_none">SEM ROOT</string>
+
+    
+    <string name="settings_search_title">Pesquisa</string>
+    <string name="settings_search_detail">Barra de busca, apps, contatos, configurações e web</string>
+    <string name="settings_search_button_enable">Exibir botão de pesquisa na lista de apps</string>
+    <string name="settings_search_button_enable_detail">Mostra um botão flutuante de busca ao rolar a lista de aplicativos</string>
+    <string name="settings_search_auto_keyboard">Abrir teclado automaticamente</string>
+    <string name="settings_search_auto_keyboard_detail">Foca no campo de busca e abre o teclado ao entrar na tela de pesquisa</string>
+    <string name="settings_search_sources_title">Fontes de pesquisa</string>
+    <string name="settings_search_source_apps">Aplicativos</string>
+    <string name="settings_search_source_apps_detail">Pesquisar aplicativos instalados pelo nome</string>
+    <string name="settings_search_source_contacts">Contatos</string>
+    <string name="settings_search_source_contacts_detail">Pesquisar contatos e telefones de forma segura e offline</string>
+    <string name="settings_search_source_contacts_perm_needed">Requer permissão de contatos para pesquisar no aparelho</string>
+    <string name="settings_search_source_settings">Configurações do celular</string>
+    <string name="settings_search_source_settings_detail">Atalhos rápidos para Wi-Fi, Bluetooth, Bateria, Tela, etc.</string>
+    <string name="settings_search_source_web">Pesquisa na Web</string>
+    <string name="settings_search_source_web_detail">Sugerir pesquisa na internet pelo navegador</string>
+    <string name="settings_search_source_play_store">Google Play Store</string>
+    <string name="settings_search_source_play_store_detail">Sugerir busca de novos aplicativos na Play Store</string>
+    <string name="settings_search_engine_title">Mecanismo de pesquisa na Web</string>
+    <string name="settings_search_engine_subtitle">Escolha qual buscador utilizar para pesquisas na web</string>
+    <string name="search_hint_complete">Pesquisar apps, contatos, configurações…</string>
+    <string name="search_category_all">Todos</string>
+    <string name="search_category_apps">Apps</string>
+    <string name="search_category_contacts">Contatos</string>
+    <string name="search_category_settings">Configurações</string>
+    <string name="search_category_web">Web</string>
+    <string name="search_contacts_permission_title">Permissão de contatos</string>
+    <string name="search_contacts_permission_desc">Permita o acesso para buscar e ligar para seus contatos diretamente.</string>
+    <string name="search_permission_granted_toast">Permissão de contatos concedida!</string>
+    <string name="search_no_results">Nenhum resultado para “%1$s”</string>
+    <string name="search_action_web">Pesquisar na Web</string>
+    <string name="search_action_play_store">Play Store</string>
+    <string name="search_action_call">Ligar</string>
+    <string name="search_section_apps">Aplicativos</string>
+    <string name="search_section_contacts">Contatos</string>
+    <string name="search_section_settings">Configurações do Celular</string>
+    <string name="search_section_online">Pesquisa Online</string>
+    <string name="search_web_prompt">Pesquisar “%1$s” no %2$s</string>
+    <string name="search_web_detail">Abrir resultados no navegador padrão pelo %1$s</string>
+    <string name="search_play_store_prompt">Pesquisar “%1$s” na Play Store</string>
+    <string name="search_play_store_detail">Encontrar novos aplicativos e jogos na Google Play</string>
+    <string name="search_calc_copied">Resultado %1$s copiado para a área de transferência</string>
+    <string name="search_copy_result">Copiar resultado</string>
+    <string name="search_empty_title">Pesquisa Universal</string>
+    <string name="search_empty_body">Digite para encontrar apps, contatos, configurações do aparelho ou pesquisar na web.</string>
+    <string name="search_failed_open_browser">Não foi possível abrir o navegador</string>
+
+    
+    <string name="settings_section_backup">Backup e restauração</string>
+    <string name="settings_backup_title">Backup e restauração</string>
+    <string name="settings_backup_subtitle">Faça backup de preferências, layout e papel de parede</string>
+    <string name="backup_create_card_title">Criar Backup</string>
+    <string name="backup_create_card_desc">Salva todos os seus aplicativos favoritos, pastas, configurações personalizadas e papel de parede.</string>
+    <string name="backup_create_now">Criar backup agora</string>
+    <string name="backup_creating">Criando backup…</string>
+    <string name="backup_created_success">Backup criado com sucesso</string>
+    <string name="backup_create_failed">Falha ao criar backup</string>
+    <string name="backup_restore_from_file">Restaurar de arquivo…</string>
+    <string name="backup_restoring">Restaurando backup…</string>
+    <string name="backup_restore_success">Backup restaurado com sucesso!</string>
+    <string name="backup_restore_failed">Falha ao restaurar backup</string>
+    <string name="backup_auto_title">Backup automático</string>
+    <string name="backup_auto_subtitle">Cria backups periódicos das suas configurações em segundo plano</string>
+    <string name="backup_frequency">Frequência do backup</string>
+    <string name="backup_freq_daily">Diário</string>
+    <string name="backup_freq_weekly">Semanal</string>
+    <string name="backup_freq_monthly">Mensal</string>
+    <string name="backup_max_keep">Backups mantidos</string>
+    <string name="backup_max_keep_desc">Número máximo de arquivos de backup a manter (os mais antigos são removidos)</string>
+    <string name="backup_last_auto">Último backup automático: %1$s</string>
+    <string name="backup_last_auto_none">Nenhum backup automático realizado ainda</string>
+    <string name="backup_include_wallpaper">Incluir papel de parede</string>
+    <string name="backup_include_wallpaper_desc">Armazena o papel de parede atual no arquivo de backup para restauração automática</string>
+    <string name="backup_saved_backups">Backups Salvos (%1$d)</string>
+    <string name="backup_no_backups">Nenhum backup local encontrado</string>
+    <string name="backup_no_backups_desc">Crie um novo backup acima ou restaure de um arquivo externo.</string>
+    <string name="backup_tag_manual">Manual</string>
+    <string name="backup_tag_auto">Automático</string>
+    <string name="backup_has_wallpaper">Papel de parede incluso</string>
+    <string name="backup_action_restore">Restaurar</string>
+    <string name="backup_action_share">Compartilhar</string>
+    <string name="backup_action_delete">Excluir</string>
+    <string name="backup_confirm_restore_title">Restaurar este backup?</string>
+    <string name="backup_confirm_restore_msg">Seus favoritos, layout e configurações atuais serão substituídos pelo conteúdo deste backup.</string>
+    <string name="backup_restore_agenda_success">%1$d agendamentos importados com sucesso!</string>
+    <string name="backup_confirm_delete_title">Excluir backup?</string>
+    <string name="backup_confirm_delete_msg">Tem certeza de que deseja excluir permanentemente este arquivo de backup?</string>
+    <string name="backup_deleted_success">Backup excluído</string>
+    <string name="backup_dest_folder_title">Pasta de destino</string>
+    <string name="backup_dest_folder_desc">Escolha onde os backups serão guardados no aparelho para ficarem preservados mesmo ao desinstalar o app.</string>
+    <string name="backup_dest_folder_select">Selecionar pasta de backup</string>
+    <string name="backup_dest_folder_change">Alterar pasta</string>
+    <string name="backup_dest_folder_active">Pasta ativa: %1$s</string>
+    <string name="backup_dest_folder_required">Pasta de destino necessária para criar backups</string>
+    <string name="backup_dest_folder_need_selection">Selecione uma pasta de destino acima primeiro</string>
+    <string name="backup_dest_folder_saved_toast">Pasta de backup selecionada com sucesso</string>
+
+    
+    <string name="action_root_inspect_app">Inspecionar App (Root)</string>
+    <string name="root_inspector_realtime_speed">Transferência em Tempo Real</string>
+    <string name="root_inspector_live_active">AO VIVO</string>
+    <string name="root_inspector_live_idle">INATIVO</string>
+    <string name="action_uninstall">Desinstalar</string>
+    <string name="dialog_uninstall_system_app_title">Desinstalar app do sistema?</string>
+    <string name="dialog_uninstall_system_app_warning">Aplicativo do Sistema</string>
+    <string name="dialog_uninstall_system_app_message">“%1$s” é um aplicativo do sistema. Desinstalá-lo pode causar instabilidade no sistema ou mau funcionamento do dispositivo.\n\nTem certeza de que deseja desinstalar este aplicativo via root?</string>
+    <string name="dialog_uninstall_app_title">Desinstalar aplicativo?</string>
+    <string name="dialog_uninstall_app_message">Tem certeza de que deseja desinstalar “%1$s” via root?</string>
+    <string name="uninstall_toast_progress">Desinstalando %1$s…</string>
+    <string name="uninstall_toast_success">“%1$s” desinstalado com sucesso</string>
+    <string name="uninstall_toast_failed">Falha ao desinstalar %1$s: %2$s</string>
+
+    
+    <string name="action_capture_logs">Capturar logs (Root)</string>
+    <string name="action_stop_save_logs">Salvar logs (Gravando…)</string>
+    <string name="log_notif_recording_text">Capturando logs em tempo real via root…</string>
+    <string name="log_toast_started">Gravação de logs iniciada para %1$s</string>
+    <string name="cycles_title">Ciclos de Bateria</string>
+    <string name="cycles_charge">Recarga</string>
+    <string name="cycles_discharge">Descarga</string>
+    <string name="cycles_active">Ativo</string>
+    <string name="cycles_deep_sleep">Sono Profundo</string>
+    <string name="cycles_light_sleep">Sono Leve</string>
+    <string name="cycles_screen_on">Tela Ligada</string>
+    <string name="cycles_screen_off">Tela Desligada</string>
+    <string name="cycles_filter_all">Todos</string>
+    <string name="cycles_filter_charge">Recargas</string>
+    <string name="cycles_filter_discharge">Descargas</string>
+    <string name="cycles_speed_graph">Velocidade de Recarga</string>
+    <string name="cycles_temp_graph">Temperatura</string>
+    <string name="cycles_discharge_graph">Curva de Descarga</string>
+    <string name="cycles_app_usage">Consumo por App</string>
+    <string name="cycles_cycles_spent">Ciclos</string>
+    <string name="cycles_total_spent">Gasto Total</string>
+    <string name="cycles_charged_amount">Carga Recebida</string>
+    <string name="cycles_hardware_cycles">Ciclos de Hardware</string>
+    <string name="history_month_summary">Histórico do Mês</string>
+    <string name="history_day_battery">Bateria Consumida</string>
+    <string name="history_day_screen_time">Tempo de Tela</string>
+    <string name="history_day_screen_off">Tela Desligada</string>
+    <string name="history_day_app_launches">Vezes que Apps Foram Abertos</string>
+    <string name="history_day_reboots">Reinicializações &amp; Ciclos</string>
+    <string name="history_day_ram_avg">Média de Memória RAM</string>
+    <string name="history_day_network">Consumo de Internet</string>
+    <string name="history_day_hourly_chart">Tráfego Horário (0h - 23h)</string>
+    <string name="history_top_consumers">Maiores Gastadores de Bateria</string>
+    <string name="history_times_opened">%1$d aberturas</string>
+    <string name="history_no_data">Nenhum registro para este dia</string>
+    <string name="history_today_badge">HOJE</string>
+    <string name="background_watcher_title">Monitor de Segundo Plano</string>
+    <string name="background_watcher_subtitle">Apps flagrados em segundo plano, consumo de dados oculto e bloqueio de sono profundo</string>
+    <string name="battery_monitor_title">Uso da Bateria</string>
+    <string name="drain_notification_toggle">Notificação de Drenagem em Tempo Real</string>
+    <string name="drain_notification_toggle_desc">Mostra taxa de consumo, tempo de sono profundo e drenagem na barra de notificações</string>
+    <string name="reset_session">Zerar Sessão</string>
+    <string name="session_reset_done">Estatísticas da sessão foram zeradas</string>
+    <string name="live_drain_card_title">Monitoramento em Tempo Real</string>
+    
+    <string name="back">Voltar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="dismiss">Fechar</string>
+    <string name="refresh">Atualizar</string>
+    <string name="copy">Copiar</string>
+    <string name="copy_all">Copiar tudo</string>
+    <string name="app_info">Informações do app</string>
+    <string name="unknown">Desconhecido</string>
+    <string name="battery_icon_description">Ícone da bateria</string>
+    <string name="yes">Sim</string>
+    <string name="no">Não</string>
+    <string name="on">Ligado</string>
+    <string name="off">Desligado</string>
+    <string name="live">Ao vivo</string>
+    <string name="min">Mín</string>
+    <string name="max">Máx</string>
+    <string name="time">Tempo</string>
+    <string name="total">Total</string>
+    <string name="mobile">Móvel</string>
+    <string name="wifi">Wi-Fi</string>
+    <string name="count">Quantidade</string>
+    <string name="active">Ativo</string>
+    <string name="idle">Inativo</string>
+    <string name="awake">Acordado</string>
+    <string name="duration">Duração</string>
+    <string name="total_time">Tempo total</string>
+    <string name="network">Rede</string>
+    <string name="bluetooth">Bluetooth</string>
+    <string name="start">Iniciar</string>
+    <string name="stop">Parar</string>
+    <string name="end">Terminar</string>
+    <string name="pause">Pausar</string>
+    <string name="reset">Redefinir</string>
+    <string name="updated">Atualizado %1$s</string>
+    <string name="theme">Tema</string>
+    <string name="dynamic_colors">Cores dinâmicas</string>
+    <string name="temperature_unit">Unidade de temperatura</string>
+    <string name="alarms">Alarmes</string>
+    <string name="history">Histórico</string>
+    <string name="settings">Configurações</string>
+    <string name="data">Dados</string>
+    <string name="detailed_stats">Estatísticas detalhadas</string>
+    <string name="drain_statistics">Estatísticas de consumo</string>
+    <string name="session_details">Detalhes da sessão</string>
+    <string name="summary">Resumo</string>
+    <string name="monitoring">Monitorização</string>
+    <string name="monitoring_ready">Monitorização pronta</string>
+    <string name="start_monitoring">Iniciar monitorização</string>
+    <string name="monitoring_battery">A monitorizar a bateria</string>
+    <string name="tap_to_start">Toque para iniciar a monitorização da bateria</string>
+    <string name="running_foreground">Em execução (primeiro plano)</string>
+    <string name="stopped">Parada</string>
+    <string name="charge">Carga</string>
+    <string name="discharge">Descarga</string>
+    <string name="charging">A carregar</string>
+    <string name="discharging">A descarregar</string>
+    <string name="full">Cheia</string>
+    <string name="battery_state_charging">A carregar %1$d%%</string>
+    <string name="battery_state_discharging">A descarregar %1$d%%</string>
+    <string name="battery_state_level_unknown_charging">A carregar, nível desconhecido</string>
+    <string name="battery_state_level_unknown_discharging">A descarregar, nível desconhecido</string>
+    <string name="battery_at_percent">Bateria a %1$d%% — considere desligar o carregador.</string>
+    <string name="charge_limit_reached">Limite de carga atingido</string>
+    <string name="temperature_high">%1$d °C — deixe o dispositivo arrefecer.</string>
+    <string name="heavy_drain">%1$d mA — consumo elevado detetado.</string>
+    <string name="current_ma">%1$s mA</string>
+    <string name="health">Estado</string>
+    <string name="health_good">Bom</string>
+    <string name="health_overheat">Sobreaquecido</string>
+    <string name="health_dead">Defeituoso</string>
+    <string name="health_over_voltage">Sobrevoltagem</string>
+    <string name="health_failed">Falhado</string>
+    <string name="health_cold">Frio</string>
+    <string name="design">Nominal</string>
+    <string name="capacity">Capacidade</string>
+    <string name="cycle_count">Ciclos</string>
+    <string name="current">Corrente</string>
+    <string name="temperature">Temperatura</string>
+    <string name="voltage">Tensão</string>
+    <string name="power">Potência</string>
+    <string name="power_usage">Consumo</string>
+    <string name="cpu">CPU</string>
+    <string name="camera">Câmara</string>
+    <string name="mobile_radio">Rádio móvel</string>
+    <string name="wakelock">Wakelock</string>
+    <string name="uid_and_power">UID %1$d • %2$s</string>
+    <string name="rx_tx">↓ %1$s  ↑ %2$s</string>
+    <string name="percent_of_battery_time">%1$s%% do tempo com bateria</string>
+    <string name="temperature_value">%1$s °C</string>
+    <string name="drain_hour_screen_on">Consumo/h (tela ligado)</string>
+    <string name="drain_hour_screen_off">Consumo/h (tela desligado)</string>
+    <string name="technology">Tecnologia</string>
+    <string name="health_status">Estado de saúde</string>
+    <string name="status">Estado</string>
+    <string name="current_kernel">Corrente (kernel)</string>
+    <string name="voltage_kernel">Tensão (kernel)</string>
+    <string name="time_to_empty">Tempo até descarga</string>
+    <string name="time_to_full">Tempo até carga completa</string>
+    <string name="current_mv">Corrente (mA)</string>
+    <string name="voltage_mv">Tensão (mV)</string>
+    <string name="temperature_c">Temperatura (°C)</string>
+    <string name="current_recent">Corrente (últimos 15 minutos)</string>
+    <string name="sessions">Sessões</string>
+    <string name="samples">Amostras</string>
+    <string name="session_tracking">Monitorização da sessão</string>
+    <string name="session_active">Sessão de %1$s ativa • iniciada %2$s</string>
+    <string name="charging_session">Sessão de carga</string>
+    <string name="discharge_session">Sessão de descarga</string>
+    <string name="session_state_active">ATIVA</string>
+    <string name="session_state_ended">Ativa</string>
+    <string name="search_session_id">Pesquisar por ID de sessão…</string>
+    <string name="sort_by">Ordenar: %1$s</string>
+    <string name="sort_power">Consumo</string>
+    <string name="sort_cpu_time">Tempo de CPU</string>
+    <string name="sort_wakelock">Wakelock</string>
+    <string name="sort_network">Rede</string>
+    <string name="sort_foreground">Primeiro plano</string>
+    <string name="start_time">Início: %1$s</string>
+    <string name="end_time">Fim: %1$s</string>
+    <string name="no_sessions_yet">Ainda não há sessões</string>
+    <string name="no_sessions_yet_desc">Inicie uma sessão ou comece a monitorização para ver aqui o histórico.</string>
+    <string name="no_data_points">Ainda não foram recolhidos dados.</string>
+    <string name="mah_approx">~%1$s mAh</string>
+    <string name="average_current_ma">~%1$s mA em média</string>
+    <string name="battery_level">%1$d%% • %2$s</string>
+    <string name="battery_level_unknown">Nível desconhecido • %1$s</string>
+    <string name="battery_percent">%1$d%%</string>
+    <string name="hours_value">%1$s horas</string>
+    <string name="data_export_import">Exportar/importar dados</string>
+    <string name="date_range">Intervalo de datas</string>
+    <string name="export">Exportar</string>
+    <string name="export_json">Exportar JSON</string>
+    <string name="export_csv_folder">Exportar CSV (pasta)</string>
+    <string name="import_string">Importar</string>
+    <string name="import_json">Importar JSON</string>
+    <string name="import_csv">Importar CSV</string>
+    <string name="csv_import_hint">Importação de CSV: abra battery_samples.csv ou charge_sessions.csv</string>
+    <string name="from_beginning">De: início</string>
+    <string name="from_date">De: %1$s</string>
+    <string name="to_date">Até: %1$s</string>
+    <string name="all">Tudo</string>
+    <string name="last_7_days">Últimos 7 dias</string>
+    <string name="last_30_days">Últimos 30 dias</string>
+    <string name="export_battery_data">Exportar dados da bateria</string>
+    <string name="export_battery_data_desc">Exportar o histórico da bateria para um arquivo</string>
+    <string name="batstats">BatStats</string>
+    <string name="customize_behavior">Personalize o comportamento da app</string>
+    <string name="category_general">Geral</string>
+    <string name="category_notifications">Notificações</string>
+    <string name="category_display">Tela</string>
+    <string name="category_data">Dados e exportação</string>
+    <string name="reset_settings">Redefinir configurações</string>
+    <string name="reset_ui">Redefinir interface</string>
+    <string name="reset_all">Redefinir tudo</string>
+    <string name="import_settings">Importar configurações</string>
+    <string name="paste_json">Cole o JSON das configurações exportadas:</string>
+    <string name="paste_json_hint">Cole o JSON aqui…</string>
+    <string name="import_failed">Falha ao importar</string>
+    <string name="data_cleared">Todos os dados foram eliminados</string>
+    <string name="import_action">Importar</string>
+    <string name="clear_all_data">Eliminar todos os dados?</string>
+    <string name="clear_data_warning">Isto elimina permanentemente todo o histórico da bateria, as sessões e as estatísticas. Não pode ser anulado.</string>
+    <string name="delete_all">Eliminar tudo</string>
+    <string name="clear_all_data_action">Eliminar todos os dados</string>
+    <string name="clear_all_data_action_desc">Eliminar todos os dados da bateria guardados</string>
+    <string name="export_settings">Exportar configurações</string>
+    <string name="import_settings_desc">Importar configurações</string>
+    <string name="reset_settings_desc">Redefinir configurações</string>
+    <string name="choose_reset">Escolha o que redefinir:</string>
+    <string name="reset_ui_settings">Redefinir configurações da interface: repõe apenas as configurações visíveis</string>
+    <string name="reset_all_settings">Redefinir tudo: repõe todas as configurações</string>
+    <string name="ui_settings_reset">Configurações da interface repostas</string>
+    <string name="all_settings_reset">Todas as configurações repostas</string>
+    <string name="auto_start_monitoring">Iniciar a monitorização automaticamente</string>
+    <string name="monitoring_interval">Intervalo de monitorização</string>
+    <string name="screen_off_sampling">Quando a tela estiver desligada</string>
+    <string name="update_widgets">Atualizar widgets</string>
+    <string name="show_drain_notification">Mostrar notificação de consumo</string>
+    <string name="show_drain_notification_desc">Mostrar estatísticas de consumo detalhadas na notificação (requer Shizuku, Root ou ADB)</string>
+    <string name="track_foreground_apps">Acompanhar apps em primeiro plano</string>
+    <string name="detailed_stats_interval">Intervalo das estatísticas detalhadas</string>
+    <string name="detailed_stats_interval_desc">Com que frequência recolher estatísticas detalhadas da bateria via Shizuku/Root/ADB.</string>
+    <string name="low_battery_alert">Alerta de bateria fraca</string>
+    <string name="low_battery_threshold">Limiar de bateria fraca</string>
+    <string name="high_battery_alert">Alerta de bateria cheia</string>
+    <string name="high_battery_alert_desc">Notificar quando a carga atingir o limiar</string>
+    <string name="high_battery_threshold">Limiar de bateria cheia</string>
+    <string name="temperature_warning">Aviso de temperatura</string>
+    <string name="temperature_threshold">Limiar de temperatura</string>
+    <string name="temperature_threshold_desc">Temperatura de aviso em graus Celsius</string>
+    <string name="high_discharge_alert">Alerta de descarga elevada</string>
+    <string name="discharge_threshold">Limiar de descarga</string>
+    <string name="discharge_threshold_desc">Alertar quando a descarga ultrapassar este valor (mA)</string>
+    <string name="charging_complete_alert">Alerta de carga completa</string>
+    <string name="charging_complete">Carregamento concluído</string>
+    <string name="low_battery_text">Bateria em %1$d%% — conecte em breve.</string>
+    <string name="battery_alerts">Alertas da bateria</string>
+    <string name="alert_sound">Som de alerta</string>
+    <string name="alert_vibration">Vibração de alerta</string>
+    <string name="high_temperature">Alerta de temperatura elevada</string>
+    <string name="high_discharge">Descarga elevada</string>
+    <string name="chart_time_range">Intervalo de tempo do gráfico</string>
+    <string name="show_current_ma">Mostrar a corrente em mA</string>
+    <string name="compact_stats_view"> Vista compacta de estatísticas</string>
+    <string name="pure_black_oled">Preto puro (OLED)</string>
+    <string name="bottom_action_buttons">Barra de ações inferior</string>
+    <string name="bottom_action_buttons_desc">Mostrar os botões de ação da tela inicial em uma barra inferior</string>
+    <string name="show_app_names">Mostrar nomes de aplicativos</string>
+    <string name="show_app_names_desc">Mostrar os nomes dos aplicativos ao lado dos nomes dos pacotes nas estatísticas detalhadas</string>
+    <string name="data_retention">Retenção de dados</string>
+    <string name="auto_cleanup">Limpar automaticamente dados antigos</string>
+    <string name="export_format">Formato de exportação</string>
+    <string name="include_raw_samples">Incluir amostras em bruto</string>
+    <string name="screen_on">Tela ligado</string>
+    <string name="screen_off">Tela desligado</string>
+    <string name="mobile_signal">Sinal móvel</string>
+    <string name="wifi_signal">Sinal Wi-Fi</string>
+    <string name="no_signal_data">Não há dados de sinal disponíveis</string>
+    <string name="signal_quality">Qualidade do sinal</string>
+    <string name="signal_none">Sem sinal</string>
+    <string name="signal_poor">Fraco</string>
+    <string name="signal_moderate">Médio</string>
+    <string name="signal_good">Bom</string>
+    <string name="signal_great">Excelente</string>
+    <string name="signal_level">Nível %1$d</string>
+    <string name="mobile_rx">RX móvel</string>
+    <string name="mobile_tx">TX móvel</string>
+    <string name="wifi_rx">RX Wi-Fi</string>
+    <string name="wifi_tx">TX Wi-Fi</string>
+    <string name="no_network_data">Não há dados de rede disponíveis</string>
+    <string name="kernel_count">Kernel (%1$d)</string>
+    <string name="wakelocks">Wakelocks</string>
+    <string name="kernel_wakelocks">Wakelocks do kernel (nativo)</string>
+    <string name="no_app_wakelocks">Não foram encontrados wakelocks de apps</string>
+    <string name="no_kernel_wakelocks">Não foram encontrados wakelocks do kernel</string>
+    <string name="could_not_read_wakelocks">Não foi possível ler os wakelocks do kernel.</string>
+    <string name="count_active">Quantidade: %1$d | Ativos: %2$d</string>
+    <string name="doze_statistics">Estatísticas de Doze</string>
+    <string name="doze_whitelist">Lista branca de Doze</string>
+    <string name="no_whitelist">Não há dados da lista branca</string>
+    <string name="no_doze_data">Não há dados de Doze disponíveis</string>
+    <string name="deep_doze_time">Tempo em Doze profundo</string>
+    <string name="deep_doze_count">Quantidade de Doze profundo</string>
+    <string name="light_doze_time">Tempo em Doze ligeiro</string>
+    <string name="light_doze_count">Quantidade de Doze ligeiro</string>
+    <string name="current_state">Estado atual</string>
+    <string name="doze_state">Estado de Doze</string>
+    <string name="light_state">Estado de Doze ligeiro</string>
+    <string name="deep_doze_enabled">Doze profundo ativado</string>
+    <string name="light_doze_enabled">Doze ligeiro ativado</string>
+    <string name="screen">Tela</string>
+    <string name="battery_level_label">Nível da bateria</string>
+    <string name="battery_status">Estado da bateria</string>
+    <string name="low_power_mode">Modo de poupança de energia</string>
+    <string name="device_idle_mode">Modo inativo do dispositivo</string>
+    <string name="no_state_data">Não há dados de estado disponíveis</string>
+    <string name="whitelisted_apps">Apps na lista branca: %1$d</string>
+    <string name="temporarily_whitelisted">Lista branca temporária: %1$d</string>
+    <string name="suspend_blockers">Bloqueadores de suspensão</string>
+    <string name="no_suspend_blockers">Não há bloqueadores de suspensão ativos</string>
+    <string name="no_bluetooth_data">Não há dados de Bluetooth disponíveis</string>
+    <string name="idle_time">Tempo de inatividade</string>
+    <string name="rx_time">Tempo de RX</string>
+    <string name="tx_time">Tempo de TX</string>
+    <string name="scan_time">Tempo de análise</string>
+    <string name="system_apps">Apps do sistema</string>
+    <string name="no_apps_found">Não foram encontradas apps</string>
+    <string name="packages_shared_uid">Pacotes (UID partilhado %1$d)</string>
+    <string name="process_statistics">Estatísticas de processos</string>
+    <string name="no_process_data">Não há dados de processos</string>
+    <string name="apps_tracked">Apps acompanhadas</string>
+    <string name="power_breakdown">Repartição do consumo</string>
+    <string name="time_usage">Repartição do tempo</string>
+    <string name="cpu_time">Tempo de CPU</string>
+    <string name="wakelock_time">Tempo de wakelock</string>
+    <string name="foreground">Primeiro plano</string>
+    <string name="foreground_service">Serviço em primeiro plano</string>
+    <string name="background_service">Serviço em segundo plano</string>
+    <string name="top">Primeiro plano</string>
+    <string name="gps">GPS</string>
+    <string name="sensors">Sensores</string>
+    <string name="sensor_usage">Utilização dos sensores</string>
+    <string name="no_sensor_data">Não há dados dos sensores</string>
+    <string name="no_alarm_data">Não há dados de alarmes</string>
+    <string name="no_job_data">Não há dados de tarefas</string>
+    <string name="no_sync_data">Não há dados de sincronização</string>
+    <string name="wakeups">Despertares</string>
+    <string name="screen_time_analysis">Análise do tempo de tela</string>
+    <string name="screen_time_breakdown">Repartição do tempo de tela</string>
+    <string name="time_on_battery">Tempo com bateria</string>
+    <string name="screen_on_time">Tempo de tela ligado</string>
+    <string name="estimated_capacity">Capacidade estimada</string>
+    <string name="discharge_breakdown">Repartição da descarga</string>
+    <string name="deep_sleep_share">do tempo de tela desligado em sono profundo</string>
+    <string name="tracking_active">Acompanhamento ativo</string>
+    <string name="tracking_paused">Acompanhamento em pausa</string>
+    <string name="drain_rates">Taxas de consumo</string>
+    <string name="deep_sleep">Sono profundo</string>
+    <string name="dozing">Sonolência</string>
+    <string name="drain_rate">Taxa de consumo</string>
+    <string name="total_drain">Consumo total</string>
+    <string name="activity_breakdown">Repartição por atividade</string>
+    <string name="session_summary">Resumo da sessão</string>
+    <string name="avg_rate">Taxa média</string>
+    <string name="drain_history">Histórico de consumo</string>
+    <string name="collecting_data">A recolher dados…</string>
+    <string name="session_duration">Sessão: %1$s</string>
+    <string name="total_drain_value">Consumo total: %1$s</string>
+    <string name="drain_notification_channel_desc">Mostra estatísticas de consumo da bateria em tempo real</string>
+    <string name="drain_state_charging">A carregar</string>
+    <string name="drain_state_deep_sleep">Sono profundo</string>
+    <string name="drain_state_dozing">Sonolência</string>
+    <string name="drain_state_screen_on">Ligado</string>
+    <string name="drain_state_screen_off">Tela desligado</string>
+    <string name="drain_rates_section">Taxas de consumo</string>
+    <string name="activity_section">Atividade</string>
+    <string name="session_section">Sessão</string>
+    <string name="drain_on_off_sleep">On: %1$s • Off: %2$s • Sono: %3$s</string>
+    <string name="drain_screen_on_line">On: %1$s (%2$s)</string>
+    <string name="drain_screen_off_line">Off: %1$s (%2$s)</string>
+    <string name="drain_deep_sleep_line">Sono profundo: %1$s (%2$s) [%3$s]</string>
+    <string name="drain_awake_line">Acordado: %1$s (%2$s)</string>
+    <string name="drain_active_line">Ativo: %1$s (%2$s)</string>
+    <string name="drain_idle_line">Inativo: %1$s (%2$s)</string>
+    <string name="drain_total_line">Total: %1$s em %2$s</string>
+    <string name="drain_average_line">Média: %1$s</string>
+    <string name="drain_network_line">Rede: ↓ %1$s / ↑ %2$s</string>
+    <string name="tab_overview">Visão geral</string>
+    <string name="tab_apps">Apps</string>
+    <string name="total_apps_power_title">Consumo dos aplicativos</string>
+    <string name="total_apps_power_subtitle">%1$s%% da bateria • %2$d apps ativos</string>
+    <string name="tab_wakelocks">Wakelocks</string>
+    <string name="tab_network">Rede</string>
+    <string name="tab_system">Sistema</string>
+    <string name="tab_alarms">Alarmes</string>
+    <string name="tab_root">Root</string>
+    <string name="via_mode"> • através de %1$s</string>
+    <string name="reset_stats">Redefinir estatísticas</string>
+    <string name="stats_reset_success">Estatísticas repostas</string>
+    <string name="stats_reset_failed">Falha ao redefinir as estatísticas</string>
+    <string name="no_data_available">Não há dados disponíveis</string>
+    <string name="advanced_stats_required">São necessárias estatísticas avançadas</string>
+    <string name="advanced_stats_desc">As estatísticas detalhadas exigem um destes: Shizuku, Root ou permissões concedidas por ADB (permanentes, sem serviço).</string>
+    <string name="shizuku">Shizuku</string>
+    <string name="adb_dump">DUMP ADB</string>
+    <string name="root">Root</string>
+    <string name="shizuku_not_running">O Shizuku não está em execução. Inicie primeiro a app Shizuku (e o respetivo serviço) e depois toque em Verificar novamente.</string>
+    <string name="shizuku_denied">O Shizuku recusou esta app. Abra o Shizuku e autorize novamente o BatStats em Aplicações autorizadas.</string>
+    <string name="shizuku_running">O Shizuku está em execução — toque em Pedir Shizuku e aprove o pedido.</string>
+    <string name="request_shizuku">Pedir Shizuku</string>
+    <string name="recheck">Verificar novamente</string>
+    <string name="troubleshooting">Resolução de problemas</string>
+    <string name="troubleshoot_1">– Ative as opções de programador e a depuração USB.</string>
+    <string name="troubleshoot_2">– No Xiaomi/MIUI/HyperOS/OnePlus: ative também a depuração USB (configurações de segurança) ou desative a monitorização de permissões e reinicie.</string>
+    <string name="troubleshoot_3">– Execute: adb devices, aceite o pedido, execute os comandos de concessão e depois force a paragem do BatStats ou reinicie.</string>
+    <string name="troubleshoot_4">– A concessão falha com «Neither user 2000 nor current process has GRANT_RUNTIME_PERMISSIONS?»? Ative as configurações de segurança acima.</string>
+    <string name="troubleshoot_5">– As concessões mantêm-se até à desinstalação. Como alternativa, use pm grant via root (su -c pm grant ...).</string>
+    <string name="granted_yes_no">%1$s: %2$s</string>
+    <string name="adb">ADB</string>
+    <string name="adb_desc">Execute uma vez via ADB; sobrevive a reinícios e atualizações até à desinstalação. Não é preciso manter o Shizuku em execução.</string>
+    <string name="root_only">Funcionalidades apenas com Root:</string>
+    <string name="root_access_required">É necessário acesso Root</string>
+    <string name="root_access_desc">Estas estatísticas precisam de acesso Root para ler informação da bateria ao nível do kernel, incluindo ciclos de carga, capacidade real, wakelocks do kernel e dados térmicos.</string>
+    <string name="root_feature_cycles">Ciclos de carga da bateria</string>
+    <string name="root_feature_capacity">Capacidade real (nominal vs. atual)</string>
+    <string name="root_feature_health">Percentagem de idade/estado da bateria</string>
+    <string name="root_feature_wakelocks">Wakelocks do kernel (nativo)</string>
+    <string name="root_feature_cpu">Estados de frequência da CPU</string>
+    <string name="root_feature_thermal">Monitorização de zonas térmicas</string>
+    <string name="root_feature_sysfs">Acesso direto a sysfs</string>
+    <string name="battery_health_kernel">Estado da bateria (kernel)</string>
+    <string name="no_battery_info">Não foi possível ler a informação da bateria de /sys</string>
+    <string name="cycles_value">%1$d ciclos</string>
+    <string name="cpu_frequency">Frequência da CPU</string>
+    <string name="no_cpu_info">Não foi possível ler a informação da CPU</string>
+    <string name="cluster_n">Cluster %1$d</string>
+    <string name="time_in_state">Tempo por estado</string>
+    <string name="thermal_zones">Zonas térmicas</string>
+    <string name="no_thermal_data">Não foi possível ler as zonas térmicas</string>
+    <string name="deep_idling_time">Tempo de ociosidade profunda</string>
+    <string name="deep_idling_count">Contagem de ociosidade profunda</string>
+    <string name="light_idling_time">Tempo de ociosidade leve</string>
+    <string name="light_idling_count">Contagem de ociosidade leve</string>
+    <string name="live_battery_charts_title">Gráficos de Consumo ao Vivo</string>
+    <string name="power_label">Potência</string>
+    <plurals name="more_count">
+        <item quantity="one">+ %1$d outro</item>
+        <item quantity="many">+ %1$d milhões a mais</item>
+        <item quantity="other">+ %1$d outros</item>
+    </plurals>
+    <plurals name="and_more_count">
+        <item quantity="one">… e %1$d outro</item>
+        <item quantity="many">... e %1$d milhões a mais</item>
+        <item quantity="other">… e %1$d outros</item>
+    </plurals>
+    <plurals name="active_wakelocks_count">
+        <item quantity="one">%1$d wakelock ativo</item>
+        <item quantity="many">%1$d milhões de wakelocks ativos</item>
+        <item quantity="other">%1$d wakelocks ativos</item>
+    </plurals>
+    <plurals name="app_wakelocks_count">
+        <item quantity="one">Wakelock de app (%1$d)</item>
+        <item quantity="many">Wakelocks de app (%1$d milhões)</item>
+        <item quantity="other">Wakelocks de app (%1$d)</item>
+    </plurals>
+    <plurals name="alarms_count_plural">
+        <item quantity="one">Alarme (%1$d)</item>
+        <item quantity="many">Alarmes (%1$d milhões)</item>
+        <item quantity="other">Alarmes (%1$d)</item>
+    </plurals>
+    <plurals name="jobs_count">
+        <item quantity="one">Tarefa (%1$d)</item>
+        <item quantity="many">Tarefas (%1$d milhões)</item>
+        <item quantity="other">Tarefas (%1$d)</item>
+    </plurals>
+    <plurals name="syncs_count">
+        <item quantity="one">Sincronização (%1$d)</item>
+        <item quantity="many">Sincronizações (%1$d milhões)</item>
+        <item quantity="other">Sincronizações (%1$d)</item>
+    </plurals>
+    <plurals name="top_wakelocks_count">
+        <item quantity="one">Principal wakelock por tempo: %1$d</item>
+        <item quantity="many">Principais wakelocks por tempo: %1$d milhões</item>
+        <item quantity="other">Principais wakelocks por tempo: %1$d</item>
+    </plurals>
+    <plurals name="packages_share_uid">
+        <item quantity="one">%1$d pacote partilha este UID</item>
+        <item quantity="many">%1$d milhões de pacotes partilham este UID</item>
+        <item quantity="other">%1$d pacotes partilham este UID</item>
+    </plurals>
+    <plurals name="settings_imported_count">
+        <item quantity="one">%1$d definição importada</item>
+        <item quantity="many">%1$d milhões de configurações importadas</item>
+        <item quantity="other">%1$d configurações importadas</item>
+    </plurals>
+
+    
+    <string name="anomaly_deep_sleep_badge">Tela Apagada</string>
+    <string name="anomaly_screen_on_badge">Tela Ligada</string>
+    <string name="battery_anomaly_card_title">Alertas de Consumo em Segundo Plano</string>
+    <string name="battery_anomaly_card_desc">Alertas quando aplicativos em segundo plano consumirem internet, processador ou memória em excesso.</string>
+    <string name="battery_anomaly_configure">Configurar</string>
+
+    
+    <string name="net_speed_notif_channel_name">Monitor de Velocidade de Rede</string>
+    <string name="net_speed_notif_channel_desc">Exibe a velocidade da internet em tempo real e consumo diário</string>
+    <string name="net_speed_title">Indicador de Rede</string>
+    <string name="net_speed_download">Download</string>
+    <string name="net_speed_upload">Upload</string>
+    <string name="net_speed_mobile_today">Dados Móveis hoje</string>
+    <string name="net_speed_wifi_today">Wi-Fi hoje</string>
+    <string name="net_speed_action_view_apps">Ver apps</string>
+    <string name="net_speed_action_hide_apps">Ocultar</string>
+    <string name="net_speed_action_stop">Parar</string>
+    <string name="net_speed_action_settings">Config.</string>
+    <string name="net_speed_active_apps_header">Apps ativos (&gt; %1$d KB/s):</string>
+    <string name="net_speed_no_active_apps">Nenhum app consumindo &gt; %1$d KB/s</string>
+    <string name="net_speed_card_title">Notificação de Consumo ao Vivo</string>
+    <string name="net_speed_card_desc">Velocidade em tempo real na barra de status e consumo diário móvel/Wi-Fi</string>
+    <string name="net_speed_option_realtime">Velocidade em tempo real</string>
+    <string name="net_speed_option_daily">Consumo de dados diário</string>
+    <string name="net_speed_threshold_title">Velocidade mínima para exibir</string>
+    <string name="net_speed_threshold_desc">Mostrar velocidade em tempo real somente acima deste valor (0 para exibir sempre)</string>
+    <string name="net_speed_threshold_value_label">Valor mínimo</string>
+    <string name="net_speed_threshold_unit_label">Unidade</string>
+    <string name="net_speed_permission_required">Acesso de uso necessário para ver apps (toque para conceder)</string>
+    <string name="net_speed_calculating_apps">Carregando consumo dos apps…</string>
+    <string name="net_speed_action_grant_permission">Permissão</string>
+    <string name="net_speed_interval_title">Intervalo de atualização</string>
+    <string name="net_speed_interval_desc">Frequência de atualização em tempo real (maior intervalo = menos bateria)</string>
+
+    
+    <string name="battery_auto_reset_title">Redefinição Automática (Auto Reset)</string>
+    <string name="battery_reset_on_charging_title">Resetar ao carregar</string>
+    <string name="battery_reset_on_charging_desc">Resetar estatísticas ao carregar até o nível alvo ou 100%</string>
+    <string name="battery_reset_target_percent">Porcentagem Alvo: %1$d%%</string>
+    <string name="battery_reset_full_charge">Carga completa (100%)</string>
+    <string name="battery_reset_target_label">&gt;= %1$d%% ou 100%</string>
+    <string name="battery_reset_on_reboot_title">Resetar ao reiniciar o celular</string>
+    <string name="battery_reset_on_reboot_enabled_desc">Zerar estatísticas e iniciar novo ciclo ao reiniciar</string>
+    <string name="battery_reset_on_reboot_disabled_desc">Preservar histórico e dados acumulados após reiniciar</string>
+
+    
+    <string name="history_day_battery_chart">Uso da Bateria nas 24h</string>
+    <string name="history_battery_legend_screen_on">Tela ligada</string>
+    <string name="history_battery_legend_deep_sleep">Sono profundo</string>
+    <string name="history_battery_legend_off">Desligado</string>
+    <string name="history_battery_state_screen_on">Tela ligada</string>
+    <string name="history_battery_state_deep_sleep">Sono profundo</string>
+    <string name="history_battery_state_off">Aparelho desligado</string>
+    <string name="history_battery_tooltip_format">%1$s • %2$d%% • %3$s</string>
+    <string name="history_no_high_drain">Sem alto consumo</string>
+    <string name="history_screen_off_format">Apagada: %1$s</string>
+    <string name="history_system_ram_title">Sistema &amp; RAM</string>
+    <string name="history_reboots_cycles_format">%1$d reinícios/ciclos</string>
+    <string name="history_no_apps_opened">Nenhum app</string>
+    <string name="history_app_launches_count">%1$d aberturas</string>
+    <string name="history_network_wifi_mobile">Wi-Fi: %1$s • Móvel: %2$s</string>
+    <string name="history_anomalies_summary_format">%1$d alertas em 2º plano • %2$d quebras de sono profundo</string>
+
+    
+    <string name="notif_customize_title">Personalizar Notificação Ao Vivo</string>
+    <string name="notif_opt_rates">Taxas On/Off</string>
+    <string name="notif_opt_deep_sleep">Sono Profundo</string>
+    <string name="notif_opt_active_idle">Ativo/Ocioso</string>
+    <string name="notif_opt_total_avg">Total e Média</string>
+    <string name="notif_opt_temperature">Temperatura</string>
+    <string name="notif_opt_network">Uso de Rede</string>
 </resources>

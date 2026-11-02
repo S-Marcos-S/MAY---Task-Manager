@@ -50,5 +50,8 @@ NUNCA faça build local nem execute comandos `./gradlew` (tais como `./gradlew a
 Sempre que qualquer arquivo de código for criado ou editado e utilizar qualquer classe, objeto, função, extensão ou recurso externo, **DEVE-SE OBRIGATORIAMENTE conferir a lista de imports do topo do arquivo** antes de salvar e commitar.
 - **Tolerância Zero:** Erros por falta de importação são inaceitáveis. Toda referência externa introduzida precisa ter seu respectivo `import` explicitamente verificado e confirmado no topo do arquivo.
 
+## Regra Obrigatória: Proibição Estrita de Emojis
+É expressamente proibido o uso de emojis em qualquer documentação, README.md, CHANGELOGs, mensagens de commit, comentários ou textos da interface do MAY Task Manager. Todas as seções, tópicos e títulos devem ser formatados exclusivamente com texto limpo, claro e profissional, sem ícones unicode ou símbolos decorativos desnecessários.
+
 ## Regra Obrigatória: Acompanhamento de Builds do GitHub Actions
 Sempre que for realizado um commit/push que inicie uma build no GitHub Actions, a execução do workflow **DEVE OBRIGATORIAMENTE ser acompanhada até o final** (via API do GitHub ou logs de workflow runs) para verificar se a compilação, os testes unitários e a geração da Release/APK foram concluídos com sucesso (`completed` / `success`).

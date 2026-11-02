@@ -13,6 +13,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import dev.may.taskmanager.MainActivity
 import dev.may.taskmanager.R
+import dev.may.taskmanager.root.RootBatteryStatsCollector
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 import java.io.File

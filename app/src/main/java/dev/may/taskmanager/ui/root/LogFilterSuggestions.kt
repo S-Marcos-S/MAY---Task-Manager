@@ -105,7 +105,7 @@ object LogFilterSuggestionProvider {
 
         // 1. User Launcher Apps (High Priority)
         val appRepo = AppRepository(context)
-        val launcherApps = runCatching { appRepo.queryAllApps() }.getOrDefault(emptyList())
+        val launcherApps: List<AppInfo> = runCatching { appRepo.queryAllApps() }.getOrDefault(emptyList())
         val launcherPkgSet = launcherApps.map { it.packageName }.toSet()
 
         val results = mutableListOf<LogFilterAppProcessItem>()

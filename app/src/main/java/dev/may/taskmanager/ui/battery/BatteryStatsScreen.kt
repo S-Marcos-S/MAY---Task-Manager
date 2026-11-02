@@ -49,7 +49,7 @@ import dev.may.taskmanager.ui.theme.dynamicBorderColor
 import dev.may.taskmanager.ui.theme.glass.GlassCard
 import dev.may.taskmanager.R
 import dev.may.taskmanager.battery.BatteryStatsParser
-import dev.may.taskmanager.battery.RootBatteryStatsCollector
+import dev.may.taskmanager.root.RootBatteryStatsCollector
 import dev.may.taskmanager.battery.ShellRunner
 import dev.may.taskmanager.battery.LocalShowAppNames
 import dev.may.taskmanager.battery.rememberAppLabel

@@ -1,4 +1,4 @@
 <resources>
-    <color name="launcher_bg">#FFFFFF</color>
+    <color name="launcher_bg">#000000</color>
     <color name="launcher_fg">#094FA5</color>
 </resources>

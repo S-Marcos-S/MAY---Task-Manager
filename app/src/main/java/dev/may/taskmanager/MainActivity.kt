@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
                         CurrentScreen.TASK_MANAGER -> {
                             TaskManagerScreen(
                                 allApps = allApps,
+                                onNavigateBack = { finish() },
                                 onOpenSettings = { currentScreen = CurrentScreen.SETTINGS },
                             )
                         }
