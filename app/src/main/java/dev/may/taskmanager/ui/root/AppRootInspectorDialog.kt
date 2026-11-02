@@ -12,8 +12,10 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -832,8 +834,9 @@ fun AppRootInspectorDialog(
                             }
                         }
                     }
+                }
 
-                    // Animated In-Dialog Feedback Banner
+                // Animated In-Dialog Feedback Banner
                     AnimatedVisibility(
                         visible = feedbackMessage != null,
                         enter = fadeIn() + expandVertically(),
@@ -964,7 +967,6 @@ fun AppRootInspectorDialog(
             }
         }
     }
-}
 }
 
 @Composable
