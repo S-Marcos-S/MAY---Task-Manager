@@ -1,8 +1,5 @@
-### MAY Task Manager v1.0.4
-- Persistencia do ciclo de bateria ativo em disco entre atualizacoes e reinicializacoes.
-- Card e aba de Ciclos posicionados ao lado de Bateria.
-- Integrado novo card de Configuracoes e removido icone isolado do topo.
-- Corrigida quebra de linha no chip de Sono Profundo na tela de Segundo Plano.
-- Reestruturado grafico de 24h de bateria: legendas empilhadas verticalmente, suporte a Sono Leve e correcao do traco.
-- Pesquisa da tela de Processos expandida para localizar e analisar apps inativos e jogos instalados.
+### MAY Task Manager v1.0.5
+- Resolucao de race condition na inicializacao dos Ciclos de Bateria: carga sincronica de dados antes de escutar eventos de hardware.
+- Gravacao atomica em disco para arquivos de ciclos (active_cycle.json e cycles.json), evitando corrupcao ou perda em encerramentos abruptos.
+- Forcada persistencia sincronizada do ciclo ativo imediatamente antes de instalar atualizacoes via root ou pelo instalador do sistema.
 ---

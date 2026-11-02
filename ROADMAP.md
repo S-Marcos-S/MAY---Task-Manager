@@ -1,33 +1,25 @@
 # Roadmap de Execucao - MAY Task Manager
 
-- [x] **Persistencia do Ciclo Ativo de Bateria em Disco**
+- [x] **Persistencia do Ciclo Ativo de Bateria em Disco (v1.0.4)**
   - Implementado salvamento continuo de `activeCycle` no arquivo `active_cycle.json`.
-  - Restauracao automatica ao reiniciar ou atualizar o aplicativo para nao zerar metricas em andamento.
+  - Restauracao automatica ao reiniciar ou atualizar o aplicativo.
 - [x] **Reorganizacao das Abas e Cards de Ciclos e Bateria**
   - Aba de Ciclos posicionada ao lado da aba de Bateria na barra superior.
   - Card de Ciclos integrado diretamente na tela de Desempenho ao lado do card de Bateria.
 - [x] **Novo Card de Configuracoes e Remocao do Icone Isolado**
   - Removido o botao de engrenagem isolado no topo direito da barra seletora.
-  - Barra de abas agora ocupa largura completa de forma compacta e harmonica.
   - Integrado novo card de Configuracoes na tela de Desempenho e aba dedicada no seletor.
 - [x] **Correcao de Quebra de Linha no Botao de Sono Profundo**
   - Substituido `Row` fixo por `LazyRow` na secao de categorias de anomalias em Segundo Plano.
-  - Fixado `maxLines = 1` e `softWrap = false` para impedir quebras de uma letra por linha.
 - [x] **Correcao do Grafico de 24 Horas de Bateria (Historico)**
-  - Titulo isolado no topo da visualizacao para nao ficar no meio do grafico.
-  - Opcoes (Tela ligada, Sono leve, Sono profundo) empilhadas verticalmente em coluna dedicada.
-  - Adicionado suporte e cor correspondente para Sono Leve (Light Sleep, tom ambar).
-  - Corrigido calculo do dia atual para evitar traco plano no futuro e descontinuidades visuais.
+  - Titulo isolado no topo da visualizacao.
+  - Opcoes (Tela ligada, Sono leve, Sono profundo) empilhadas verticalmente.
+  - Cor e calculo ajustados para Sono Leve.
 - [x] **Pesquisa na Tela de Processos para Apps Nao em Execucao**
-  - Integrada busca de aplicativos instalados (`allApps`) inativos no campo de pesquisa.
-  - Novos cards com indicador de estado "Inativo", permitindo inspecionar jogos e utilitarios diretamente.
-- [x] **Atualizacao das Regras no GEMINI.md e Gitignore**
-  - Adicionada regra obrigatoria de criacao e atualizacao do ROADMAP.md como artefato.
-  - `GEMINI.md` adicionado ao `.gitignore` e removido do rastreamento do git (`git rm --cached`).
-- [x] **Validacao e Release v1.0.4**
-  - [x] Extracao de todas as novas strings para `strings.xml`, `values-pt` e `values-pt-rBR`.
-  - [x] Verificacao de ausencia de emojis e checagem estrita de imports.
-  - [x] Correcao dos pontos identificados no compilador Kotlin (DailyHistoryRepository, DailyHistoryScreen, TaskManagerScreen).
-  - [x] Bump para versao 1.0.4 no `build.gradle.kts` e atualizacao do `CHANGELOG_LATEST.md`.
-  - [x] Teste previo na branch `test` via GitHub Actions concluido com sucesso.
-  - [ ] Merge para a branch `main` e acompanhamento da geracao da Release oficial no GitHub Actions.
+  - Integrada busca de aplicativos instalados (`allApps`) inativos no campo de pesquisa com card de inspecao.
+- [ ] **Resolucao Definitiva de Reset do Ciclo de Bateria ao Atualizar (v1.0.5)**
+  - [x] Eliminacao de race condition: carga sincronizada do ciclo ativo e historico em `init` antes do registro do `batteryReceiver`.
+  - [x] Gravacao atomica (`.tmp` + rename) dos arquivos `active_cycle.json` e `cycles.json` para evitar corrupcao em desligamento abrupto.
+  - [x] Chamada de persistencia sincronizada forcada (`persistStateSynchronously`) imediatamente antes da execucao do instalador root (`installViaRoot`).
+  - [x] Bump de versao para v1.0.5 (code 6) e atualizacao do changelog.
+  - [ ] Validacao completa na branch `test` via GitHub Actions antes de merge para `main`.

@@ -12,6 +12,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
 import dev.may.taskmanager.BuildConfig
 import dev.may.taskmanager.R
+import dev.may.taskmanager.battery.BatteryCycleRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -295,6 +296,9 @@ object UpdateManager {
     }
 
     fun installUpdate(context: Context, uri: Uri, useRoot: Boolean = false) {
+        runCatching {
+            BatteryCycleRepository.getInstance(context.applicationContext).persistStateSynchronously()
+        }
         if (useRoot && RootInstaller.isRootAvailable()) {
             installViaRoot(context, uri)
         } else {
@@ -306,6 +310,9 @@ object UpdateManager {
         val appCtx = context.applicationContext
         _downloadStatus.value = DownloadStatus.InstallingRoot
         updateScope.launch {
+            runCatching {
+                BatteryCycleRepository.getInstance(appCtx).persistStateSynchronously()
+            }
             val result = RootInstaller.installApkViaRoot(appCtx, uri)
             withContext(Dispatchers.Main) {
                 if (result.isSuccess) {

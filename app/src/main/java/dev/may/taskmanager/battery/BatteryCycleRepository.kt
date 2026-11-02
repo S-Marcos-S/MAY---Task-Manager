@@ -98,7 +98,7 @@ class BatteryCycleRepository private constructor(private val context: Context) {
     }
 
     init {
-        loadFromDiskOrBootstrap()
+        loadFromDiskOrBootstrapSync()
         registerReceiver()
         readHardwareCycleCount()
     }
@@ -275,7 +275,7 @@ class BatteryCycleRepository private constructor(private val context: Context) {
         )
 
         publishCycles()
-        saveActiveCycleToDisk()
+        saveActiveCycleDirect(activeCycle)
     }
 
     private fun handleBatteryChanged(intent: Intent) {
@@ -328,10 +328,10 @@ class BatteryCycleRepository private constructor(private val context: Context) {
             if (historicalCycles.size > MAX_HISTORY_CYCLES) {
                 historicalCycles.removeAt(historicalCycles.lastIndex)
             }
-            saveToDisk()
+            saveHistoricalToDiskSync()
         }
         activeCycle = null
-        saveActiveCycleToDisk()
+        saveActiveCycleDirect(null)
     }
 
     private fun startNewActiveCycle(isCharging: Boolean) {
@@ -365,7 +365,7 @@ class BatteryCycleRepository private constructor(private val context: Context) {
         )
 
         publishCycles()
-        saveActiveCycleToDisk()
+        saveActiveCycleDirect(activeCycle)
     }
 
     private fun publishCycles() {
@@ -413,68 +413,66 @@ class BatteryCycleRepository private constructor(private val context: Context) {
         return result
     }
 
-    private fun loadFromDiskOrBootstrap() {
-        scope.launch {
-            if (dataFile.exists()) {
-                val text = runCatching { dataFile.readText(Charsets.UTF_8) }.getOrNull()
-                if (!text.isNullOrBlank()) {
-                    runCatching {
-                        val arr = JSONArray(text)
-                        historicalCycles.clear()
-                        for (i in 0 until arr.length()) {
-                            arr.optJSONObject(i)?.let {
-                                historicalCycles.add(BatteryCycleRecord.fromJson(it))
-                            }
+    private fun loadFromDiskOrBootstrapSync() {
+        if (dataFile.exists()) {
+            val text = runCatching { dataFile.readText(Charsets.UTF_8) }.getOrNull()
+            if (!text.isNullOrBlank()) {
+                runCatching {
+                    val arr = JSONArray(text)
+                    historicalCycles.clear()
+                    for (i in 0 until arr.length()) {
+                        arr.optJSONObject(i)?.let {
+                            historicalCycles.add(BatteryCycleRecord.fromJson(it))
                         }
                     }
                 }
             }
+        }
 
-            // If empty, generate bootstrap seed cycles so the screen is immediately populated
-            if (historicalCycles.isEmpty()) {
-                bootstrapSeedData()
-            }
+        // If empty, generate bootstrap seed cycles so the screen is immediately populated
+        if (historicalCycles.isEmpty()) {
+            bootstrapSeedData()
+            saveHistoricalToDiskSync()
+        }
 
-            // Start or restore current active cycle
-            lastSampleRealtime = SystemClock.elapsedRealtime()
-            lastSampleUptime = SystemClock.uptimeMillis()
-            val isCharging = isCurrentlyCharging()
-            var restored: BatteryCycleRecord? = null
+        // Start or restore current active cycle
+        lastSampleRealtime = SystemClock.elapsedRealtime()
+        lastSampleUptime = SystemClock.uptimeMillis()
+        val isCharging = isCurrentlyCharging()
+        var restored: BatteryCycleRecord? = null
 
-            if (activeCycleFile.exists()) {
-                val text = runCatching { activeCycleFile.readText(Charsets.UTF_8) }.getOrNull()
-                if (!text.isNullOrBlank()) {
-                    runCatching {
-                        val obj = JSONObject(text)
-                        restored = BatteryCycleRecord.fromJson(obj)
-                    }.onFailure {
-                        Log.e(TAG, "Failed to parse active cycle from disk", it)
-                    }
+        if (activeCycleFile.exists()) {
+            val text = runCatching { activeCycleFile.readText(Charsets.UTF_8) }.getOrNull()
+            if (!text.isNullOrBlank()) {
+                runCatching {
+                    val obj = JSONObject(text)
+                    restored = BatteryCycleRecord.fromJson(obj)
+                }.onFailure {
+                    Log.e(TAG, "Failed to parse active cycle from disk", it)
                 }
             }
+        }
 
-            if (restored != null) {
-                val expectedType = if (isCharging) CycleType.CHARGE else CycleType.DISCHARGE
-                if (restored.type == expectedType) {
-                    activeCycle = restored.copy(isActive = true)
-                    sampleCurrentTelemetryPoint()
-                } else {
-                    val now = System.currentTimeMillis()
-                    val duration = now - restored.startTimeMs
-                    if (duration > 45_000L || restored.batteryDeltaPercent >= 1) {
-                        historicalCycles.add(0, restored.copy(endTimeMs = now, isActive = false))
-                        if (historicalCycles.size > MAX_HISTORY_CYCLES) {
-                            historicalCycles.removeAt(historicalCycles.lastIndex)
-                        }
-                    }
-                    startNewActiveCycle(isCharging)
-                }
+        if (restored != null) {
+            val expectedType = if (isCharging) CycleType.CHARGE else CycleType.DISCHARGE
+            if (restored.type == expectedType) {
+                activeCycle = restored.copy(isActive = true)
             } else {
+                val now = System.currentTimeMillis()
+                val duration = now - restored.startTimeMs
+                if (duration > 45_000L || restored.batteryDeltaPercent >= 1) {
+                    historicalCycles.add(0, restored.copy(endTimeMs = now, isActive = false))
+                    if (historicalCycles.size > MAX_HISTORY_CYCLES) {
+                        historicalCycles.removeAt(historicalCycles.lastIndex)
+                    }
+                    saveHistoricalToDiskSync()
+                }
                 startNewActiveCycle(isCharging)
             }
-            saveToDisk()
-            publishCycles()
+        } else {
+            startNewActiveCycle(isCharging)
         }
+        publishCycles()
     }
 
     private fun bootstrapSeedData() {
@@ -593,33 +591,56 @@ class BatteryCycleRepository private constructor(private val context: Context) {
         historicalCycles.add(rechargeSeed)
     }
 
+    private fun saveHistoricalToDiskSync() {
+        runCatching {
+            val array = JSONArray()
+            historicalCycles.forEach { array.put(it.toJson()) }
+            val parent = dataFile.parentFile ?: return
+            val tempFile = File(parent, "${dataFile.name}.tmp")
+            tempFile.writeText(array.toString(), Charsets.UTF_8)
+            if (tempFile.exists()) {
+                tempFile.renameTo(dataFile)
+            }
+        }.onFailure {
+            Log.e(TAG, "Failed to save battery cycles to disk", it)
+        }
+    }
+
+    private fun saveActiveCycleDirect(cycle: BatteryCycleRecord?) {
+        runCatching {
+            if (cycle != null) {
+                val parent = activeCycleFile.parentFile ?: return
+                val tempFile = File(parent, "${activeCycleFile.name}.tmp")
+                tempFile.writeText(cycle.toJson().toString(), Charsets.UTF_8)
+                if (tempFile.exists()) {
+                    tempFile.renameTo(activeCycleFile)
+                }
+            } else {
+                if (activeCycleFile.exists()) {
+                    activeCycleFile.delete()
+                }
+            }
+        }.onFailure {
+            Log.e(TAG, "Failed to save active battery cycle to disk", it)
+        }
+    }
+
+    fun persistStateSynchronously() {
+        saveHistoricalToDiskSync()
+        saveActiveCycleDirect(activeCycle)
+    }
+
     private fun saveToDisk() {
         scope.launch {
-            runCatching {
-                val array = JSONArray()
-                historicalCycles.forEach { array.put(it.toJson()) }
-                dataFile.writeText(array.toString(), Charsets.UTF_8)
-            }.onFailure {
-                Log.e(TAG, "Failed to save battery cycles to disk", it)
-            }
-            saveActiveCycleToDisk()
+            saveHistoricalToDiskSync()
+            saveActiveCycleDirect(activeCycle)
         }
     }
 
     private fun saveActiveCycleToDisk() {
         val cycle = activeCycle
         scope.launch {
-            runCatching {
-                if (cycle != null) {
-                    activeCycleFile.writeText(cycle.toJson().toString(), Charsets.UTF_8)
-                } else {
-                    if (activeCycleFile.exists()) {
-                        activeCycleFile.delete()
-                    }
-                }
-            }.onFailure {
-                Log.e(TAG, "Failed to save active battery cycle to disk", it)
-            }
+            saveActiveCycleDirect(cycle)
         }
     }
 
