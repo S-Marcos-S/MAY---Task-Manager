@@ -180,6 +180,7 @@ fun BatteryStatsScreen(
     }
 
     Scaffold(
+        contentWindowInsets = if (showHeader) ScaffoldDefaults.contentWindowInsets else WindowInsets(0, 0, 0, 0),
         modifier = if (showHeader) Modifier.nestedScroll(scrollBehavior.nestedScrollConnection) else Modifier,
         containerColor = if (showHeader) dynamicSurfaceColor(alpha = 0.40f, tintFraction = 0.16f) else Color.Transparent,
         topBar = {
@@ -800,8 +801,6 @@ private fun OverviewTab(
                 onConfigure = onConfigureEnforceDoze,
             )
         }
-        item { SummaryCard(snapshot) }
-        item { DischargeBreakdownCard(snapshot) }
         item { SignalQualityCard(snapshot) }
         item { DozeStatsCard(snapshot?.doze, deviceIdle) }
         item { BluetoothCard(snapshot?.bluetooth) }
@@ -2479,7 +2478,7 @@ private fun RootTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Root Statistics",
+                        stringResource(R.string.root_stats_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -2499,7 +2498,7 @@ private fun RootTab(
                         if (isLoading) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp))
                         } else {
-                            Icon(Icons.Outlined.Refresh, "Refresh")
+                            Icon(Icons.Outlined.Refresh, stringResource(R.string.refresh))
                         }
                     }
                 }
@@ -2770,7 +2769,7 @@ private fun ThermalZonesCard(thermalZones: List<RootBatteryStatsCollector.Therma
                     }
 
                     Text(
-                        String.format(Locale.getDefault(), "%.1fÂ°C", tempC),
+                        String.format(Locale.getDefault(), "%.1f°C", tempC),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = tempColor
@@ -2785,7 +2784,7 @@ private fun ThermalZonesCard(thermalZones: List<RootBatteryStatsCollector.Therma
                     ) {
                         zone.tripPoints.take(3).forEach { trip ->
                             Text(
-                                "${trip.type}: ${trip.tempMilliC / 1000}Â°",
+                                "${trip.type}: ${trip.tempMilliC / 1000}°",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

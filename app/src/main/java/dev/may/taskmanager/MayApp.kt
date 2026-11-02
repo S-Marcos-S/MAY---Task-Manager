@@ -3,6 +3,9 @@ package dev.may.taskmanager
 
 import android.app.Application
 import dev.may.taskmanager.battery.AdvancedDrainTracker
+import dev.may.taskmanager.battery.DrainNotificationManager
+import dev.may.taskmanager.network.NetSpeedSettings
+import dev.may.taskmanager.network.SpeedMonitorService
 import dev.may.taskmanager.root.anomaly.BackgroundAnomalyWatcher
 import dev.may.taskmanager.ui.theme.glass.WallpaperGlassProvider
 import dev.may.taskmanager.update.UpdateManager
@@ -15,6 +18,12 @@ class MayApp : Application() {
         UpdateManager.init(this)
         BackgroundAnomalyWatcher.getInstance(this).start()
         AdvancedDrainTracker.getInstance(this).start()
+        if (DrainNotificationManager.isNotificationEnabled(this)) {
+            DrainNotificationManager.getInstance(this).updateNow()
+        }
+        if (NetSpeedSettings(this).isEnabled) {
+            SpeedMonitorService.start(this)
+        }
     }
 
     override fun onTrimMemory(level: Int) {

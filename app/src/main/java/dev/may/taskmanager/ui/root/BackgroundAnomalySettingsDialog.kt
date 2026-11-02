@@ -20,11 +20,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -43,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -191,28 +196,28 @@ fun BackgroundAnomalySettingsDialog(
 
                         ResourceOptionRow(
                             label = stringResource(R.string.anomaly_opt_network),
-                            icon = "🌐",
+                            icon = Icons.Filled.Wifi,
                             checked = config.notifyNetwork,
                             onCheckedChange = { watcher.updateConfig(config.copy(notifyNetwork = it)) },
                         )
 
                         ResourceOptionRow(
                             label = stringResource(R.string.anomaly_opt_cpu),
-                            icon = "⚡",
+                            icon = Icons.Filled.Speed,
                             checked = config.notifyCpu,
                             onCheckedChange = { watcher.updateConfig(config.copy(notifyCpu = it)) },
                         )
 
                         ResourceOptionRow(
                             label = stringResource(R.string.anomaly_opt_ram),
-                            icon = "💾",
+                            icon = Icons.Filled.Memory,
                             checked = config.notifyRam,
                             onCheckedChange = { watcher.updateConfig(config.copy(notifyRam = it)) },
                         )
 
                         ResourceOptionRow(
                             label = stringResource(R.string.anomaly_opt_deep_sleep),
-                            icon = "🌙",
+                            icon = Icons.Filled.Bedtime,
                             checked = config.notifyDeepSleep,
                             onCheckedChange = { watcher.updateConfig(config.copy(notifyDeepSleep = it)) },
                         )
@@ -350,7 +355,7 @@ fun BackgroundAnomalySettingsDialog(
 @Composable
 private fun ResourceOptionRow(
     label: String,
-    icon: String,
+    icon: ImageVector,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
@@ -369,7 +374,12 @@ private fun ResourceOptionRow(
             modifier = Modifier.size(32.dp),
         )
         Spacer(Modifier.width(8.dp))
-        Text(text = icon, fontSize = 14.sp)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = colorScheme.primary,
+            modifier = Modifier.size(18.dp),
+        )
         Spacer(Modifier.width(8.dp))
         Text(
             text = label,
@@ -387,6 +397,12 @@ private fun AnomalyItemCard(
     val colorScheme = MaterialTheme.colorScheme
     val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
     val timeStr = timeFormat.format(Date(anomaly.timestamp))
+    val anomalyIcon = when (anomaly.type) {
+        AnomalyType.NETWORK -> Icons.Filled.Wifi
+        AnomalyType.CPU -> Icons.Filled.Speed
+        AnomalyType.RAM -> Icons.Filled.Memory
+        AnomalyType.DEEP_SLEEP -> Icons.Filled.Bedtime
+    }
 
     Surface(
         shape = RoundedCornerShape(12.dp),
@@ -401,7 +417,12 @@ private fun AnomalyItemCard(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = anomaly.type.iconEmoji, fontSize = 18.sp)
+            Icon(
+                imageVector = anomalyIcon,
+                contentDescription = null,
+                tint = colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -421,8 +442,13 @@ private fun AnomalyItemCard(
                         color = colorScheme.error,
                     )
                 }
+                val badgeText = if (anomaly.screenWasOff) {
+                    stringResource(R.string.anomaly_deep_sleep_badge)
+                } else {
+                    stringResource(R.string.anomaly_screen_on_badge)
+                }
                 val subText = buildString {
-                    append(if (anomaly.screenWasOff) "Tela Apagada • $timeStr" else "Tela Ligada • $timeStr")
+                    append("$badgeText • $timeStr")
                     if (!anomaly.probableCause.isNullOrBlank()) {
                         append(" • ")
                         append(anomaly.probableCause)

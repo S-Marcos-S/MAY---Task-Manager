@@ -292,8 +292,6 @@ fun TaskManagerScreen(
                     }
                 },
                 onOpenSettings = onOpenSettings,
-                onOpenAnomalySettings = { showAnomalySettingsDialog = true },
-                isWatcherActive = anomalyConfig.isEnabled,
                 isGlassActive = isGlassActive,
             )
         },
@@ -465,8 +463,6 @@ private fun CleanTaskManagerTopBar(
     selectedTab: TaskManagerTab,
     onTabSelect: (TaskManagerTab) -> Unit,
     onOpenSettings: () -> Unit = {},
-    onOpenAnomalySettings: () -> Unit,
-    isWatcherActive: Boolean,
     isGlassActive: Boolean = LocalGlassThemeActive.current,
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -524,17 +520,6 @@ private fun CleanTaskManagerTopBar(
             }
 
             Spacer(Modifier.width(6.dp))
-
-            IconButton(
-                onClick = onOpenAnomalySettings,
-                modifier = Modifier.size(38.dp),
-            ) {
-                Icon(
-                    imageVector = if (isWatcherActive) Icons.Filled.NotificationsActive else Icons.Filled.NotificationsNone,
-                    contentDescription = stringResource(R.string.anomaly_dialog_title),
-                    tint = if (isWatcherActive) colorScheme.primary else colorScheme.onSurfaceVariant,
-                )
-            }
 
             IconButton(
                 onClick = onOpenSettings,
@@ -967,11 +952,11 @@ private fun ProcessRowCard(
                 Spacer(Modifier.height(2.dp))
                 // Power Impact Metric
                 val (impactColor, impactText) = when (item.powerImpact) {
-                    PowerImpactLevel.VERY_HIGH -> Pair(Color(0xFFEF4444), "⚡ Muito Alto")
-                    PowerImpactLevel.HIGH -> Pair(Color(0xFFF97316), "⚡ Alto")
-                    PowerImpactLevel.MEDIUM -> Pair(Color(0xFFF59E0B), "⚡ Médio")
-                    PowerImpactLevel.LOW -> Pair(Color(0xFF10B981), "⚡ Baixo")
-                    PowerImpactLevel.MINIMAL -> Pair(colorScheme.onSurface.copy(alpha = 0.45f), "⚡ Mínimo")
+                    PowerImpactLevel.VERY_HIGH -> Pair(Color(0xFFEF4444), stringResource(R.string.power_impact_very_high))
+                    PowerImpactLevel.HIGH -> Pair(Color(0xFFF97316), stringResource(R.string.power_impact_high))
+                    PowerImpactLevel.MEDIUM -> Pair(Color(0xFFF59E0B), stringResource(R.string.power_impact_medium))
+                    PowerImpactLevel.LOW -> Pair(Color(0xFF10B981), stringResource(R.string.power_impact_low))
+                    PowerImpactLevel.MINIMAL -> Pair(colorScheme.onSurface.copy(alpha = 0.45f), stringResource(R.string.power_impact_minimal))
                 }
                 Text(
                     text = impactText,

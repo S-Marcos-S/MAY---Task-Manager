@@ -161,51 +161,175 @@ object RootBatteryStatsCollector {
     }
 
     suspend fun getKernelWakelocks(): List<KernelWakelockInfo> = withContext(Dispatchers.IO) {
-        val result = mutableListOf<KernelWakelockInfo>()
+        val result = mutableMapOf<String, KernelWakelockInfo>()
         try {
-            val wakelockPath = when {
-                File("/sys/kernel/wakelock_stats").exists() -> "/sys/kernel/wakelock_stats"
-                File("/proc/wakelocks").exists() -> "/proc/wakelocks"
-                else -> null
-            }
+            if (isRootAvailable()) {
+                val rootCmd = "sh -c '" +
+                    "if [ -r /sys/kernel/debug/wakeup_sources ]; then " +
+                    "  cat /sys/kernel/debug/wakeup_sources; " +
+                    "elif [ -r /d/wakeup_sources ]; then " +
+                    "  cat /d/wakeup_sources; " +
+                    "else " +
+                    "  mount -t debugfs none /sys/kernel/debug 2>/dev/null; " +
+                    "  if [ -r /sys/kernel/debug/wakeup_sources ]; then " +
+                    "    cat /sys/kernel/debug/wakeup_sources; " +
+                    "  elif [ -r /d/wakeup_sources ]; then " +
+                    "    cat /d/wakeup_sources; " +
+                    "  else " +
+                    "    for w in /sys/class/wakeup/wakeup* /sys/devices/virtual/wakeup/wakeup*; do " +
+                    "      [ -d \"\$w\" ] || continue; " +
+                    "      n=\$(cat \"\$w/name\" 2>/dev/null); " +
+                    "      [ -z \"\$n\" ] && continue; " +
+                    "      ac=\$(cat \"\$w/active_count\" 2>/dev/null); " +
+                    "      ec=\$(cat \"\$w/expire_count\" 2>/dev/null); " +
+                    "      wc=\$(cat \"\$w/wakeup_count\" 2>/dev/null); " +
+                    "      tt=\$(cat \"\$w/total_time_ms\" 2>/dev/null); " +
+                    "      mt=\$(cat \"\$w/max_time_ms\" 2>/dev/null); " +
+                    "      echo \"WAKEUP:\$n|\${ac:-0}|\${ec:-0}|\${wc:-0}|\${tt:-0}|\${mt:-0}\"; " +
+                    "    done; " +
+                    "    cat /sys/kernel/wakelock_stats 2>/dev/null || cat /proc/wakelocks 2>/dev/null; " +
+                    "  fi; " +
+                    "fi'"
 
-            var linesList: List<String>? = null
-            if (wakelockPath != null) {
-                try {
-                    val f = File(wakelockPath)
-                    if (f.canRead()) {
-                        linesList = f.readLines()
-                    }
-                } catch (_: Exception) {}
-            }
-
-            if (linesList == null && isRootAvailable()) {
-                val out = exec("cat /sys/kernel/wakelock_stats 2>/dev/null || cat /proc/wakelocks 2>/dev/null", 3000L)
+                val out = exec(rootCmd, 3500L)
                 if (!out.isNullOrBlank()) {
-                    linesList = out.lines()
+                    parseKernelWakelocksOutput(out, result)
+                }
+
+                if (result.isEmpty()) {
+                    val dumpOut = exec("dumpsys batterystats --checkin 2>/dev/null | grep ',kwl,'", 3000L)
+                    if (!dumpOut.isNullOrBlank()) {
+                        parseDumpsysKernelWakelocks(dumpOut, result)
+                    }
                 }
             }
 
-            linesList?.drop(1)?.forEach { line ->
-                val parts = line.split(Regex("\\s+"))
-                if (parts.size >= 6) {
-                    result.add(
-                        KernelWakelockInfo(
-                            name = parts[0].trim('"'),
-                            count = parts.getOrNull(1)?.toIntOrNull() ?: 0,
-                            expireCount = parts.getOrNull(2)?.toIntOrNull() ?: 0,
-                            wakeCount = parts.getOrNull(3)?.toIntOrNull() ?: 0,
-                            activeCount = parts.getOrNull(4)?.toIntOrNull() ?: 0,
-                            totalTime = parts.getOrNull(5)?.toLongOrNull() ?: 0L,
-                            sleepTime = parts.getOrNull(6)?.toLongOrNull() ?: 0L,
-                            maxTime = parts.getOrNull(7)?.toLongOrNull() ?: 0L,
-                            lastChange = parts.getOrNull(8)?.toLongOrNull() ?: 0L
-                        )
-                    )
+            if (result.isEmpty()) {
+                val wakelockPath = when {
+                    File("/sys/kernel/wakelock_stats").exists() -> "/sys/kernel/wakelock_stats"
+                    File("/proc/wakelocks").exists() -> "/proc/wakelocks"
+                    else -> null
+                }
+                if (wakelockPath != null) {
+                    try {
+                        val f = File(wakelockPath)
+                        if (f.canRead()) {
+                            parseKernelWakelocksOutput(f.readText(), result)
+                        }
+                    } catch (_: Exception) {}
                 }
             }
         } catch (_: Exception) {}
-        result.sortedByDescending { it.totalTime }
+        result.values.sortedByDescending { it.totalTime }
+    }
+
+    private fun parseKernelWakelocksOutput(out: String, result: MutableMap<String, KernelWakelockInfo>) {
+        out.lineSequence().forEach { rawLine ->
+            val line = rawLine.trim()
+            if (line.isBlank()) return@forEach
+
+            if (line.startsWith("WAKEUP:")) {
+                val parts = line.removePrefix("WAKEUP:").split('|')
+                if (parts.size >= 6) {
+                    val name = parts[0].trim('"')
+                    if (name.isNotBlank()) {
+                        val ac = parts[1].toIntOrNull() ?: 0
+                        val ec = parts[2].toIntOrNull() ?: 0
+                        val wc = parts[3].toIntOrNull() ?: 0
+                        val ttMs = parts[4].toLongOrNull() ?: 0L
+                        val mtMs = parts[5].toLongOrNull() ?: 0L
+                        result[name] = KernelWakelockInfo(
+                            name = name,
+                            count = wc,
+                            expireCount = ec,
+                            wakeCount = wc,
+                            activeCount = ac,
+                            totalTime = ttMs * 1_000_000L,
+                            sleepTime = 0L,
+                            maxTime = mtMs * 1_000_000L,
+                            lastChange = 0L
+                        )
+                    }
+                }
+            } else {
+                val parts = line.split(Regex("\\s+"))
+                if (parts.size >= 6) {
+                    val name = parts[0].trim('"')
+                    if (name.isNotBlank() && !name.equals("name", ignoreCase = true)) {
+                        val c1 = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                        val c2 = parts.getOrNull(2)?.toIntOrNull() ?: 0
+                        val c3 = parts.getOrNull(3)?.toIntOrNull() ?: 0
+                        val c4 = parts.getOrNull(4)?.toIntOrNull() ?: 0
+                        val t5 = parts.getOrNull(5)?.toLongOrNull() ?: 0L
+                        val t6 = parts.getOrNull(6)?.toLongOrNull() ?: 0L
+                        val t7 = parts.getOrNull(7)?.toLongOrNull() ?: 0L
+                        val t8 = parts.getOrNull(8)?.toLongOrNull() ?: 0L
+
+                        val isDebugfs = parts.size >= 10 || (parts.size >= 8 && parts[0].contains('.'))
+                        val totalTimeNs: Long
+                        val maxTimeNs: Long
+                        val activeCount: Int
+                        val wakeCount: Int
+                        val expireCount: Int
+
+                        if (isDebugfs) {
+                            val ttMs = parts.getOrNull(6)?.toLongOrNull() ?: 0L
+                            val mtMs = parts.getOrNull(7)?.toLongOrNull() ?: 0L
+                            totalTimeNs = ttMs * 1_000_000L
+                            maxTimeNs = mtMs * 1_000_000L
+                            activeCount = c1
+                            wakeCount = c3
+                            expireCount = c4
+                        } else {
+                            totalTimeNs = if (t5 < 100_000_000L) t5 * 1_000_000L else t5
+                            maxTimeNs = if (t7 < 100_000_000L) t7 * 1_000_000L else t7
+                            activeCount = c4
+                            wakeCount = c3
+                            expireCount = c2
+                        }
+
+                        result[name] = KernelWakelockInfo(
+                            name = name,
+                            count = if (isDebugfs) wakeCount else c1,
+                            expireCount = expireCount,
+                            wakeCount = wakeCount,
+                            activeCount = activeCount,
+                            totalTime = totalTimeNs,
+                            sleepTime = if (isDebugfs) 0L else t6,
+                            maxTime = maxTimeNs,
+                            lastChange = if (isDebugfs) 0L else t8
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun parseDumpsysKernelWakelocks(dumpOut: String, result: MutableMap<String, KernelWakelockInfo>) {
+        dumpOut.lineSequence().forEach { line ->
+            val parts = line.split(',')
+            val kwlIndex = parts.indexOf("kwl")
+            if (kwlIndex >= 0 && parts.size > kwlIndex + 3) {
+                val name = parts.getOrNull(kwlIndex + 1)?.trim('"') ?: return@forEach
+                if (name.isBlank()) return@forEach
+                val count = parts.getOrNull(kwlIndex + 2)?.toIntOrNull() ?: 0
+                val timeMs = parts.getOrNull(kwlIndex + 3)?.toLongOrNull() ?: 0L
+                val currentMs = parts.getOrNull(kwlIndex + 4)?.toLongOrNull() ?: 0L
+                val maxMs = parts.getOrNull(kwlIndex + 5)?.toLongOrNull() ?: 0L
+
+                result[name] = KernelWakelockInfo(
+                    name = name,
+                    count = count,
+                    expireCount = 0,
+                    wakeCount = count,
+                    activeCount = if (currentMs > 0) 1 else 0,
+                    totalTime = timeMs * 1_000_000L,
+                    sleepTime = 0L,
+                    maxTime = maxMs * 1_000_000L,
+                    lastChange = 0L
+                )
+            }
+        }
     }
 
     suspend fun getCpuInfo(): List<CpuInfo> = withContext(Dispatchers.IO) {
@@ -416,37 +540,142 @@ object RootBatteryStatsCollector {
     }
 
     suspend fun getThermalZones(): List<ThermalZone> = withContext(Dispatchers.IO) {
-        val result = mutableListOf<ThermalZone>()
+        val result = mutableMapOf<String, ThermalZone>()
         try {
-            val thermalDir = File("/sys/class/thermal")
-            val zones = thermalDir.listFiles { f -> f.name.startsWith("thermal_zone") }
-                ?: return@withContext result
+            if (isRootAvailable()) {
+                val rootCmd = "sh -c '" +
+                    "for z in /sys/class/thermal/thermal_zone* /sys/devices/virtual/thermal/thermal_zone*; do " +
+                    "  [ -d \"\$z\" ] || continue; " +
+                    "  n=\$(basename \"\$z\"); " +
+                    "  type=\$(cat \"\$z/type\" 2>/dev/null); " +
+                    "  temp=\$(cat \"\$z/temp\" 2>/dev/null); " +
+                    "  [ -z \"\$type\" ] && continue; " +
+                    "  echo \"ZONE:\$n|\$type|\${temp:-0}\"; " +
+                    "  for t in \"\$z\"/trip_point_*_type; do " +
+                    "    [ -f \"\$t\" ] || continue; " +
+                    "    idx=\$(echo \"\$t\" | sed -E \"s/.*trip_point_([0-9]+)_type/\\1/\"); " +
+                    "    ttype=\$(cat \"\$t\" 2>/dev/null); " +
+                    "    ttemp=\$(cat \"\$z/trip_point_\${idx}_temp\" 2>/dev/null); " +
+                    "    echo \"TRIP:\$idx|\$ttype|\${ttemp:-0}\"; " +
+                    "  done; " +
+                    "done'"
 
-            zones.forEach { zone ->
-                fun read(name: String): String? = try {
-                    File("${zone.absolutePath}/$name").readText().trim()
-                } catch (_: Exception) { null }
-
-                val tripPoints = mutableListOf<TripPoint>()
-                var i = 0
-                while (i < 5) {
-                    val tripType = read("trip_point_${i}_type") ?: break
-                    val tripTemp = read("trip_point_${i}_temp")?.toIntOrNull() ?: break
-                    tripPoints.add(TripPoint(tripType, tripTemp))
-                    i++
+                val out = exec(rootCmd, 3500L)
+                if (!out.isNullOrBlank()) {
+                    parseThermalZonesOutput(out, result)
                 }
 
-                result.add(
-                    ThermalZone(
-                        name = zone.name,
-                        type = read("type") ?: "unknown",
-                        tempMilliC = read("temp")?.toIntOrNull() ?: 0,
-                        tripPoints = tripPoints
-                    )
-                )
+                if (result.isEmpty()) {
+                    val dump = exec("dumpsys thermalservice 2>/dev/null | grep -i 'Temperature{'", 3000L)
+                    if (!dump.isNullOrBlank()) {
+                        parseDumpsysThermal(dump, result)
+                    }
+                }
+            }
+
+            if (result.isEmpty()) {
+                val dirs = listOf(File("/sys/class/thermal"), File("/sys/devices/virtual/thermal"))
+                dirs.forEach { thermalDir ->
+                    val zones = thermalDir.listFiles { f -> f.name.startsWith("thermal_zone") }
+                    zones?.forEach { zone ->
+                        fun read(name: String): String? = try {
+                            File("${zone.absolutePath}/$name").readText().trim()
+                        } catch (_: Exception) { null }
+
+                        val type = read("type") ?: "unknown"
+                        val rawTemp = read("temp")?.toIntOrNull() ?: 0
+                        val tripPoints = mutableListOf<TripPoint>()
+                        var i = 0
+                        while (i < 5) {
+                            val tripType = read("trip_point_${i}_type") ?: break
+                            val tripTemp = read("trip_point_${i}_temp")?.toIntOrNull() ?: break
+                            tripPoints.add(TripPoint(tripType, normalizeTripTemp(tripTemp)))
+                            i++
+                        }
+
+                        if (!result.containsKey(zone.name)) {
+                            result[zone.name] = ThermalZone(
+                                name = zone.name,
+                                type = type,
+                                tempMilliC = normalizeTempMilliC(rawTemp.toDouble()),
+                                tripPoints = tripPoints
+                            )
+                        }
+                    }
+                }
             }
         } catch (_: Exception) {}
-        result.sortedBy { it.name }
+        result.values.sortedBy { it.name }
+    }
+
+    private fun normalizeTempMilliC(raw: Double): Int {
+        return when {
+            raw in -50.0..150.0 -> (raw * 1000).toInt()
+            raw in 150.0..1500.0 -> (raw * 100).toInt()
+            raw in 1500.0..150000.0 -> raw.toInt()
+            else -> raw.toInt().coerceIn(0, 150000)
+        }
+    }
+
+    private fun normalizeTripTemp(raw: Int): Int {
+        return normalizeTempMilliC(raw.toDouble())
+    }
+
+    private fun parseThermalZonesOutput(out: String, result: MutableMap<String, ThermalZone>) {
+        var currentZoneName: String? = null
+        var currentZoneType = "unknown"
+        var currentZoneTemp = 0
+        var currentTrips = mutableListOf<TripPoint>()
+
+        fun flushCurrent() {
+            val name = currentZoneName ?: return
+            if (!result.containsKey(name)) {
+                result[name] = ThermalZone(
+                    name = name,
+                    type = currentZoneType,
+                    tempMilliC = currentZoneTemp,
+                    tripPoints = currentTrips.toList()
+                )
+            }
+        }
+
+        out.lineSequence().forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.startsWith("ZONE:")) {
+                flushCurrent()
+                val parts = trimmed.removePrefix("ZONE:").split('|')
+                currentZoneName = parts.getOrNull(0)
+                currentZoneType = parts.getOrNull(1) ?: "unknown"
+                val rawTemp = parts.getOrNull(2)?.toDoubleOrNull() ?: 0.0
+                currentZoneTemp = normalizeTempMilliC(rawTemp)
+                currentTrips = mutableListOf()
+            } else if (trimmed.startsWith("TRIP:")) {
+                val parts = trimmed.removePrefix("TRIP:").split('|')
+                if (parts.size >= 3) {
+                    val tripType = parts[1]
+                    val rawTripTemp = parts[2].toIntOrNull() ?: 0
+                    currentTrips.add(TripPoint(tripType, normalizeTripTemp(rawTripTemp)))
+                }
+            }
+        }
+        flushCurrent()
+    }
+
+    private fun parseDumpsysThermal(out: String, result: MutableMap<String, ThermalZone>) {
+        val tempRegex = Regex("""Temperature\{mValue=([0-9.]+),\s*mType=(\d+),\s*mName=([^,]+),\s*mStatus=(\d+)\}""")
+        var index = 0
+        tempRegex.findAll(out).forEach { match ->
+            val value = match.groupValues[1].toDoubleOrNull() ?: 0.0
+            val name = match.groupValues[3].trim()
+            val zoneId = "thermal_zone$index"
+            result[zoneId] = ThermalZone(
+                name = zoneId,
+                type = name,
+                tempMilliC = normalizeTempMilliC(value),
+                tripPoints = emptyList()
+            )
+            index++
+        }
     }
 
     val isRootCached: Boolean? get() = cachedRoot

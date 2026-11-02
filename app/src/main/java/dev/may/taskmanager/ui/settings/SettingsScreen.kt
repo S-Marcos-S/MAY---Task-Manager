@@ -25,22 +25,28 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -67,8 +73,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.may.taskmanager.BuildConfig
@@ -492,6 +504,7 @@ private fun UpdateStatusCard(
     onInstall: (android.net.Uri, Boolean) -> Unit,
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    var isChangelogExpanded by remember { mutableStateOf(false) }
 
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
@@ -532,13 +545,62 @@ private fun UpdateStatusCard(
                 }
 
                 if (updateInfo.changelog.isNotBlank()) {
-                    Text(
-                        text = updateInfo.changelog.take(200),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    val formattedChangelog = remember(updateInfo.changelog, colorScheme) {
+                        formatMarkdownToAnnotated(updateInfo.changelog, colorScheme)
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colorScheme.surfaceContainerHigh.copy(alpha = 0.5f))
+                            .padding(8.dp)
+                    ) {
+                        if (isChangelogExpanded) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 240.dp)
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Text(
+                                    text = formattedChangelog,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colorScheme.onSurface,
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = formattedChangelog,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colorScheme.onSurface,
+                                maxLines = 4,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { isChangelogExpanded = !isChangelogExpanded }
+                                .padding(vertical = 4.dp, horizontal = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isChangelogExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = null,
+                                tint = colorScheme.primary,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                text = stringResource(if (isChangelogExpanded) R.string.action_show_less else R.string.action_show_more),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colorScheme.primary,
+                            )
+                        }
+                    }
                 }
 
                 when (val status = downloadStatus) {
@@ -672,5 +734,84 @@ private fun UpdateStatusCard(
                 }
             }
         }
+    }
+}
+
+private fun formatMarkdownToAnnotated(text: String, colorScheme: ColorScheme): AnnotatedString {
+    return buildAnnotatedString {
+        val lines = text.lines()
+        lines.forEachIndexed { index, rawLine ->
+            val trimmed = rawLine.trim()
+            when {
+                trimmed.startsWith("---") || trimmed.startsWith("***") -> {
+                    // Skip horizontal rules or render subtle spacing
+                }
+                trimmed.startsWith("###") -> {
+                    val content = trimmed.removePrefix("###").trim()
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = colorScheme.primary)) {
+                        append(content)
+                    }
+                }
+                trimmed.startsWith("##") -> {
+                    val content = trimmed.removePrefix("##").trim()
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = colorScheme.primary)) {
+                        append(content)
+                    }
+                }
+                trimmed.startsWith("#") -> {
+                    val content = trimmed.removePrefix("#").trim()
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = colorScheme.primary)) {
+                        append(content)
+                    }
+                }
+                trimmed.startsWith("- ") || trimmed.startsWith("* ") -> {
+                    append("• ")
+                    parseInlineMarkdown(trimmed.substring(2).trim(), colorScheme)
+                }
+                else -> {
+                    parseInlineMarkdown(trimmed, colorScheme)
+                }
+            }
+
+            if (index < lines.lastIndex && trimmed.isNotBlank()) {
+                append("\n")
+            }
+        }
+    }
+}
+
+private fun AnnotatedString.Builder.parseInlineMarkdown(line: String, colorScheme: ColorScheme) {
+    val tokenRegex = Regex("""(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)""")
+    var lastIndex = 0
+    for (match in tokenRegex.findAll(line)) {
+        if (match.range.first > lastIndex) {
+            append(line.substring(lastIndex, match.range.first))
+        }
+        val fullMatch = match.value
+        when {
+            fullMatch.startsWith("**") && fullMatch.endsWith("**") -> {
+                val inner = fullMatch.substring(2, fullMatch.length - 2)
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append(inner)
+                }
+            }
+            fullMatch.startsWith("*") && fullMatch.endsWith("*") -> {
+                val inner = fullMatch.substring(1, fullMatch.length - 1)
+                withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
+                    append(inner)
+                }
+            }
+            fullMatch.startsWith("`") && fullMatch.endsWith("`") -> {
+                val inner = fullMatch.substring(1, fullMatch.length - 1)
+                withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = colorScheme.surfaceContainerHighest)) {
+                    append(inner)
+                }
+            }
+            else -> append(fullMatch)
+        }
+        lastIndex = match.range.last + 1
+    }
+    if (lastIndex < line.length) {
+        append(line.substring(lastIndex))
     }
 }

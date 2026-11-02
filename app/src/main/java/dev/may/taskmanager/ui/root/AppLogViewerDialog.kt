@@ -1771,7 +1771,7 @@ internal fun RecordingsTab(
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                text = "💾 Salvar ZIP",
+                                text = stringResource(R.string.log_action_save_zip),
                                 color = Color(0xFF10B981),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -1790,7 +1790,7 @@ internal fun RecordingsTab(
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                text = "Descartar",
+                                text = stringResource(R.string.action_discard),
                                 color = colorScheme.error,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,

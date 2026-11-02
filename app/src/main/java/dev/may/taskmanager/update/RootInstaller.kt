@@ -62,6 +62,10 @@ object RootInstaller {
                 pm install -r -d -g -t "$stagedApkPath"
                 EXIT_CODE=$?
                 rm -f "$stagedApkPath"
+                if [ ${'$'}EXIT_CODE -eq 0 ]; then
+                    am broadcast -a android.intent.action.MY_PACKAGE_REPLACED -p ${context.packageName} 2>/dev/null
+                    am start -n ${context.packageName}/.MainActivity --user 0 -f 0x10000000 2>/dev/null
+                fi
                 exit ${'$'}EXIT_CODE
             """.trimIndent()
 

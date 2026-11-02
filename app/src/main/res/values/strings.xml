@@ -1284,4 +1284,23 @@
     <string name="notif_opt_total_avg">Total &amp; Average</string>
     <string name="notif_opt_temperature">Temperature</string>
     <string name="notif_opt_network">Network Usage</string>
+
+    <string name="action_show_more">Show more</string>
+    <string name="action_show_less">Show less</string>
+    <string name="root_stats_title">Root Statistics</string>
+    <string name="network_monitor_by_app">App Network Monitor</string>
+    <string name="anomaly_sensitivity_short_low">Low</string>
+    <string name="anomaly_sensitivity_short_med">Medium</string>
+    <string name="anomaly_sensitivity_short_high">High</string>
+
+    <string name="power_impact_very_high">Very High</string>
+    <string name="power_impact_high">High</string>
+    <string name="power_impact_medium">Medium</string>
+    <string name="power_impact_low">Low</string>
+    <string name="power_impact_minimal">Minimal</string>
+
+    <string name="background_infraction_deep_sleep">%1$dx deep sleep</string>
+    <string name="background_infraction_cpu">%1$dx CPU</string>
+
+    <string name="log_action_save_zip">Save ZIP</string>
 </resources>

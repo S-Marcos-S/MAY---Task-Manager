@@ -4,11 +4,11 @@ package dev.may.taskmanager.root.anomaly
 import dev.may.taskmanager.R
 import java.util.UUID
 
-enum class AnomalyType(val labelPt: String, val labelEn: String, val iconEmoji: String) {
-    NETWORK("Rede / Dados", "Network / Data", "🌐"),
-    CPU("Processador", "Processor / CPU", "⚡"),
-    RAM("Memória RAM", "RAM Memory", "💾"),
-    DEEP_SLEEP("Sono Profundo", "Deep Sleep", "🌙"),
+enum class AnomalyType(val labelPt: String, val labelEn: String, val iconEmoji: String = "") {
+    NETWORK("Rede / Dados", "Network / Data", ""),
+    CPU("Processador", "Processor / CPU", ""),
+    RAM("Memória RAM", "RAM Memory", ""),
+    DEEP_SLEEP("Sono Profundo", "Deep Sleep", ""),
 }
 
 enum class AnomalySensitivity(

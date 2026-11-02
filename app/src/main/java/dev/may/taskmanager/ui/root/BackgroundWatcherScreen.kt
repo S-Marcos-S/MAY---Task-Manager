@@ -41,11 +41,15 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -55,6 +59,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -67,7 +72,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -79,6 +86,7 @@ import dev.may.taskmanager.data.AppInfo
 import dev.may.taskmanager.root.AppRootInspector
 import dev.may.taskmanager.root.anomaly.AnomalyEvent
 import dev.may.taskmanager.root.anomaly.AnomalyHistoryRepository
+import dev.may.taskmanager.root.anomaly.AnomalySensitivity
 import dev.may.taskmanager.root.anomaly.AnomalyType
 import dev.may.taskmanager.root.anomaly.BackgroundAnomalyWatcher
 import dev.may.taskmanager.root.anomaly.FlaggedAppSummary
@@ -136,6 +144,122 @@ fun BackgroundWatcherScreen(
             .fillMaxSize()
             .padding(horizontal = 10.dp),
     ) {
+        // Compact Anomaly Watcher Settings Card
+        GlassCard(
+            fallbackColor = dynamicSurfaceColor(alpha = 0.55f, tintFraction = 0.12f),
+            cornerRadiusDp = 16.dp,
+            border = BorderStroke(1.dp, colorScheme.outline.copy(alpha = 0.12f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(
+                            imageVector = if (config.isEnabled) Icons.Filled.NotificationsActive else Icons.Filled.NotificationsNone,
+                            contentDescription = null,
+                            tint = if (config.isEnabled) colorScheme.primary else colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Column {
+                            Text(
+                                text = stringResource(R.string.anomaly_dialog_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = colorScheme.onSurface,
+                            )
+                            Text(
+                                text = stringResource(if (config.isEnabled) R.string.anomaly_status_active else R.string.anomaly_status_disabled),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (config.isEnabled) colorScheme.primary else colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    Switch(
+                        checked = config.isEnabled,
+                        onCheckedChange = { isChecked ->
+                            watcher.updateConfig(config.copy(isEnabled = isChecked))
+                        },
+                        modifier = Modifier.scale(0.85f),
+                    )
+                }
+
+                AnimatedVisibility(visible = config.isEnabled) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        // Sensitivity row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.anomaly_sensitivity_label),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            listOf(
+                                AnomalySensitivity.LOW to R.string.anomaly_sensitivity_short_low,
+                                AnomalySensitivity.BALANCED to R.string.anomaly_sensitivity_short_med,
+                                AnomalySensitivity.HIGH to R.string.anomaly_sensitivity_short_high,
+                            ).forEach { (sens, labelRes) ->
+                                CompactFilterChip(
+                                    selected = config.sensitivity == sens,
+                                    label = stringResource(labelRes),
+                                    onClick = { watcher.updateConfig(config.copy(sensitivity = sens)) },
+                                )
+                            }
+                        }
+
+                        // Categories row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            CompactFilterChip(
+                                selected = config.notifyNetwork,
+                                label = stringResource(R.string.background_filter_network),
+                                onClick = { watcher.updateConfig(config.copy(notifyNetwork = !config.notifyNetwork)) },
+                            )
+                            CompactFilterChip(
+                                selected = config.notifyCpu,
+                                label = stringResource(R.string.anomaly_opt_cpu),
+                                onClick = { watcher.updateConfig(config.copy(notifyCpu = !config.notifyCpu)) },
+                            )
+                            CompactFilterChip(
+                                selected = config.notifyRam,
+                                label = stringResource(R.string.anomaly_opt_ram),
+                                onClick = { watcher.updateConfig(config.copy(notifyRam = !config.notifyRam)) },
+                            )
+                            CompactFilterChip(
+                                selected = config.notifyDeepSleep,
+                                label = stringResource(R.string.background_filter_deep_sleep),
+                                onClick = { watcher.updateConfig(config.copy(notifyDeepSleep = !config.notifyDeepSleep)) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // High Density Summary Row
         GlassCard(
             fallbackColor = dynamicSurfaceColor(alpha = 0.55f, tintFraction = 0.12f),
@@ -200,21 +324,21 @@ fun BackgroundWatcherScreen(
                 item {
                     CompactFilterChip(
                         selected = selectedFilter == AnomalyFilter.DEEP_SLEEP,
-                        label = "🌙 ${stringResource(R.string.background_filter_deep_sleep)}",
+                        label = stringResource(R.string.background_filter_deep_sleep),
                         onClick = { selectedFilter = AnomalyFilter.DEEP_SLEEP },
                     )
                 }
                 item {
                     CompactFilterChip(
                         selected = selectedFilter == AnomalyFilter.NETWORK,
-                        label = "🌐 ${stringResource(R.string.background_filter_network)}",
+                        label = stringResource(R.string.background_filter_network),
                         onClick = { selectedFilter = AnomalyFilter.NETWORK },
                     )
                 }
                 item {
                     CompactFilterChip(
                         selected = selectedFilter == AnomalyFilter.CPU_RAM,
-                        label = "⚡ ${stringResource(R.string.background_filter_cpu_ram)}",
+                        label = stringResource(R.string.background_filter_cpu_ram),
                         onClick = { selectedFilter = AnomalyFilter.CPU_RAM },
                     )
                 }
@@ -227,7 +351,7 @@ fun BackgroundWatcherScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.ClearAll,
-                        contentDescription = "Limpar histórico",
+                        contentDescription = stringResource(R.string.action_clear_all),
                         tint = colorScheme.outline,
                         modifier = Modifier.size(18.dp),
                     )
@@ -489,22 +613,22 @@ private fun FlaggedAppCard(
             ) {
                 if (summary.deepSleepDisruptions > 0) {
                     InfractionBadge(
-                        emoji = "🌙",
-                        text = "${summary.deepSleepDisruptions}x sono profundo",
+                        icon = Icons.Filled.Bedtime,
+                        text = stringResource(R.string.background_infraction_deep_sleep, summary.deepSleepDisruptions),
                         color = colorScheme.primary,
                     )
                 }
                 if (summary.backgroundDataFlags > 0) {
                     InfractionBadge(
-                        emoji = "🌐",
+                        icon = Icons.Filled.CloudDownload,
                         text = AppRootInspector.formatBytes(summary.totalEstimatedBytes),
                         color = colorScheme.secondary,
                     )
                 }
                 if (summary.cpuFlags > 0) {
                     InfractionBadge(
-                        emoji = "⚡",
-                        text = "${summary.cpuFlags}x CPU",
+                        icon = Icons.Filled.Speed,
+                        text = stringResource(R.string.background_infraction_cpu, summary.cpuFlags),
                         color = colorScheme.error,
                     )
                 }
@@ -588,7 +712,7 @@ private fun FlaggedAppCard(
 
 @Composable
 private fun InfractionBadge(
-    emoji: String,
+    icon: ImageVector,
     text: String,
     color: Color,
 ) {
@@ -600,8 +724,13 @@ private fun InfractionBadge(
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = emoji, fontSize = 10.sp)
-            Spacer(Modifier.width(3.dp))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(12.dp),
+            )
+            Spacer(Modifier.width(4.dp))
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),

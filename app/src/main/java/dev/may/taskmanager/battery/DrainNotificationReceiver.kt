@@ -36,6 +36,18 @@ class DrainNotificationReceiver : BroadcastReceiver() {
                 tracker.onPowerDisconnected()
                 DrainNotificationManager.getInstance(context).updateNow()
             }
+            Intent.ACTION_MY_PACKAGE_REPLACED -> {
+                CoroutineScope(Dispatchers.Default).launch {
+                    val tracker = AdvancedDrainTracker.getInstance(context)
+                    tracker.restoreSession()
+                    if (DrainNotificationManager.isNotificationEnabled(context)) {
+                        DrainNotificationManager.getInstance(context).updateNow()
+                    }
+                }
+                if (NetSpeedSettings(context).isEnabled) {
+                    SpeedMonitorService.start(context)
+                }
+            }
             Intent.ACTION_BOOT_COMPLETED -> {
                 CoroutineScope(Dispatchers.Default).launch {
                     val tracker = AdvancedDrainTracker.getInstance(context)
