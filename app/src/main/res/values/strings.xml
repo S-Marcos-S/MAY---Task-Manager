@@ -1385,4 +1385,11 @@
     <string name="installer_invalid_apk">Could not parse information from this APK file.</string>
     <string name="enforce_doze_banner_active">Forcing Deep Sleep (Active)</string>
     <string name="enforce_doze_banner_waiting">Ready (Waiting for screen off)</string>
+
+    <!-- Battery Overview Card -->
+    <string name="battery_card_title">Battery Usage</string>
+    <string name="battery_card_screen_on">Screen On</string>
+    <string name="battery_card_screen_off">Screen Off</string>
+    <string name="battery_card_total_usage">Total Usage</string>
+    <string name="battery_card_reset_stats">Reset statistics</string>
 </resources>

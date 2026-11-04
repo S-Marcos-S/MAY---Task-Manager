@@ -59,6 +59,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import dev.may.taskmanager.battery.BatteryStatsViewModel
+import dev.may.taskmanager.battery.DrainState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -79,6 +82,7 @@ fun BatteryStatsScreen(
     val isRefreshing by vm.isRefreshing.collectAsStateWithLifecycle()
     val lastRefresh by vm.lastRefresh.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
+    val drainState by vm.drainState.collectAsStateWithLifecycle()
     val anomalyConfig by vm.anomalyConfig.collectAsStateWithLifecycle()
     var showAnomalySettingsDialog by remember { mutableStateOf(false) }
     val hasRoot by vm.hasRoot.collectAsStateWithLifecycle()
@@ -136,7 +140,10 @@ fun BatteryStatsScreen(
     }
 
     LaunchedEffect(Unit) {
-        vm.refresh()
+        while (isActive) {
+            vm.refresh()
+            delay(10_000L)
+        }
     }
 
     Scaffold(
@@ -285,6 +292,7 @@ fun BatteryStatsScreen(
                                 snapshot = snapshot,
                                 deviceIdle = deviceIdle,
                                 powerManager = powerManager,
+                                drainState = drainState,
                                 anomalyConfig = anomalyConfig,
                                 onToggleAnomalyNotification = { vm.toggleAnomalyNotification(it) },
                                 onOpenAnomalySettings = { showAnomalySettingsDialog = true },
@@ -292,6 +300,16 @@ fun BatteryStatsScreen(
                                 isEnforcingDoze = isEnforcingDoze,
                                 onToggleEnforceDoze = { vm.setEnforceDozeEnabled(it) },
                                 onConfigureEnforceDoze = { scope.launch { pagerState.animateScrollToPage(7) } },
+                                onResetStats = {
+                                    scope.launch {
+                                        if (vm.resetStats()) {
+                                            snackbarHost.showSnackbar(statsResetSuccessMsg)
+                                            vm.refresh(forceRefresh = true)
+                                        } else {
+                                            snackbarHost.showSnackbar(statsResetFailedMsg)
+                                        }
+                                    }
+                                }
                             )
                             1 -> AppsTab(
                                 apps = snapshot?.apps ?: emptyList(),
@@ -494,11 +512,196 @@ private fun AdbGrantCard(context: Context) {
     }
 }
 
+private fun formatBatteryDuration(ms: Long): String {
+    if (ms <= 0L) return "0m"
+    val seconds = ms / 1000
+    val minutes = seconds / 60
+    val hours = minutes / 60
+    val days = hours / 24
+
+    return when {
+        days > 0 -> "${days}d ${hours % 24}h"
+        hours > 0 -> "${hours}h ${minutes % 60}m"
+        minutes > 0 -> "${minutes}m"
+        else -> "${seconds}s"
+    }
+}
+
+@Composable
+private fun BatteryMetricItem(
+    label: String,
+    value: String,
+    subValue: String?,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.35f))
+            .padding(horizontal = 6.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.Start,
+        verticalArrangement = Arrangement.spacedBy(1.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            lineHeight = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = value,
+            fontSize = 12.5.sp,
+            lineHeight = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (subValue != null) {
+            Text(
+                text = subValue,
+                fontSize = 9.5.sp,
+                lineHeight = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun BatteryOverviewCard(
+    snapshot: BatteryStatsParser.FullSnapshot?,
+    drainState: DrainState,
+    onResetStats: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val screenOnMs = when {
+        snapshot != null && snapshot.screenOnTimeMs > 0L -> snapshot.screenOnTimeMs
+        drainState.screenOnTimeMs > 0L -> drainState.screenOnTimeMs
+        else -> 0L
+    }
+
+    val totalTimeMs = when {
+        snapshot != null && snapshot.batteryRealtimeMs > 0L -> snapshot.batteryRealtimeMs
+        drainState.totalTimeMs > 0L -> drainState.totalTimeMs
+        else -> 0L
+    }
+
+    val screenOffMs = when {
+        snapshot != null && snapshot.batteryRealtimeMs > snapshot.screenOnTimeMs ->
+            (snapshot.batteryRealtimeMs - snapshot.screenOnTimeMs).coerceAtLeast(0L)
+        drainState.screenOffTimeMs > 0L -> drainState.screenOffTimeMs
+        totalTimeMs > screenOnMs -> (totalTimeMs - screenOnMs).coerceAtLeast(0L)
+        else -> 0L
+    }
+
+    val screenOnDischarge = when {
+        snapshot != null && snapshot.screenOnDischargePercent > 0f -> snapshot.screenOnDischargePercent
+        drainState.screenOnDrainMah > 0.0 && drainState.batteryCapacityMah > 0 ->
+            (drainState.screenOnDrainMah / drainState.batteryCapacityMah * 100.0).toFloat()
+        else -> 0f
+    }
+
+    val screenOffDischarge = when {
+        snapshot != null && snapshot.screenOffDischargePercent > 0f -> snapshot.screenOffDischargePercent
+        drainState.screenOffDrainMah > 0.0 && drainState.batteryCapacityMah > 0 ->
+            (drainState.screenOffDrainMah / drainState.batteryCapacityMah * 100.0).toFloat()
+        else -> 0f
+    }
+
+    val totalDischarge = when {
+        screenOnDischarge + screenOffDischarge > 0f -> screenOnDischarge + screenOffDischarge
+        drainState.totalDrainMah > 0.0 && drainState.batteryCapacityMah > 0 ->
+            (drainState.totalDrainMah / drainState.batteryCapacityMah * 100.0).toFloat()
+        else -> 0f
+    }
+
+    FrostedCard(
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(2.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.BatteryChargingFull,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.battery_card_title),
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                IconButton(
+                    onClick = onResetStats,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.RestartAlt,
+                        contentDescription = stringResource(R.string.battery_card_reset_stats),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                BatteryMetricItem(
+                    label = stringResource(R.string.battery_card_screen_on),
+                    value = formatBatteryDuration(screenOnMs),
+                    subValue = if (screenOnDischarge > 0f) String.format(Locale.getDefault(), "%.1f%%", screenOnDischarge) else null,
+                    color = Color(0xFFEAB308),
+                    modifier = Modifier.weight(1f)
+                )
+                BatteryMetricItem(
+                    label = stringResource(R.string.battery_card_screen_off),
+                    value = formatBatteryDuration(screenOffMs),
+                    subValue = if (screenOffDischarge > 0f) String.format(Locale.getDefault(), "%.1f%%", screenOffDischarge) else null,
+                    color = Color(0xFF3B82F6),
+                    modifier = Modifier.weight(1f)
+                )
+                BatteryMetricItem(
+                    label = stringResource(R.string.battery_card_total_usage),
+                    value = if (totalDischarge > 0f) String.format(Locale.getDefault(), "%.1f%%", totalDischarge) else formatBatteryDuration(totalTimeMs),
+                    subValue = if (totalDischarge > 0f && totalTimeMs > 0L) formatBatteryDuration(totalTimeMs) else null,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun OverviewTab(
     snapshot: BatteryStatsParser.FullSnapshot?,
     deviceIdle: BatteryStatsParser.DeviceIdleInfo?,
     powerManager: BatteryStatsParser.PowerManagerInfo?,
+    drainState: DrainState,
     anomalyConfig: dev.may.taskmanager.root.anomaly.AnomalyWatcherConfig,
     onToggleAnomalyNotification: (Boolean) -> Unit,
     onOpenAnomalySettings: () -> Unit,
@@ -506,11 +709,19 @@ private fun OverviewTab(
     isEnforcingDoze: Boolean,
     onToggleEnforceDoze: (Boolean) -> Unit,
     onConfigureEnforceDoze: () -> Unit,
+    onResetStats: () -> Unit,
 ) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item {
+            BatteryOverviewCard(
+                snapshot = snapshot,
+                drainState = drainState,
+                onResetStats = onResetStats,
+            )
+        }
         item {
             BackgroundAnomalyCard(
                 config = anomalyConfig,

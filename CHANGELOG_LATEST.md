@@ -1,5 +1,5 @@
-### MAY Task Manager v1.0.10
-- Remocao do card de monitoramento em tempo real da tela de estatisticas de bateria.
-- Eliminacao do loop continuo de amostragem e telemetria da interface da bateria.
-- Preservacao integral dos demais cards de alertas de anomalia, enforce doze e telemetria do sistema.
+### MAY Task Manager v1.0.11
+- Novo card compacto de consumo de bateria com tempo de tela ligada, tela desligada e uso total.
+- Botao integrado de redefinicao de estatisticas com atualizacao imediata.
+- Atualizacao periodica automatica em segundo plano durante a visualizacao da tela.
 ---

@@ -1346,4 +1346,11 @@
     <string name="installer_invalid_apk">Não foi possível ler as informações deste arquivo APK.</string>
     <string name="enforce_doze_banner_active">Forçando Sono Profundo (Ativo)</string>
     <string name="enforce_doze_banner_waiting">Pronto (Aguardando tela desligar)</string>
+
+    <!-- Card de Consumo da Bateria -->
+    <string name="battery_card_title">Consumo de Bateria</string>
+    <string name="battery_card_screen_on">Tela Ligada</string>
+    <string name="battery_card_screen_off">Tela Desligada</string>
+    <string name="battery_card_total_usage">Uso Total</string>
+    <string name="battery_card_reset_stats">Redefinir estatísticas</string>
 </resources>
