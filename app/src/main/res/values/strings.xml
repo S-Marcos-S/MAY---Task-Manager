@@ -769,6 +769,8 @@
     <string name="cycles_total_spent">Total Drain</string>
     <string name="cycles_charged_amount">Charged</string>
     <string name="cycles_hardware_cycles">Hardware Cycles</string>
+    <string name="cycles_in_progress">In progress</string>
+    <string name="cycles_temp_range_peak">%1$.1f°C → Peak %2$.1f°C</string>
     <string name="history_month_summary">Month History</string>
     <string name="history_day_battery">Battery Drain</string>
     <string name="history_day_screen_time">Screen Time</string>

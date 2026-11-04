@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -85,6 +86,7 @@ import dev.may.taskmanager.ui.theme.glass.GlassCard
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private enum class CycleFilter {
     ALL,
@@ -281,6 +283,7 @@ private fun CycleItemCard(
     val isCharge = cycle.type == CycleType.CHARGE
     val accentColor = if (isCharge) Color(0xFF10B981) else Color(0xFFF59E0B)
     val colorScheme = MaterialTheme.colorScheme
+    val inProgressLabel = stringResource(R.string.cycles_in_progress)
 
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
@@ -349,7 +352,7 @@ private fun CycleItemCard(
                     }
 
                     Text(
-                        text = formatCycleTimeRange(cycle.startTimeMs, cycle.endTimeMs, cycle.isActive),
+                        text = formatCycleTimeRange(cycle.startTimeMs, cycle.endTimeMs, cycle.isActive, inProgressLabel),
                         fontSize = 11.sp,
                         color = colorScheme.onSurface.copy(alpha = 0.55f),
                         fontFamily = FontFamily.Monospace,
@@ -470,6 +473,9 @@ private fun DischargeCycleDetail(
             points = cycle.telemetryPoints,
             startLevel = cycle.startBatteryLevel,
             endLevel = cycle.endBatteryLevel,
+            startTimeMs = cycle.startTimeMs,
+            endTimeMs = cycle.endTimeMs,
+            isActive = cycle.isActive,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(82.dp),
@@ -539,6 +545,9 @@ private fun DischargeCycleDetail(
         TemperatureCurveCanvas(
             points = cycle.telemetryPoints,
             color = Color(0xFFEF4444),
+            startTimeMs = cycle.startTimeMs,
+            endTimeMs = cycle.endTimeMs,
+            isActive = cycle.isActive,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(78.dp),
@@ -636,6 +645,9 @@ private fun ChargeCycleDetail(cycle: BatteryCycleRecord) {
         ChargingSpeedCanvas(
             points = cycle.telemetryPoints,
             unit = selectedUnit,
+            startTimeMs = cycle.startTimeMs,
+            endTimeMs = cycle.endTimeMs,
+            isActive = cycle.isActive,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(84.dp),
@@ -658,7 +670,7 @@ private fun ChargeCycleDetail(cycle: BatteryCycleRecord) {
                 color = colorScheme.onSurface.copy(alpha = 0.75f),
             )
             Text(
-                text = String.format(Locale.US, "%.1f°C → Pico %.1f°C", minTemp, peakTemp),
+                text = stringResource(R.string.cycles_temp_range_peak, minTemp, peakTemp),
                 fontSize = 10.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFFF97316),
@@ -669,6 +681,9 @@ private fun ChargeCycleDetail(cycle: BatteryCycleRecord) {
         TemperatureCurveCanvas(
             points = cycle.telemetryPoints,
             color = Color(0xFFF97316),
+            startTimeMs = cycle.startTimeMs,
+            endTimeMs = cycle.endTimeMs,
+            isActive = cycle.isActive,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(78.dp),
@@ -880,93 +895,195 @@ private fun DischargeCurveCanvas(
     points: List<CycleTelemetryPoint>,
     startLevel: Int,
     endLevel: Int,
+    startTimeMs: Long = 0L,
+    endTimeMs: Long = 0L,
+    isActive: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val strokeColor = Color(0xFFF59E0B)
     val gridColor = colorScheme.outline.copy(alpha = 0.12f)
+    val labelColor = colorScheme.onSurface.copy(alpha = 0.50f)
+
+    val timeLabels = remember(points, startTimeMs, endTimeMs, isActive) {
+        resolveChartTimeLabels(points, startTimeMs, endTimeMs, isActive)
+    }
 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(colorScheme.surfaceContainerHighest.copy(alpha = 0.20f))
-            .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
+            .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+            .padding(start = 7.dp, end = 7.dp, top = 6.dp, bottom = 4.dp),
     ) {
-        Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 6.dp)) {
-            val width = size.width
-            val height = size.height
-
-            // Horizontal grid lines
-            for (i in 0..3) {
-                val y = height * (i.toFloat() / 3f)
-                drawLine(
-                    color = gridColor,
-                    start = Offset(0f, y),
-                    end = Offset(width, y),
-                    strokeWidth = 1f,
-                )
-            }
-
-            val values = if (points.size >= 2) {
-                points.map { it.batteryLevel.toFloat() }
-            } else {
-                listOf(startLevel.toFloat(), endLevel.toFloat())
-            }
-
-            val maxVal = maxOf(values.maxOrNull() ?: 100f, 100f)
-            val minVal = 0f
-            val stepX = width / (values.size - 1).coerceAtLeast(1)
-
-            val coords = values.mapIndexed { idx, v ->
-                val x = idx * stepX
-                val norm = ((v - minVal) / (maxVal - minVal)).coerceIn(0f, 1f)
-                val y = height - (norm * (height - 8f)) - 4f
-                Offset(x, y)
-            }
-
-            if (coords.isNotEmpty()) {
-                val fillPath = Path().apply {
-                    moveTo(coords.first().x, height)
-                    lineTo(coords.first().x, coords.first().y)
-                    for (i in 1 until coords.size) {
-                        val prev = coords[i - 1]
-                        val curr = coords[i]
-                        val cx = (prev.x + curr.x) / 2f
-                        cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
-                    }
-                    lineTo(coords.last().x, height)
-                    close()
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Y-axis labels: 100%, 50%, 0%
+                Column(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(26.dp),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    horizontalAlignment = Alignment.End,
+                ) {
+                    Text(
+                        text = "100%",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = labelColor,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = "50%",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = labelColor,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = "0%",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = labelColor,
+                        maxLines = 1,
+                    )
                 }
 
-                val strokePath = Path().apply {
-                    moveTo(coords.first().x, coords.first().y)
-                    for (i in 1 until coords.size) {
-                        val prev = coords[i - 1]
-                        val curr = coords[i]
-                        val cx = (prev.x + curr.x) / 2f
-                        cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                Spacer(Modifier.width(5.dp))
+
+                // Canvas plot
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f),
+                ) {
+                    val width = size.width
+                    val height = size.height
+
+                    // 3 horizontal grid lines (top, mid, bottom)
+                    for (i in 0..2) {
+                        val lineY = when (i) {
+                            0 -> 1.5.dp.toPx()
+                            1 -> height / 2f
+                            else -> height - 1.5.dp.toPx()
+                        }
+                        drawLine(
+                            color = gridColor,
+                            start = Offset(0f, lineY),
+                            end = Offset(width, lineY),
+                            strokeWidth = 1f,
+                        )
+                    }
+
+                    val values = if (points.size >= 2) {
+                        points.map { it.batteryLevel.toFloat() }
+                    } else {
+                        listOf(startLevel.toFloat(), endLevel.toFloat())
+                    }
+
+                    val maxVal = 100f
+                    val minVal = 0f
+                    val stepX = width / (values.size - 1).coerceAtLeast(1)
+                    val plotHeight = height - 4.dp.toPx()
+
+                    val coords = values.mapIndexed { idx, v ->
+                        val x = idx * stepX
+                        val norm = ((v - minVal) / (maxVal - minVal)).coerceIn(0f, 1f)
+                        val y = 2.dp.toPx() + (1f - norm) * plotHeight
+                        Offset(x, y)
+                    }
+
+                    if (coords.isNotEmpty()) {
+                        val fillPath = Path().apply {
+                            moveTo(coords.first().x, height)
+                            lineTo(coords.first().x, coords.first().y)
+                            for (i in 1 until coords.size) {
+                                val prev = coords[i - 1]
+                                val curr = coords[i]
+                                val cx = (prev.x + curr.x) / 2f
+                                cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                            }
+                            lineTo(coords.last().x, height)
+                            close()
+                        }
+
+                        val strokePath = Path().apply {
+                            moveTo(coords.first().x, coords.first().y)
+                            for (i in 1 until coords.size) {
+                                val prev = coords[i - 1]
+                                val curr = coords[i]
+                                val cx = (prev.x + curr.x) / 2f
+                                cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                            }
+                        }
+
+                        drawPath(
+                            path = fillPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    strokeColor.copy(alpha = 0.35f),
+                                    strokeColor.copy(alpha = 0.12f),
+                                    Color.Transparent,
+                                ),
+                            ),
+                        )
+
+                        drawPath(
+                            path = strokePath,
+                            color = strokeColor,
+                            style = Stroke(
+                                width = 2.dp.toPx(),
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round,
+                            ),
+                        )
                     }
                 }
+            }
 
-                drawPath(
-                    path = fillPath,
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            strokeColor.copy(alpha = 0.40f),
-                            strokeColor.copy(alpha = 0.15f),
-                            Color.Transparent,
-                        ),
-                    ),
+            Spacer(Modifier.height(2.dp))
+
+            // X-axis time labels (aligned under canvas)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 31.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = timeLabels.start,
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = FontFamily.Monospace,
+                    color = labelColor,
+                    maxLines = 1,
                 )
-
-                drawPath(
-                    path = strokePath,
-                    color = strokeColor,
-                    style = Stroke(
-                        width = 2.dp.toPx(),
-                        cap = StrokeCap.Round,
-                        join = StrokeJoin.Round,
-                    ),
+                if (timeLabels.mid.isNotEmpty()) {
+                    Text(
+                        text = timeLabels.mid,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = labelColor,
+                        maxLines = 1,
+                    )
+                }
+                Text(
+                    text = timeLabels.end,
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = FontFamily.Monospace,
+                    color = labelColor,
+                    maxLines = 1,
                 )
             }
         }
@@ -980,17 +1097,25 @@ private fun DischargeCurveCanvas(
 private fun ChargingSpeedCanvas(
     points: List<CycleTelemetryPoint>,
     unit: SpeedUnit,
+    startTimeMs: Long = 0L,
+    endTimeMs: Long = 0L,
+    isActive: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val screenOffColor = Color(0xFF10B981) // emerald for screen off (faster)
     val screenOnColor = Color(0xFFF59E0B)  // amber for screen on (throttled)
     val gridColor = colorScheme.outline.copy(alpha = 0.12f)
+    val labelColor = colorScheme.onSurface.copy(alpha = 0.50f)
 
     val unitSymbol = when (unit) {
         SpeedUnit.WATTS -> "W"
         SpeedUnit.VOLTS -> "V"
         SpeedUnit.AMPERES -> "A"
+    }
+
+    val timeLabels = remember(points, startTimeMs, endTimeMs, isActive) {
+        resolveChartTimeLabels(points, startTimeMs, endTimeMs, isActive)
     }
 
     val screenOffPoints = points.filter { !it.isScreenOn }
@@ -1005,100 +1130,214 @@ private fun ChargingSpeedCanvas(
     val avgScreenOff = if (screenOffPoints.isNotEmpty()) screenOffPoints.map { pointValue(it) }.average() else 0.0
     val avgScreenOn = if (screenOnPoints.isNotEmpty()) screenOnPoints.map { pointValue(it) }.average() else 0.0
 
+    val values = remember(points, unit) {
+        if (points.size >= 2) {
+            points.map { pointValue(it) }
+        } else if (points.size == 1) {
+            val v = pointValue(points[0])
+            listOf(v, v)
+        } else {
+            listOf(15f, 18f)
+        }
+    }
+
+    val maxVal = remember(values) { maxOf(values.maxOrNull() ?: 1f, 1f) }
+    val minVal = 0f
+    val midVal = maxVal / 2f
+    val range = (maxVal - minVal).coerceAtLeast(0.1f)
+
+    val yTopLabel = when (unit) {
+        SpeedUnit.WATTS -> if (maxVal < 10f) String.format(Locale.US, "%.1fW", maxVal) else "${maxVal.roundToInt()}W"
+        SpeedUnit.VOLTS -> String.format(Locale.US, "%.1fV", maxVal)
+        SpeedUnit.AMPERES -> String.format(Locale.US, "%.1fA", maxVal)
+    }
+    val yMidLabel = when (unit) {
+        SpeedUnit.WATTS -> if (midVal < 10f && midVal > 0f) String.format(Locale.US, "%.1fW", midVal) else "${midVal.roundToInt()}W"
+        SpeedUnit.VOLTS -> String.format(Locale.US, "%.1fV", midVal)
+        SpeedUnit.AMPERES -> String.format(Locale.US, "%.1fA", midVal)
+    }
+    val yBottomLabel = "0$unitSymbol"
+
     Column {
         Box(
             modifier = modifier
                 .clip(RoundedCornerShape(10.dp))
                 .background(colorScheme.surfaceContainerHighest.copy(alpha = 0.20f))
-                .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
+                .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+                .padding(start = 7.dp, end = 7.dp, top = 6.dp, bottom = 4.dp),
         ) {
-            Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 6.dp)) {
-                val width = size.width
-                val height = size.height
-
-                // Horizontal grid lines
-                for (i in 0..3) {
-                    val y = height * (i.toFloat() / 3f)
-                    drawLine(
-                        color = gridColor,
-                        start = Offset(0f, y),
-                        end = Offset(width, y),
-                        strokeWidth = 1f,
-                    )
-                }
-
-                val values = if (points.isNotEmpty()) {
-                    points.map { pointValue(it) }
-                } else {
-                    listOf(15f, 18f)
-                }
-
-                val maxVal = maxOf(values.maxOrNull() ?: 1f, 1f)
-                val minVal = 0f
-                val stepX = width / (values.size - 1).coerceAtLeast(1)
-
-                val coords = values.mapIndexed { idx, v ->
-                    val x = idx * stepX
-                    val norm = ((v - minVal) / (maxVal - minVal)).coerceIn(0f, 1f)
-                    val y = height - (norm * (height - 8f)) - 4f
-                    Offset(x, y)
-                }
-
-                if (coords.isNotEmpty()) {
-                    val fillPath = Path().apply {
-                        moveTo(coords.first().x, height)
-                        lineTo(coords.first().x, coords.first().y)
-                        for (i in 1 until coords.size) {
-                            val prev = coords[i - 1]
-                            val curr = coords[i]
-                            val cx = (prev.x + curr.x) / 2f
-                            cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
-                        }
-                        lineTo(coords.last().x, height)
-                        close()
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Y-axis labels
+                    Column(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(26.dp),
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        horizontalAlignment = Alignment.End,
+                    ) {
+                        Text(
+                            text = yTopLabel,
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontFamily = FontFamily.Monospace,
+                            color = labelColor,
+                            maxLines = 1,
+                        )
+                        Text(
+                            text = yMidLabel,
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontFamily = FontFamily.Monospace,
+                            color = labelColor,
+                            maxLines = 1,
+                        )
+                        Text(
+                            text = yBottomLabel,
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontFamily = FontFamily.Monospace,
+                            color = labelColor,
+                            maxLines = 1,
+                        )
                     }
 
-                    val strokePath = Path().apply {
-                        moveTo(coords.first().x, coords.first().y)
-                        for (i in 1 until coords.size) {
-                            val prev = coords[i - 1]
-                            val curr = coords[i]
-                            val cx = (prev.x + curr.x) / 2f
-                            cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
-                        }
-                    }
+                    Spacer(Modifier.width(5.dp))
 
-                    drawPath(
-                        path = fillPath,
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                screenOffColor.copy(alpha = 0.35f),
-                                screenOffColor.copy(alpha = 0.10f),
-                                Color.Transparent,
-                            ),
-                        ),
-                    )
+                    // Canvas plot
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f),
+                    ) {
+                        val width = size.width
+                        val height = size.height
 
-                    drawPath(
-                        path = strokePath,
-                        color = screenOffColor,
-                        style = Stroke(
-                            width = 2.dp.toPx(),
-                            cap = StrokeCap.Round,
-                            join = StrokeJoin.Round,
-                        ),
-                    )
-
-                    // Draw distinct dots for screen-on periods (throttled)
-                    points.forEachIndexed { idx, p ->
-                        if (p.isScreenOn && idx < coords.size) {
-                            drawCircle(
-                                color = screenOnColor,
-                                radius = 3.dp.toPx(),
-                                center = coords[idx],
+                        // 3 horizontal grid lines (top, mid, bottom)
+                        for (i in 0..2) {
+                            val lineY = when (i) {
+                                0 -> 1.5.dp.toPx()
+                                1 -> height / 2f
+                                else -> height - 1.5.dp.toPx()
+                            }
+                            drawLine(
+                                color = gridColor,
+                                start = Offset(0f, lineY),
+                                end = Offset(width, lineY),
+                                strokeWidth = 1f,
                             )
                         }
+
+                        val stepX = width / (values.size - 1).coerceAtLeast(1)
+                        val plotHeight = height - 4.dp.toPx()
+
+                        val coords = values.mapIndexed { idx, v ->
+                            val x = idx * stepX
+                            val norm = ((v - minVal) / range).coerceIn(0f, 1f)
+                            val y = 2.dp.toPx() + (1f - norm) * plotHeight
+                            Offset(x, y)
+                        }
+
+                        if (coords.isNotEmpty()) {
+                            val fillPath = Path().apply {
+                                moveTo(coords.first().x, height)
+                                lineTo(coords.first().x, coords.first().y)
+                                for (i in 1 until coords.size) {
+                                    val prev = coords[i - 1]
+                                    val curr = coords[i]
+                                    val cx = (prev.x + curr.x) / 2f
+                                    cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                                }
+                                lineTo(coords.last().x, height)
+                                close()
+                            }
+
+                            val strokePath = Path().apply {
+                                moveTo(coords.first().x, coords.first().y)
+                                for (i in 1 until coords.size) {
+                                    val prev = coords[i - 1]
+                                    val curr = coords[i]
+                                    val cx = (prev.x + curr.x) / 2f
+                                    cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                                }
+                            }
+
+                            drawPath(
+                                path = fillPath,
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        screenOffColor.copy(alpha = 0.35f),
+                                        screenOffColor.copy(alpha = 0.12f),
+                                        Color.Transparent,
+                                    ),
+                                ),
+                            )
+
+                            drawPath(
+                                path = strokePath,
+                                color = screenOffColor,
+                                style = Stroke(
+                                    width = 2.dp.toPx(),
+                                    cap = StrokeCap.Round,
+                                    join = StrokeJoin.Round,
+                                ),
+                            )
+
+                            // Draw distinct dots for screen-on periods (throttled)
+                            points.forEachIndexed { idx, p ->
+                                if (p.isScreenOn && idx < coords.size) {
+                                    drawCircle(
+                                        color = screenOnColor,
+                                        radius = 2.5.dp.toPx(),
+                                        center = coords[idx],
+                                    )
+                                }
+                            }
+                        }
                     }
+                }
+
+                Spacer(Modifier.height(2.dp))
+
+                // X-axis time labels (aligned under canvas)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 31.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = timeLabels.start,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = labelColor,
+                        maxLines = 1,
+                    )
+                    if (timeLabels.mid.isNotEmpty()) {
+                        Text(
+                            text = timeLabels.mid,
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            fontFamily = FontFamily.Monospace,
+                            color = labelColor,
+                            maxLines = 1,
+                        )
+                    }
+                    Text(
+                        text = timeLabels.end,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = labelColor,
+                        maxLines = 1,
+                    )
                 }
             }
         }
@@ -1152,104 +1391,258 @@ private fun ChargingSpeedCanvas(
 private fun TemperatureCurveCanvas(
     points: List<CycleTelemetryPoint>,
     color: Color,
+    startTimeMs: Long = 0L,
+    endTimeMs: Long = 0L,
+    isActive: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val gridColor = colorScheme.outline.copy(alpha = 0.12f)
+    val labelColor = colorScheme.onSurface.copy(alpha = 0.50f)
+
+    val timeLabels = remember(points, startTimeMs, endTimeMs, isActive) {
+        resolveChartTimeLabels(points, startTimeMs, endTimeMs, isActive)
+    }
+
+    val values = remember(points) {
+        if (points.size >= 2) {
+            points.map { it.batteryTempC }
+        } else if (points.size == 1) {
+            listOf(points[0].batteryTempC, points[0].batteryTempC)
+        } else {
+            listOf(30f, 32f)
+        }
+    }
+
+    val maxVal = remember(values) { maxOf(values.maxOrNull() ?: 40f, 35f) }
+    val minVal = remember(values) { minOf(values.minOrNull() ?: 25f, 25f) }
+    val midVal = (maxVal + minVal) / 2f
+    val range = (maxVal - minVal).coerceAtLeast(1f)
+
+    val yTopLabel = "${maxVal.roundToInt()}°C"
+    val yMidLabel = "${midVal.roundToInt()}°C"
+    val yBottomLabel = "${minVal.roundToInt()}°C"
 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(colorScheme.surfaceContainerHighest.copy(alpha = 0.20f))
-            .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
+            .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
+            .padding(start = 7.dp, end = 7.dp, top = 6.dp, bottom = 4.dp),
     ) {
-        Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp, vertical = 6.dp)) {
-            val width = size.width
-            val height = size.height
-
-            // Horizontal grid lines
-            for (i in 0..2) {
-                val y = height * (i.toFloat() / 2f)
-                drawLine(
-                    color = gridColor,
-                    start = Offset(0f, y),
-                    end = Offset(width, y),
-                    strokeWidth = 1f,
-                )
-            }
-
-            val values = if (points.isNotEmpty()) {
-                points.map { it.batteryTempC }
-            } else {
-                listOf(30f, 32f)
-            }
-
-            val maxVal = maxOf(values.maxOrNull() ?: 40f, 35f)
-            val minVal = minOf(values.minOrNull() ?: 25f, 25f)
-            val range = (maxVal - minVal).coerceAtLeast(1f)
-            val stepX = width / (values.size - 1).coerceAtLeast(1)
-
-            val coords = values.mapIndexed { idx, v ->
-                val x = idx * stepX
-                val norm = ((v - minVal) / range).coerceIn(0f, 1f)
-                val y = height - (norm * (height - 8f)) - 4f
-                Offset(x, y)
-            }
-
-            if (coords.isNotEmpty()) {
-                val fillPath = Path().apply {
-                    moveTo(coords.first().x, height)
-                    lineTo(coords.first().x, coords.first().y)
-                    for (i in 1 until coords.size) {
-                        val prev = coords[i - 1]
-                        val curr = coords[i]
-                        val cx = (prev.x + curr.x) / 2f
-                        cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
-                    }
-                    lineTo(coords.last().x, height)
-                    close()
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Y-axis labels
+                Column(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(26.dp),
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    horizontalAlignment = Alignment.End,
+                ) {
+                    Text(
+                        text = yTopLabel,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = labelColor,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = yMidLabel,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = labelColor,
+                        maxLines = 1,
+                    )
+                    Text(
+                        text = yBottomLabel,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = labelColor,
+                        maxLines = 1,
+                    )
                 }
 
-                val strokePath = Path().apply {
-                    moveTo(coords.first().x, coords.first().y)
-                    for (i in 1 until coords.size) {
-                        val prev = coords[i - 1]
-                        val curr = coords[i]
-                        val cx = (prev.x + curr.x) / 2f
-                        cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                Spacer(Modifier.width(5.dp))
+
+                // Canvas plot
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f),
+                ) {
+                    val width = size.width
+                    val height = size.height
+
+                    // 3 horizontal grid lines (top, mid, bottom)
+                    for (i in 0..2) {
+                        val lineY = when (i) {
+                            0 -> 1.5.dp.toPx()
+                            1 -> height / 2f
+                            else -> height - 1.5.dp.toPx()
+                        }
+                        drawLine(
+                            color = gridColor,
+                            start = Offset(0f, lineY),
+                            end = Offset(width, lineY),
+                            strokeWidth = 1f,
+                        )
+                    }
+
+                    val stepX = width / (values.size - 1).coerceAtLeast(1)
+                    val plotHeight = height - 4.dp.toPx()
+
+                    val coords = values.mapIndexed { idx, v ->
+                        val x = idx * stepX
+                        val norm = ((v - minVal) / range).coerceIn(0f, 1f)
+                        val y = 2.dp.toPx() + (1f - norm) * plotHeight
+                        Offset(x, y)
+                    }
+
+                    if (coords.isNotEmpty()) {
+                        val fillPath = Path().apply {
+                            moveTo(coords.first().x, height)
+                            lineTo(coords.first().x, coords.first().y)
+                            for (i in 1 until coords.size) {
+                                val prev = coords[i - 1]
+                                val curr = coords[i]
+                                val cx = (prev.x + curr.x) / 2f
+                                cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                            }
+                            lineTo(coords.last().x, height)
+                            close()
+                        }
+
+                        val strokePath = Path().apply {
+                            moveTo(coords.first().x, coords.first().y)
+                            for (i in 1 until coords.size) {
+                                val prev = coords[i - 1]
+                                val curr = coords[i]
+                                val cx = (prev.x + curr.x) / 2f
+                                cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                            }
+                        }
+
+                        drawPath(
+                            path = fillPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    color.copy(alpha = 0.35f),
+                                    color.copy(alpha = 0.12f),
+                                    Color.Transparent,
+                                ),
+                            ),
+                        )
+
+                        drawPath(
+                            path = strokePath,
+                            color = color,
+                            style = Stroke(
+                                width = 2.dp.toPx(),
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round,
+                            ),
+                        )
                     }
                 }
+            }
 
-                drawPath(
-                    path = fillPath,
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            color.copy(alpha = 0.35f),
-                            color.copy(alpha = 0.10f),
-                            Color.Transparent,
-                        ),
-                    ),
+            Spacer(Modifier.height(2.dp))
+
+            // X-axis time labels (aligned under canvas)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 31.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = timeLabels.start,
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = FontFamily.Monospace,
+                    color = labelColor,
+                    maxLines = 1,
                 )
-
-                drawPath(
-                    path = strokePath,
-                    color = color,
-                    style = Stroke(
-                        width = 2.dp.toPx(),
-                        cap = StrokeCap.Round,
-                        join = StrokeJoin.Round,
-                    ),
+                if (timeLabels.mid.isNotEmpty()) {
+                    Text(
+                        text = timeLabels.mid,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = labelColor,
+                        maxLines = 1,
+                    )
+                }
+                Text(
+                    text = timeLabels.end,
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = FontFamily.Monospace,
+                    color = labelColor,
+                    maxLines = 1,
                 )
             }
         }
     }
 }
 
-private fun formatCycleTimeRange(startTimeMs: Long, endTimeMs: Long, isActive: Boolean): String {
+private data class ChartTimeLabels(
+    val start: String,
+    val mid: String,
+    val end: String,
+)
+
+private fun resolveChartTimeLabels(
+    points: List<CycleTelemetryPoint>,
+    startTimeMs: Long,
+    endTimeMs: Long,
+    isActive: Boolean,
+): ChartTimeLabels {
+    val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+    val startTs = when {
+        startTimeMs > 0L -> startTimeMs
+        points.isNotEmpty() -> points.first().timestamp
+        else -> System.currentTimeMillis()
+    }
+    val endTs = when {
+        isActive -> points.lastOrNull()?.timestamp?.coerceAtLeast(startTs) ?: System.currentTimeMillis()
+        endTimeMs >= startTs -> endTimeMs
+        points.isNotEmpty() -> points.last().timestamp.coerceAtLeast(startTs)
+        else -> startTs + 60_000L
+    }
+    val midTs = startTs + (endTs - startTs) / 2
+
+    val startStr = timeFmt.format(Date(startTs))
+    val endStr = timeFmt.format(Date(endTs))
+    val midStr = if (endTs - startTs >= 120_000L) timeFmt.format(Date(midTs)) else ""
+
+    return ChartTimeLabels(
+        start = startStr,
+        mid = if (midStr != startStr && midStr != endStr) midStr else "",
+        end = endStr,
+    )
+}
+
+private fun formatCycleTimeRange(
+    startTimeMs: Long,
+    endTimeMs: Long,
+    isActive: Boolean,
+    inProgressLabel: String,
+): String {
     val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
     val startStr = timeFmt.format(Date(startTimeMs))
     return if (isActive) {
-        "$startStr • Em andamento"
+        "$startStr • $inProgressLabel"
     } else {
         val endStr = timeFmt.format(Date(endTimeMs))
         "$startStr - $endStr"

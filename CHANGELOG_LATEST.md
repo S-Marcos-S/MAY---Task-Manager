@@ -1,5 +1,5 @@
-### MAY Task Manager v1.0.11
-- Novo card compacto de consumo de bateria com tempo de tela ligada, tela desligada e uso total.
-- Botao integrado de redefinicao de estatisticas com atualizacao imediata.
-- Atualizacao periodica automatica em segundo plano durante a visualizacao da tela.
+### MAY Task Manager v1.0.12
+- Exibicao de valores numericos nos eixos lateral (Y) e inferior (X / tempo) nos graficos de ciclos de bateria.
+- Indicadores calibrados nos graficos de Curva de Descarga, Temperatura e Velocidade de Recarga.
+- Design compacto e minimalista mantendo o tamanho e altura originais dos cards.
 ---

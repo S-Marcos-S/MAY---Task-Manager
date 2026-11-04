@@ -750,6 +750,8 @@
     <string name="cycles_total_spent">Gasto Total</string>
     <string name="cycles_charged_amount">Carga Recebida</string>
     <string name="cycles_hardware_cycles">Ciclos de Hardware</string>
+    <string name="cycles_in_progress">Em andamento</string>
+    <string name="cycles_temp_range_peak">%1$.1f°C → Pico %2$.1f°C</string>
     <string name="history_month_summary">Histórico do Mês</string>
     <string name="history_day_battery">Bateria Consumida</string>
     <string name="history_day_screen_time">Tempo de Tela</string>
