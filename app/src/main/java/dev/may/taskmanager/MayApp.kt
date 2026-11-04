@@ -19,7 +19,7 @@ class MayApp : Application() {
         BackgroundAnomalyWatcher.getInstance(this).start()
         AdvancedDrainTracker.getInstance(this).start()
         if (DrainNotificationManager.isNotificationEnabled(this)) {
-            DrainNotificationManager.getInstance(this).updateNow()
+            DrainNotificationManager.getInstance(this).startNotification()
         }
         if (NetSpeedSettings(this).isEnabled) {
             SpeedMonitorService.start(this)

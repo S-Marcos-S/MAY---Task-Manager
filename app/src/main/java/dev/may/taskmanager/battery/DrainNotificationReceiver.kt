@@ -41,7 +41,7 @@ class DrainNotificationReceiver : BroadcastReceiver() {
                     val tracker = AdvancedDrainTracker.getInstance(context)
                     tracker.restoreSession()
                     if (DrainNotificationManager.isNotificationEnabled(context)) {
-                        DrainNotificationManager.getInstance(context).updateNow()
+                        DrainNotificationManager.getInstance(context).startNotification()
                     }
                 }
                 if (NetSpeedSettings(context).isEnabled) {
@@ -59,7 +59,9 @@ class DrainNotificationReceiver : BroadcastReceiver() {
                     } else {
                         tracker.restoreSession()
                     }
-                    DrainNotificationManager.getInstance(context).updateNow()
+                    if (DrainNotificationManager.isNotificationEnabled(context)) {
+                        DrainNotificationManager.getInstance(context).startNotification()
+                    }
                 }
                 if (NetSpeedSettings(context).isEnabled) {
                     SpeedMonitorService.start(context)

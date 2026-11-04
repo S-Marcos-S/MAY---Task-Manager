@@ -127,6 +127,10 @@ class DrainNotificationManager private constructor(
     }
 
     fun updateNow() {
+        if (!isShowing && isNotificationEnabled(context)) {
+            startNotification()
+            return
+        }
         if (isShowing) {
             val state = drainTracker.drainState.value
             try {

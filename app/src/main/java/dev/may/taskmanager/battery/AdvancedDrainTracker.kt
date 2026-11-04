@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 import kotlin.math.max
@@ -42,6 +44,7 @@ class AdvancedDrainTracker private constructor(
         private const val KEY_SESSION_START_UPTIME = "session_start_uptime"
         private const val KEY_LAST_SAVE_TIME = "last_save_time"
         private const val KEY_LAST_SAVE_REALTIME = "last_save_realtime"
+        private const val KEY_LAST_SAVE_UPTIME = "last_save_uptime"
         private const val KEY_LAST_SCREEN_STATE = "last_screen_state"
         private const val KEY_LAST_SCREEN_CHANGE_REALTIME = "last_screen_change_realtime"
         private const val KEY_BOOT_TIME = "boot_time"
@@ -82,6 +85,7 @@ class AdvancedDrainTracker private constructor(
     }
 
     private val running = AtomicBoolean(false)
+    private val snapshotMutex = Mutex()
     private var trackingJob: Job? = null
 
     private val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -176,38 +180,57 @@ class AdvancedDrainTracker private constructor(
                 Intent.ACTION_SCREEN_OFF -> onScreenStateChanged(false)
                 Intent.ACTION_POWER_CONNECTED -> onPowerConnected()
                 Intent.ACTION_POWER_DISCONNECTED -> onPowerDisconnected()
-                Intent.ACTION_BATTERY_CHANGED -> {
-                    val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-                    val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                                     status == BatteryManager.BATTERY_STATUS_FULL
-                    if (isCharging) {
-                        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
-                        val pct = if (scale > 0 && level >= 0) (level * 100) / scale else level
+                Intent.ACTION_BATTERY_CHANGED -> handleBatteryChanged(intent)
+            }
+        }
+    }
 
-                        val prefs = context.getSharedPreferences("battery_prefs", Context.MODE_PRIVATE)
-                        val resetOnPlug = prefs.getBoolean("auto_reset_on_plug_connected", false)
-                        val autoResetCharging = prefs.getBoolean("auto_reset_charging_enabled", prefs.getBoolean("auto_reset_enabled", true))
-                        val target = prefs.getInt("auto_reset_percent", 100).coerceIn(50, 100)
+    private fun handleBatteryChanged(intent: Intent) {
+        val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+        val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                         status == BatteryManager.BATTERY_STATUS_FULL
+        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
+        val pct = if (scale > 0 && level >= 0) (level * 100) / scale else level
 
-                        if (resetOnPlug && !hasResetForCurrentChargeCycle) {
-                            hasResetForCurrentChargeCycle = true
-                            scope.launch {
-                                resetSession()
-                                updateDrainState()
-                            }
-                        } else if (autoResetCharging && (pct >= target || pct >= 100 || status == BatteryManager.BATTERY_STATUS_FULL)) {
-                            if (!hasResetForCurrentChargeCycle) {
-                                hasResetForCurrentChargeCycle = true
-                                scope.launch {
-                                    resetSession()
-                                    updateDrainState()
-                                }
-                            }
-                        }
-                    } else {
-                        hasResetForCurrentChargeCycle = false
+        val prefs = context.getSharedPreferences("battery_prefs", Context.MODE_PRIVATE)
+        val resetOnPlug = prefs.getBoolean("auto_reset_on_plug_connected", false)
+        val autoResetCharging = prefs.getBoolean("auto_reset_charging_enabled", prefs.getBoolean("auto_reset_enabled", true))
+        val target = prefs.getInt("auto_reset_percent", 100).coerceIn(50, 100)
+
+        if (isCharging) {
+            if (resetOnPlug && !hasResetForCurrentChargeCycle) {
+                hasResetForCurrentChargeCycle = true
+                scope.launch {
+                    resetSession()
+                    updateDrainState()
+                }
+            } else if (autoResetCharging && (pct >= target || pct >= 100 || status == BatteryManager.BATTERY_STATUS_FULL)) {
+                if (!hasResetForCurrentChargeCycle) {
+                    hasResetForCurrentChargeCycle = true
+                    scope.launch {
+                        resetSession()
+                        updateDrainState()
                     }
+                }
+            }
+        } else {
+            hasResetForCurrentChargeCycle = false
+        }
+
+        // Event-driven drain snapshot processing:
+        // Even when discharging (and especially with screen off in deep sleep), capture battery drops
+        scope.launch {
+            val snapshot = takeSnapshot() ?: return@launch
+            snapshotMutex.withLock {
+                val prev = lastSnapshot
+                if (prev == null || prev.batteryLevel != snapshot.batteryLevel || prev.batteryMah != snapshot.batteryMah || prev.isCharging != snapshot.isCharging) {
+                    processSnapshot(snapshot, wasScreenOn = lastScreenState)
+                    lastSnapshot = snapshot
+                    updateDrainState()
+                    saveSession()
+                } else {
+                    updateDrainState()
                 }
             }
         }
@@ -223,8 +246,12 @@ class AdvancedDrainTracker private constructor(
                 resetSession()
             }
             takeSnapshot()?.let { snapshot ->
-                lastSnapshot = snapshot
-                updateDrainState()
+                snapshotMutex.withLock {
+                    processSnapshot(snapshot, wasScreenOn = lastScreenState)
+                    lastSnapshot = snapshot
+                    updateDrainState()
+                    saveSession()
+                }
             }
         }
     }
@@ -244,8 +271,12 @@ class AdvancedDrainTracker private constructor(
             }
             hasResetForCurrentChargeCycle = false
             takeSnapshot()?.let { snapshot ->
-                lastSnapshot = snapshot
-                updateDrainState()
+                snapshotMutex.withLock {
+                    processSnapshot(snapshot, wasScreenOn = lastScreenState)
+                    lastSnapshot = snapshot
+                    updateDrainState()
+                    saveSession()
+                }
             }
         }
     }
@@ -311,6 +342,7 @@ class AdvancedDrainTracker private constructor(
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val now = System.currentTimeMillis()
             val nowRealtime = SystemClock.elapsedRealtime()
+            val nowUptime = SystemClock.uptimeMillis()
 
             val pending = (nowRealtime - lastScreenChangeRealtime).coerceAtLeast(0L)
             val screenOnTotal = cumulativeScreenOnTime + if (lastScreenState) pending else 0L
@@ -323,6 +355,7 @@ class AdvancedDrainTracker private constructor(
                 putLong(KEY_SESSION_START_UPTIME, sessionStartUptime)
                 putLong(KEY_LAST_SAVE_TIME, now)
                 putLong(KEY_LAST_SAVE_REALTIME, nowRealtime)
+                putLong(KEY_LAST_SAVE_UPTIME, nowUptime)
                 putBoolean(KEY_LAST_SCREEN_STATE, lastScreenState)
                 putLong(KEY_LAST_SCREEN_CHANGE_REALTIME, lastScreenChangeRealtime)
 
@@ -381,11 +414,14 @@ class AdvancedDrainTracker private constructor(
         return try {
             val now = System.currentTimeMillis()
             val nowRealtime = SystemClock.elapsedRealtime()
+            val nowUptime = SystemClock.uptimeMillis()
             val savedLastSaveRealtime = prefs.getLong(KEY_LAST_SAVE_REALTIME, nowRealtime)
+            val savedLastSaveUptime = prefs.getLong(KEY_LAST_SAVE_UPTIME, nowUptime)
+            val savedLastScreenState = prefs.getBoolean(KEY_LAST_SCREEN_STATE, powerManager.isInteractive)
 
             sessionStartTime = prefs.getLong(KEY_SESSION_START_TIME, now)
             sessionStartRealtime = if (isReboot) nowRealtime - (now - sessionStartTime).coerceAtLeast(0L) else prefs.getLong(KEY_SESSION_START_REALTIME, nowRealtime)
-            sessionStartUptime = if (isReboot) SystemClock.uptimeMillis() else prefs.getLong(KEY_SESSION_START_UPTIME, SystemClock.uptimeMillis())
+            sessionStartUptime = if (isReboot) nowUptime else prefs.getLong(KEY_SESSION_START_UPTIME, nowUptime)
 
             var screenOnTime = prefs.getLong(KEY_CUMULATIVE_SCREEN_ON_TIME, 0L)
             var screenOffTime = prefs.getLong(KEY_CUMULATIVE_SCREEN_OFF_TIME, 0L)
@@ -403,40 +439,57 @@ class AdvancedDrainTracker private constructor(
             cumulativeNetworkRxBytes = prefs.getLong("cumulative_network_rx_bytes", 0L)
             cumulativeNetworkTxBytes = prefs.getLong("cumulative_network_tx_bytes", 0L)
 
-            val isInteractive = powerManager.isInteractive
-            val gapMs = if (running.get()) (nowRealtime - savedLastSaveRealtime).coerceAtLeast(0L) else 0L
-            if (gapMs > 0L) {
-                if (isInteractive) {
-                    screenOnTime += gapMs
+            val gapRealtime = (nowRealtime - savedLastSaveRealtime).coerceAtLeast(0L)
+            val gapUptime = (nowUptime - savedLastSaveUptime).coerceAtLeast(0L)
+            val gapDeepSleep = (gapRealtime - gapUptime).coerceAtLeast(0L)
+
+            val lastMah = if (prefs.contains(KEY_LAST_BATTERY_MAH)) prefs.getDouble(KEY_LAST_BATTERY_MAH, 0.0) else null
+            val currentMah = getCurrentBatteryMah()
+            val gapDrain = if (lastMah != null && currentMah != null && !isCharging()) max(0.0, lastMah - currentMah) else 0.0
+
+            if (gapRealtime > 0L) {
+                if (!savedLastScreenState) {
+                    screenOffTime += gapRealtime
+                    cumulativeDeepSleepTime += gapDeepSleep
+                    cumulativeAwakeTime += (gapRealtime - gapDeepSleep).coerceAtLeast(0L)
+                    if (gapDrain > 0.0) {
+                        val sleepRatio = (gapDeepSleep.toDouble() / gapRealtime).coerceIn(0.0, 1.0)
+                        cumulativeScreenOffDrain += gapDrain
+                        cumulativeDeepSleepDrain += gapDrain * sleepRatio
+                        cumulativeAwakeDrain += gapDrain * (1.0 - sleepRatio)
+                    }
                 } else {
-                    screenOffTime += gapMs
+                    screenOnTime += gapRealtime
+                    cumulativeActiveTime += gapRealtime
+                    if (gapDrain > 0.0) {
+                        cumulativeScreenOnDrain += gapDrain
+                        cumulativeActiveDrain += gapDrain
+                    }
                 }
             }
 
             cumulativeScreenOnTime = screenOnTime
             cumulativeScreenOffTime = screenOffTime
-            lastScreenState = isInteractive
+            lastScreenState = powerManager.isInteractive
             lastScreenChangeRealtime = nowRealtime
             lastScreenChangeTime = now
 
-            val lastMah = if (prefs.contains(KEY_LAST_BATTERY_MAH)) prefs.getDouble(KEY_LAST_BATTERY_MAH, 0.0) else null
-            val lastLevel = if (prefs.contains(KEY_LAST_BATTERY_LEVEL)) prefs.getInt(KEY_LAST_BATTERY_LEVEL, -1).takeIf { it != -1 } else null
-            if (lastMah != null) {
-                lastSnapshot = DrainSnapshot(
-                    timestamp = prefs.getLong(KEY_LAST_SAVE_TIME, now),
-                    elapsedRealtime = savedLastSaveRealtime,
-                    uptimeMillis = SystemClock.uptimeMillis(),
-                    batteryLevel = lastLevel,
-                    batteryMah = lastMah,
-                    currentMa = 0,
-                    isScreenOn = isInteractive,
-                    isCharging = isCharging(),
-                    isDeepSleep = !isInteractive,
-                    isDozing = powerManager.isDeviceIdleMode,
-                    cpuAwakeTimeMs = SystemClock.uptimeMillis(),
-                    deepSleepTimeMs = (savedLastSaveRealtime - SystemClock.uptimeMillis()).coerceAtLeast(0L)
-                )
-            }
+            val isInteractive = powerManager.isInteractive
+            val lastLevel = if (prefs.contains(KEY_LAST_BATTERY_LEVEL)) prefs.getInt(KEY_LAST_BATTERY_LEVEL, -1).takeIf { it != -1 } else getBatteryLevel()
+            lastSnapshot = DrainSnapshot(
+                timestamp = now,
+                elapsedRealtime = nowRealtime,
+                uptimeMillis = nowUptime,
+                batteryLevel = getBatteryLevel() ?: lastLevel,
+                batteryMah = currentMah ?: lastMah,
+                currentMa = getCurrentNowMa(),
+                isScreenOn = isInteractive,
+                isCharging = isCharging(),
+                isDeepSleep = !isInteractive && (nowRealtime - nowUptime > 0),
+                isDozing = powerManager.isDeviceIdleMode,
+                cpuAwakeTimeMs = nowUptime,
+                deepSleepTimeMs = (nowRealtime - nowUptime).coerceAtLeast(0L)
+            )
 
             updateDrainState()
             Log.i(TAG, "Battery drain tracking session successfully restored: sessionStart=${sessionStartTime}")
@@ -462,37 +515,49 @@ class AdvancedDrainTracker private constructor(
 
         Log.i(TAG, "Starting advanced drain tracking")
         _isTracking.value = true
-        if (!restoreSession()) {
+        val restored = restoreSession()
+        if (!restored) {
             resetSession()
         }
         lastScreenState = powerManager.isInteractive
         lastScreenChangeRealtime = SystemClock.elapsedRealtime()
         lastScreenChangeTime = System.currentTimeMillis()
-        lastSnapshot = null
         registerReceivers()
 
-        trackingJob = scope.launch {
-            takeSnapshot()?.let { snapshot ->
-                lastSnapshot = snapshot
-                updateDrainState()
-                saveSession()
-            }
+        if (lastScreenState) {
+            startTrackingLoop()
+        }
+        updateDrainState()
+        saveSession()
+    }
 
-            while (isActive && running.get()) {
+    private fun startTrackingLoop() {
+        if (!running.get() || !lastScreenState) return
+        trackingJob?.cancel()
+        trackingJob = scope.launch {
+            while (isActive && running.get() && lastScreenState) {
                 delay(DEFAULT_INTERVAL_MS)
+                if (!lastScreenState) break
                 try {
                     takeSnapshot()?.let { currentSnapshot ->
-                        processSnapshot(currentSnapshot, wasScreenOn = lastScreenState)
-                        lastSnapshot = currentSnapshot
-                        _snapshots.update { (it + currentSnapshot).takeLast(500) }
+                        snapshotMutex.withLock {
+                            processSnapshot(currentSnapshot, wasScreenOn = true)
+                            lastSnapshot = currentSnapshot
+                            _snapshots.update { (it + currentSnapshot).takeLast(500) }
+                            updateDrainState()
+                            saveSession()
+                        }
                     }
-                    updateDrainState()
-                    saveSession()
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in tracking loop", e)
                 }
             }
         }
+    }
+
+    private fun stopTrackingLoop() {
+        trackingJob?.cancel()
+        trackingJob = null
     }
 
     fun stop() {
@@ -510,8 +575,7 @@ class AdvancedDrainTracker private constructor(
         }
         lastScreenChangeRealtime = nowRealtime
 
-        trackingJob?.cancel()
-        trackingJob = null
+        stopTrackingLoop()
 
         updateDrainState()
         saveSession()
@@ -570,9 +634,11 @@ class AdvancedDrainTracker private constructor(
         }
 
         scope.launch {
-            lastSnapshot = takeSnapshot()
-            updateDrainState()
-            saveSession()
+            snapshotMutex.withLock {
+                lastSnapshot = takeSnapshot()
+                updateDrainState()
+                saveSession()
+            }
         }
 
         Log.i(TAG, "Battery drain tracking session reset")
@@ -631,12 +697,22 @@ class AdvancedDrainTracker private constructor(
         lastScreenChangeRealtime = nowRealtime
         lastScreenChangeTime = now
 
+        if (!screenOn) {
+            stopTrackingLoop()
+        }
+
         scope.launch {
-            takeSnapshot()?.let { snapshot ->
-                processSnapshot(snapshot, wasScreenOn = previousScreenState)
-                lastSnapshot = snapshot
-                updateDrainState()
-                saveSession()
+            val snapshot = takeSnapshot()
+            if (snapshot != null) {
+                snapshotMutex.withLock {
+                    processSnapshot(snapshot, wasScreenOn = previousScreenState)
+                    lastSnapshot = snapshot
+                    updateDrainState()
+                    saveSession()
+                }
+            }
+            if (screenOn && running.get()) {
+                startTrackingLoop()
             }
         }
     }
@@ -663,7 +739,7 @@ class AdvancedDrainTracker private constructor(
                 currentMa = currentMa,
                 isScreenOn = isScreenOn,
                 isCharging = isCharging,
-                isDeepSleep = !isScreenOn && !isDozing,
+                isDeepSleep = !isScreenOn && (nowRealtime - nowUptime > 0),
                 isDozing = isDozing,
                 cpuAwakeTimeMs = nowUptime,
                 deepSleepTimeMs = deepSleepTime
@@ -846,10 +922,10 @@ class AdvancedDrainTracker private constructor(
 
     fun getCurrentBatteryMah(): Double? {
         val chargeCounter = batteryManager.getLongProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER)
-        return if (chargeCounter > 0) {
-            chargeCounter / 1000.0
-        } else {
-            getBatteryLevel()?.div(100.0)?.times(estimatedCapacityMah)
+        return when {
+            chargeCounter > 100_000L -> chargeCounter / 1000.0
+            chargeCounter in 500L..25000L -> chargeCounter.toDouble()
+            else -> getBatteryLevel()?.div(100.0)?.times(estimatedCapacityMah)
         }
     }
 

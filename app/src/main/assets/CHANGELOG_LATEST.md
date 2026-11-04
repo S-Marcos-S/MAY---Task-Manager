@@ -1,8 +1,7 @@
-### MAY Task Manager v1.0.6
-- Opcao de reset automatico das estatisticas de bateria ao conectar carregador.
-- Reorganizacao dos cards de consumo ao vivo: Total na linha superior e recolhimento animado dos cards inferiores ao carregar.
-- Cards superiores adaptados durante o carregamento com taxa (%/h) e mAh carregados.
-- Correcao de mensagens de feedback na aba de Acoes do inspetor de processos com banner interno animado.
-- Nova tela Ferramentas: gravacao continua de logs do sistema e comando para abrir o MAY pelos botoes de volume.
-- Instalador de pacotes APK via Root integrado na tela de Ferramentas e registrado como instalador no Android com suporte completo a Liquid Glass.
+### MAY Task Manager v1.0.7
+- Correcao do monitor de consumo ao vivo: contagem precisa com tela desligada e em sono profundo via captura orientada a eventos.
+- Otimizacao energetica estrita com pausa do loop periodico durante tela apagada, garantindo zero consumo extra de bateria.
+- Sincronizacao de snapshots via Mutex para eliminar race condition e atribuicao indevida de consumo de sono profundo para tela ligada.
+- Restauracao aprimorada de sessao de consumo entre reinicios do app, computando intervalos e mantendo historico intacto.
+- Inicializacao automatica da notificacao persistente de consumo apos reinicio do dispositivo ou reinstalacao do pacote.
 ---

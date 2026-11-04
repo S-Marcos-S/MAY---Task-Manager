@@ -34,3 +34,10 @@
   - [x] Registro do MAY como instalador de pacotes no Android (Intent Filter para arquivos APK em gerenciadores de arquivos).
   - [x] Dialogo minimalista e compacto de instalacao de APK com efeito completo Liquid Glass e opcoes de abrir app ou concluir.
   - [x] Extracao estrita de strings, verificacao de imports e fluxo de testes na branch `test` antes do merge na `main`.
+- [x] **Correcao do Monitor de Bateria ao Vivo com Tela Desligada e Sono Profundo (v1.0.7)**
+  - [x] Captura orientada a eventos via `ACTION_BATTERY_CHANGED` para registrar quedas de bateria sem gastar energia.
+  - [x] Pausa automatica do loop periodico com tela apagada para evitar acordar a CPU desnecessariamente.
+  - [x] Sincronizacao de snapshots via Mutex evitando atribuir consumo de sono profundo para tela ligada ao acordar.
+  - [x] Restauracao precisa de sessao preservando consumo e tempo de sono profundo durante reinicio do processo.
+  - [x] Inicializacao correta da notificacao de consumo persistente no boot e reabertura do aplicativo.
+  - [x] Bump de versao para v1.0.7 (code 8) e sincronizacao de changelogs.
