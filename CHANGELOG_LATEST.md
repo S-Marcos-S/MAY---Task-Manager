@@ -1,6 +1,6 @@
-### MAY Task Manager v1.0.8
-- Correcao da atribuicao de consumo ao vivo com tela desligada via ancora fixa de nivel e mAh.
-- Introducao de janela de tolerancia de wake-up para capturar quedas de bateria reportadas com atraso pelo kernel.
-- Protecao de sono profundo na restauracao de sessao impedindo contagem indevida como tela ligada.
-- Extracao de textos do indicador de sono profundo forcado para internacionalizacao.
+### MAY Task Manager v1.0.9
+- Atribuicao proporcional por intervalo de descarga eliminando distorcao de consumo entre tela ligada e desligada.
+- Desacoplamento da ancora de medicao de bateria dos snapshots da interface, preservando tempo em repouso.
+- Tratamento robusto para atrasos de atualizacao do kernel e leituras discretas de bateria sem janelas rigidas.
+- Persistencia integral de estado e metricas de carga e descarga atraves de pausas e reinicios do processo.
 ---
