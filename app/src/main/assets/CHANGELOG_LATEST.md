@@ -1,6 +1,5 @@
-### MAY Task Manager v1.0.9
-- Atribuicao proporcional por intervalo de descarga eliminando distorcao de consumo entre tela ligada e desligada.
-- Desacoplamento da ancora de medicao de bateria dos snapshots da interface, preservando tempo em repouso.
-- Tratamento robusto para atrasos de atualizacao do kernel e leituras discretas de bateria sem janelas rigidas.
-- Persistencia integral de estado e metricas de carga e descarga atraves de pausas e reinicios do processo.
+### MAY Task Manager v1.0.10
+- Remocao do card de monitoramento em tempo real da tela de estatisticas de bateria.
+- Eliminacao do loop continuo de amostragem e telemetria da interface da bateria.
+- Preservacao integral dos demais cards de alertas de anomalia, enforce doze e telemetria do sistema.
 ---
