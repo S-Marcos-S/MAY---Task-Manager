@@ -1183,7 +1183,7 @@ private fun EnforceDozeCard(
                             )
                     )
                     Text(
-                        text = if (isEnforcing) "Forçando Sono Profundo (Ativo)" else "Pronto (Aguardando tela desligar)",
+                        text = if (isEnforcing) stringResource(R.string.enforce_doze_banner_active) else stringResource(R.string.enforce_doze_banner_waiting),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -1383,4 +1383,6 @@
     <string name="installer_version_label">Version %1$s (%2$d)</string>
     <string name="installer_reading_apk">Reading APK data…</string>
     <string name="installer_invalid_apk">Could not parse information from this APK file.</string>
+    <string name="enforce_doze_banner_active">Forcing Deep Sleep (Active)</string>
+    <string name="enforce_doze_banner_waiting">Ready (Waiting for screen off)</string>
 </resources>

@@ -1344,4 +1344,6 @@
     <string name="installer_version_label">Versão %1$s (%2$d)</string>
     <string name="installer_reading_apk">Lendo dados do APK…</string>
     <string name="installer_invalid_apk">Não foi possível ler as informações deste arquivo APK.</string>
+    <string name="enforce_doze_banner_active">Forçando Sono Profundo (Ativo)</string>
+    <string name="enforce_doze_banner_waiting">Pronto (Aguardando tela desligar)</string>
 </resources>
