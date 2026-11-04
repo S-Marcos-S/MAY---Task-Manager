@@ -12,6 +12,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
+import dev.may.taskmanager.root.RootBatteryStatsCollector
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -124,6 +125,15 @@ class AdvancedDrainTracker private constructor(
     private var sessionStartUptime: Long = SystemClock.uptimeMillis()
     private var receiverRegistered = false
     private var hasResetForCurrentChargeCycle = false
+    private val detailedCollector = DetailedStatsCollector.getInstance(context)
+
+    private fun refreshDetailedStatsAsync() {
+        scope.launch(Dispatchers.Default) {
+            if (ShellRunner.hasDumpPermission(context) || RootBatteryStatsCollector.isRootAvailable()) {
+                detailedCollector.refresh()
+            }
+        }
+    }
 
     private var lastDropMah: Double? = null
     private var lastDropLevel: Int? = null
@@ -260,6 +270,7 @@ class AdvancedDrainTracker private constructor(
                     lastSnapshot = snapshot
                     updateDrainState()
                     saveSession()
+                    refreshDetailedStatsAsync()
                 } else {
                     updateDrainState()
                 }
@@ -284,6 +295,7 @@ class AdvancedDrainTracker private constructor(
                     saveSession()
                 }
             }
+            refreshDetailedStatsAsync()
         }
     }
 
@@ -309,6 +321,7 @@ class AdvancedDrainTracker private constructor(
                     saveSession()
                 }
             }
+            refreshDetailedStatsAsync()
         }
     }
 
@@ -631,6 +644,7 @@ class AdvancedDrainTracker private constructor(
         }
         updateDrainState()
         saveSession()
+        refreshDetailedStatsAsync()
     }
 
     private fun startTrackingLoop() {
@@ -650,6 +664,7 @@ class AdvancedDrainTracker private constructor(
                             saveSession()
                         }
                     }
+                    refreshDetailedStatsAsync()
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in tracking loop", e)
                 }
@@ -730,6 +745,7 @@ class AdvancedDrainTracker private constructor(
             try {
                 shellRunner.exec("dumpsys batterystats --reset", allowEmpty = true)
                 Log.d(TAG, "dumpsys batterystats --reset executed on resetSession")
+                refreshDetailedStatsAsync()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to run dumpsys batterystats --reset on resetSession", e)
             }
@@ -828,6 +844,7 @@ class AdvancedDrainTracker private constructor(
                     saveSession()
                 }
             }
+            refreshDetailedStatsAsync()
             if (screenOn && running.get()) {
                 startTrackingLoop()
             }

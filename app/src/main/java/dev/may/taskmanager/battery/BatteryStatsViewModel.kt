@@ -16,7 +16,7 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
 
     private val context = application.applicationContext
     private val shellRunner = ShellRunner(context)
-    private val collector = DetailedStatsCollector(context, shellRunner)
+    private val collector = DetailedStatsCollector.getInstance(context)
     private val drainTracker = AdvancedDrainTracker.getInstance(context)
 
     // Forward flows from collector

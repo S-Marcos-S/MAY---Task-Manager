@@ -24,6 +24,9 @@ class DrainNotificationReceiver : BroadcastReceiver() {
                 CoroutineScope(Dispatchers.Default).launch {
                     val tracker = AdvancedDrainTracker.getInstance(context)
                     tracker.resetSession()
+                    val collector = DetailedStatsCollector.getInstance(context)
+                    collector.resetStats()
+                    collector.refresh()
                     DrainNotificationManager.getInstance(context).updateNow()
                 }
             }

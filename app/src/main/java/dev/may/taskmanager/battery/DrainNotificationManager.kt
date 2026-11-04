@@ -16,6 +16,7 @@ import dev.may.taskmanager.R
 import dev.may.taskmanager.root.RootBatteryStatsCollector
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import java.io.File
 import java.util.Locale
 import kotlin.math.abs
@@ -26,6 +27,7 @@ import kotlin.math.abs
 class DrainNotificationManager private constructor(
     private val context: Context,
     private val drainTracker: AdvancedDrainTracker = AdvancedDrainTracker.getInstance(context),
+    private val collector: DetailedStatsCollector = DetailedStatsCollector.getInstance(context),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 ) {
     companion object {
@@ -102,14 +104,22 @@ class DrainNotificationManager private constructor(
                 }
             }
         }
+
+        scope.launch(Dispatchers.Default) {
+            if (ShellRunner.hasDumpPermission(context) || RootBatteryStatsCollector.isRootAvailable()) {
+                collector.refresh()
+            }
+        }
         
         updateNow()
 
         updateJob = scope.launch {
-            drainTracker.drainState.collectLatest { state ->
+            combine(drainTracker.drainState, collector.snapshot) { state, snapshot ->
+                Pair(state, snapshot)
+            }.collectLatest { (state, snapshot) ->
                 if (isShowing) {
                     try {
-                        notificationManager.notify(NOTIFICATION_ID, buildNotification(state))
+                        notificationManager.notify(NOTIFICATION_ID, buildNotification(state, snapshot))
                     } catch (e: SecurityException) {}
                 }
             }
@@ -132,9 +142,15 @@ class DrainNotificationManager private constructor(
             return
         }
         if (isShowing) {
+            scope.launch(Dispatchers.Default) {
+                if (ShellRunner.hasDumpPermission(context) || RootBatteryStatsCollector.isRootAvailable()) {
+                    collector.refresh()
+                }
+            }
             val state = drainTracker.drainState.value
+            val snapshot = collector.snapshot.value
             try {
-                notificationManager.notify(NOTIFICATION_ID, buildNotification(state))
+                notificationManager.notify(NOTIFICATION_ID, buildNotification(state, snapshot))
             } catch (e: SecurityException) {}
         }
     }
@@ -146,7 +162,10 @@ class DrainNotificationManager private constructor(
             .replace(Regex("\\s{2,}"), " ")
     }
 
-    private fun buildNotification(state: DrainState): Notification {
+    private fun buildNotification(
+        state: DrainState,
+        snapshot: BatteryStatsParser.FullSnapshot? = collector.snapshot.value
+    ): Notification {
         val contentIntent = PendingIntent.getActivity(
             context,
             NOTIFICATION_ID,
@@ -227,23 +246,49 @@ class DrainNotificationManager private constructor(
                 context.getString(R.string.drain_state_charging)
             }
 
-            val chargeContent = "${String.format(Locale.US, "%.1fW", powerWatts)} • ${String.format(Locale.US, "%.2fV", voltageV)} • ${String.format(Locale.US, "%.2fA", currentA)} | Tela desl.: ${String.format(Locale.US, "%.1fW", avgScreenOffWatts)}"
+            val screenOffShort = context.getString(
+                R.string.notif_charge_screen_off_short,
+                String.format(Locale.US, "%.1fW", avgScreenOffWatts)
+            )
+            val chargeContent = "${String.format(Locale.US, "%.1fW", powerWatts)} • ${String.format(Locale.US, "%.2fV", voltageV)} • ${String.format(Locale.US, "%.2fA", currentA)} | $screenOffShort"
 
             val chargeBig = buildString {
-                appendLine("Velocidade Atual: ${String.format(Locale.US, "%.1f W (%.2f V • %.2f A)", powerWatts, voltageV, currentA)}")
-                appendLine("Média com Tela Desligada: ${String.format(Locale.US, "%.1f W", avgScreenOffWatts)}")
-                appendLine("Média com Tela Ligada: ${String.format(Locale.US, "%.1f W", avgScreenOnWatts)}")
+                appendLine(context.getString(
+                    R.string.notif_charge_current_speed,
+                    String.format(Locale.US, "%.1f W (%.2f V • %.2f A)", powerWatts, voltageV, currentA)
+                ))
+                appendLine(context.getString(
+                    R.string.notif_charge_avg_screen_off,
+                    String.format(Locale.US, "%.1f W", avgScreenOffWatts)
+                ))
+                appendLine(context.getString(
+                    R.string.notif_charge_avg_screen_on,
+                    String.format(Locale.US, "%.1f W", avgScreenOnWatts)
+                ))
                 if (activeChargeCycle != null) {
-                    appendLine("Carga Recebida: +${activeChargeCycle.batteryDeltaPercent}% (+${activeChargeCycle.totalMah.toInt()} mAh) em ${formatDuration(activeChargeCycle.durationMs)}")
-                    appendLine("Ciclos de Bateria Gastos: ${String.format(Locale.US, "%.2f ciclos", activeChargeCycle.totalCyclesDelta)}")
+                    appendLine(context.getString(
+                        R.string.notif_charge_received,
+                        activeChargeCycle.batteryDeltaPercent,
+                        activeChargeCycle.totalMah.toInt(),
+                        formatBatteryDuration(activeChargeCycle.durationMs)
+                    ))
+                    appendLine(context.getString(
+                        R.string.notif_charge_cycles_used,
+                        String.format(Locale.US, "%.2f", activeChargeCycle.totalCyclesDelta)
+                    ))
                 }
                 if (currentTemp != null) {
-                    append("Temperatura da Bateria: ${Math.round(currentTemp)}°C")
+                    append(context.getString(
+                        R.string.notif_charge_battery_temp,
+                        Math.round(currentTemp)
+                    ))
                 }
             }.trimEnd()
 
             Triple(chargeTitle, chargeContent, chargeBig)
         } else {
+            val metrics = BatteryDisplayMetrics.resolve(snapshot, state)
+
             val currentStateText = when {
                 state.isDeepSleep -> {
                     val sleepText = context.getString(R.string.drain_state_deep_sleep)
@@ -278,50 +323,68 @@ class DrainNotificationManager private constructor(
 
             val contentText = context.getString(
                 R.string.drain_on_off_sleep,
-                formatDrainPercentage(state.screenOnDrainRatePercent),
-                formatDrainPercentage(state.screenOffDrainRatePercent),
-                formatDrainPercentage(state.deepSleepDrainRatePercent)
+                formatDrainPercentage(metrics.screenOnDrainRatePercent),
+                formatDrainPercentage(metrics.screenOffDrainRatePercent),
+                formatDrainPercentage(metrics.deepSleepDrainRatePercent)
             ).removeEmojis()
 
+            val screenOnRateStr = if (metrics.screenOnDischargePercent > 0f) {
+                "${formatDrainPercentage(metrics.screenOnDrainRatePercent)} • ${String.format(Locale.getDefault(), "%.1f%%", metrics.screenOnDischargePercent)}"
+            } else {
+                formatDrainPercentage(metrics.screenOnDrainRatePercent)
+            }
             val screenOnStr = context.getString(
                 R.string.drain_screen_on_line,
-                formatDrainPercentage(state.screenOnDrainRatePercent),
-                formatDuration(state.screenOnTimeMs)
+                screenOnRateStr,
+                formatBatteryDuration(metrics.screenOnMs)
             ).removeEmojis()
+
+            val screenOffRateStr = if (metrics.screenOffDischargePercent > 0f) {
+                "${formatDrainPercentage(metrics.screenOffDrainRatePercent)} • ${String.format(Locale.getDefault(), "%.1f%%", metrics.screenOffDischargePercent)}"
+            } else {
+                formatDrainPercentage(metrics.screenOffDrainRatePercent)
+            }
             val screenOffStr = context.getString(
                 R.string.drain_screen_off_line,
-                formatDrainPercentage(state.screenOffDrainRatePercent),
-                formatDuration(state.screenOffTimeMs)
+                screenOffRateStr,
+                formatBatteryDuration(metrics.screenOffMs)
             ).removeEmojis()
+
             val deepSleepStr = context.getString(
                 R.string.drain_deep_sleep_line,
-                formatDrainPercentage(state.deepSleepDrainRatePercent),
-                formatDuration(state.deepSleepTimeMs),
-                String.format(Locale.getDefault(), "%.0f%%", state.deepSleepPercentage)
+                formatDrainPercentage(metrics.deepSleepDrainRatePercent),
+                formatBatteryDuration(metrics.deepSleepMs),
+                String.format(Locale.getDefault(), "%.0f%%", metrics.deepSleepPercentage)
             ).removeEmojis()
             val awakeStr = context.getString(
                 R.string.drain_awake_line,
-                formatDrainPercentage(state.awakeDrainRatePercent),
-                formatDuration(state.awakeTimeMs)
+                formatDrainPercentage(metrics.awakeDrainRatePercent),
+                formatBatteryDuration(metrics.awakeMs)
             ).removeEmojis()
             val activeStr = context.getString(
                 R.string.drain_active_line,
-                formatDrainPercentage(state.activeDrainRatePercent),
-                formatDuration(state.activeTimeMs)
+                formatDrainPercentage(metrics.activeDrainRatePercent),
+                formatBatteryDuration(metrics.activeMs)
             ).removeEmojis()
             val idleStr = context.getString(
                 R.string.drain_idle_line,
-                formatDrainPercentage(state.idleDrainRatePercent),
-                formatDuration(state.idleTimeMs)
+                formatDrainPercentage(metrics.idleDrainRatePercent),
+                formatBatteryDuration(metrics.idleMs)
             ).removeEmojis()
+
+            val totalDrainFormatted = if (metrics.totalDischargePercent > 0f) {
+                "${String.format(Locale.getDefault(), "%.1f%%", metrics.totalDischargePercent)} (${String.format(Locale.getDefault(), "%.0f mAh", metrics.totalDrainMah)})"
+            } else {
+                String.format(Locale.getDefault(), "%.1f mAh", metrics.totalDrainMah)
+            }
             val totalStr = context.getString(
                 R.string.drain_total_line,
-                String.format(Locale.getDefault(), "%.1f mAh", state.totalDrainMah),
-                formatDuration(state.totalTimeMs)
+                totalDrainFormatted,
+                formatBatteryDuration(metrics.totalTimeMs)
             ).removeEmojis()
             val avgStr = context.getString(
                 R.string.drain_average_line,
-                formatDrainPercentage(state.averageDrainRatePercent)
+                formatDrainPercentage(metrics.averageDrainRatePercent)
             ).removeEmojis()
             val netStr = context.getString(
                 R.string.drain_network_line,

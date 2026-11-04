@@ -28,6 +28,15 @@ class DetailedStatsCollector(
         private const val TAG = "DetailedStatsCollector"
         const val NO_ACCESS_MESSAGE =
             "Acesso aos detalhes da bateria requer permissão Root ou comando ADB (DUMP / BATTERY_STATS)."
+
+        @Volatile
+        private var instance: DetailedStatsCollector? = null
+
+        fun getInstance(context: Context): DetailedStatsCollector {
+            return instance ?: synchronized(this) {
+                instance ?: DetailedStatsCollector(context.applicationContext).also { instance = it }
+            }
+        }
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

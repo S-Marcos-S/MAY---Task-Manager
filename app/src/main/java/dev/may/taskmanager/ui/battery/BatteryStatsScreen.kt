@@ -48,7 +48,9 @@ import dev.may.taskmanager.ui.theme.dynamicSurfaceColor
 import dev.may.taskmanager.ui.theme.dynamicBorderColor
 import dev.may.taskmanager.ui.theme.glass.GlassCard
 import dev.may.taskmanager.R
+import dev.may.taskmanager.battery.BatteryDisplayMetrics
 import dev.may.taskmanager.battery.BatteryStatsParser
+import dev.may.taskmanager.battery.formatBatteryDuration
 import dev.may.taskmanager.root.RootBatteryStatsCollector
 import dev.may.taskmanager.battery.ShellRunner
 import dev.may.taskmanager.battery.LocalShowAppNames
@@ -512,21 +514,6 @@ private fun AdbGrantCard(context: Context) {
     }
 }
 
-private fun formatBatteryDuration(ms: Long): String {
-    if (ms <= 0L) return "0m"
-    val seconds = ms / 1000
-    val minutes = seconds / 60
-    val hours = minutes / 60
-    val days = hours / 24
-
-    return when {
-        days > 0 -> "${days}d ${hours % 24}h"
-        hours > 0 -> "${hours}h ${minutes % 60}m"
-        minutes > 0 -> "${minutes}m"
-        else -> "${seconds}s"
-    }
-}
-
 @Composable
 private fun BatteryMetricItem(
     label: String,
@@ -581,46 +568,13 @@ private fun BatteryOverviewCard(
     onResetStats: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val screenOnMs = when {
-        snapshot != null && snapshot.screenOnTimeMs > 0L -> snapshot.screenOnTimeMs
-        drainState.screenOnTimeMs > 0L -> drainState.screenOnTimeMs
-        else -> 0L
-    }
-
-    val totalTimeMs = when {
-        snapshot != null && snapshot.batteryRealtimeMs > 0L -> snapshot.batteryRealtimeMs
-        drainState.totalTimeMs > 0L -> drainState.totalTimeMs
-        else -> 0L
-    }
-
-    val screenOffMs = when {
-        snapshot != null && snapshot.batteryRealtimeMs > snapshot.screenOnTimeMs ->
-            (snapshot.batteryRealtimeMs - snapshot.screenOnTimeMs).coerceAtLeast(0L)
-        drainState.screenOffTimeMs > 0L -> drainState.screenOffTimeMs
-        totalTimeMs > screenOnMs -> (totalTimeMs - screenOnMs).coerceAtLeast(0L)
-        else -> 0L
-    }
-
-    val screenOnDischarge = when {
-        snapshot != null && snapshot.screenOnDischargePercent > 0f -> snapshot.screenOnDischargePercent
-        drainState.screenOnDrainMah > 0.0 && drainState.batteryCapacityMah > 0 ->
-            (drainState.screenOnDrainMah / drainState.batteryCapacityMah * 100.0).toFloat()
-        else -> 0f
-    }
-
-    val screenOffDischarge = when {
-        snapshot != null && snapshot.screenOffDischargePercent > 0f -> snapshot.screenOffDischargePercent
-        drainState.screenOffDrainMah > 0.0 && drainState.batteryCapacityMah > 0 ->
-            (drainState.screenOffDrainMah / drainState.batteryCapacityMah * 100.0).toFloat()
-        else -> 0f
-    }
-
-    val totalDischarge = when {
-        screenOnDischarge + screenOffDischarge > 0f -> screenOnDischarge + screenOffDischarge
-        drainState.totalDrainMah > 0.0 && drainState.batteryCapacityMah > 0 ->
-            (drainState.totalDrainMah / drainState.batteryCapacityMah * 100.0).toFloat()
-        else -> 0f
-    }
+    val metrics = BatteryDisplayMetrics.resolve(snapshot, drainState)
+    val screenOnMs = metrics.screenOnMs
+    val totalTimeMs = metrics.totalTimeMs
+    val screenOffMs = metrics.screenOffMs
+    val screenOnDischarge = metrics.screenOnDischargePercent
+    val screenOffDischarge = metrics.screenOffDischargePercent
+    val totalDischarge = metrics.totalDischargePercent
 
     FrostedCard(
         modifier = modifier.fillMaxWidth(),

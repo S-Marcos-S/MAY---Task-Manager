@@ -1386,4 +1386,13 @@
     <string name="battery_card_screen_off">Tela Desligada</string>
     <string name="battery_card_total_usage">Uso Total</string>
     <string name="battery_card_reset_stats">Redefinir estatísticas</string>
+
+    <!-- Notificacao de consumo ao carregar -->
+    <string name="notif_charge_screen_off_short">Tela desl.: %1$s</string>
+    <string name="notif_charge_current_speed">Velocidade Atual: %1$s</string>
+    <string name="notif_charge_avg_screen_off">Média com Tela Desligada: %1$s</string>
+    <string name="notif_charge_avg_screen_on">Média com Tela Ligada: %1$s</string>
+    <string name="notif_charge_received">Carga Recebida: +%1$d%% (+%2$d mAh) em %3$s</string>
+    <string name="notif_charge_cycles_used">Ciclos de Bateria Gastos: %1$s ciclos</string>
+    <string name="notif_charge_battery_temp">Temperatura da Bateria: %1$d°C</string>
 </resources>
