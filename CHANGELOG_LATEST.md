@@ -1,5 +1,5 @@
-### MAY Task Manager v1.0.12
-- Exibicao de valores numericos nos eixos lateral (Y) e inferior (X / tempo) nos graficos de ciclos de bateria.
-- Indicadores calibrados nos graficos de Curva de Descarga, Temperatura e Velocidade de Recarga.
-- Design compacto e minimalista mantendo o tamanho e altura originais dos cards.
+### MAY Task Manager v1.0.13
+- Alinhamento pixel-perfect dos valores laterais (eixo Y) diretamente a altura de cada linha de grade.
+- Renderizacao dos rotulos de eixos integrada ao Canvas com calculo de largura dinamica, evitando cortes no valor de 50%.
+- Posicionamento matematico preciso dos eixos X e Y sem sobreposicao de elementos.
 ---

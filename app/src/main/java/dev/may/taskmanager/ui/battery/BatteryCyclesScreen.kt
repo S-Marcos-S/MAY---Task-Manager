@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package dev.may.taskmanager.ui.battery
 
+import android.graphics.Paint
+import android.graphics.Typeface
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
@@ -63,6 +65,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -903,188 +908,174 @@ private fun DischargeCurveCanvas(
     val colorScheme = MaterialTheme.colorScheme
     val strokeColor = Color(0xFFF59E0B)
     val gridColor = colorScheme.outline.copy(alpha = 0.12f)
-    val labelColor = colorScheme.onSurface.copy(alpha = 0.50f)
+    val labelColor = colorScheme.onSurface.copy(alpha = 0.55f)
 
     val timeLabels = remember(points, startTimeMs, endTimeMs, isActive) {
         resolveChartTimeLabels(points, startTimeMs, endTimeMs, isActive)
+    }
+
+    val yAxisPaint = remember {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = Typeface.MONOSPACE
+            textAlign = Paint.Align.RIGHT
+        }
+    }
+    val xAxisPaint = remember {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = Typeface.MONOSPACE
+        }
+    }
+
+    val values = remember(points, startLevel, endLevel) {
+        if (points.size >= 2) {
+            points.map { it.batteryLevel.toFloat() }
+        } else {
+            listOf(startLevel.toFloat(), endLevel.toFloat())
+        }
     }
 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(colorScheme.surfaceContainerHighest.copy(alpha = 0.20f))
-            .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
-            .padding(start = 7.dp, end = 7.dp, top = 6.dp, bottom = 4.dp),
+            .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Y-axis labels: 100%, 50%, 0%
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(26.dp),
-                    verticalArrangement = Arrangement.SpaceBetween,
-                    horizontalAlignment = Alignment.End,
-                ) {
-                    Text(
-                        text = "100%",
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        color = labelColor,
-                        maxLines = 1,
-                    )
-                    Text(
-                        text = "50%",
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        color = labelColor,
-                        maxLines = 1,
-                    )
-                    Text(
-                        text = "0%",
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        color = labelColor,
-                        maxLines = 1,
-                    )
-                }
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = size.width
+            val height = size.height
+            if (width <= 0f || height <= 0f) return@Canvas
 
-                Spacer(Modifier.width(5.dp))
+            yAxisPaint.color = labelColor.toArgb()
+            yAxisPaint.textSize = 8.5.sp.toPx()
+            xAxisPaint.color = labelColor.toArgb()
+            xAxisPaint.textSize = 8.5.sp.toPx()
 
-                // Canvas plot
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f),
-                ) {
-                    val width = size.width
-                    val height = size.height
+            val yTopLabel = "100%"
+            val yMidLabel = "50%"
+            val yBottomLabel = "0%"
 
-                    // 3 horizontal grid lines (top, mid, bottom)
-                    for (i in 0..2) {
-                        val lineY = when (i) {
-                            0 -> 1.5.dp.toPx()
-                            1 -> height / 2f
-                            else -> height - 1.5.dp.toPx()
-                        }
-                        drawLine(
-                            color = gridColor,
-                            start = Offset(0f, lineY),
-                            end = Offset(width, lineY),
-                            strokeWidth = 1f,
-                        )
-                    }
+            val maxTextWidth = maxOf(
+                yAxisPaint.measureText(yTopLabel),
+                yAxisPaint.measureText(yMidLabel),
+                yAxisPaint.measureText(yBottomLabel),
+            )
 
-                    val values = if (points.size >= 2) {
-                        points.map { it.batteryLevel.toFloat() }
-                    } else {
-                        listOf(startLevel.toFloat(), endLevel.toFloat())
-                    }
+            val leftMargin = 6.dp.toPx()
+            val yAxisX = leftMargin + maxTextWidth
+            val gap = 5.dp.toPx()
+            val chartLeft = yAxisX + gap
+            val chartRight = width - 8.dp.toPx()
+            val chartWidth = chartRight - chartLeft
 
-                    val maxVal = 100f
-                    val minVal = 0f
-                    val stepX = width / (values.size - 1).coerceAtLeast(1)
-                    val plotHeight = height - 4.dp.toPx()
+            val topPadding = 9.dp.toPx()
+            val xAxisHeight = 15.dp.toPx()
+            val chartBottom = height - xAxisHeight
+            val chartTop = topPadding
+            val chartHeight = chartBottom - chartTop
 
-                    val coords = values.mapIndexed { idx, v ->
-                        val x = idx * stepX
-                        val norm = ((v - minVal) / (maxVal - minVal)).coerceIn(0f, 1f)
-                        val y = 2.dp.toPx() + (1f - norm) * plotHeight
-                        Offset(x, y)
-                    }
+            if (chartWidth <= 0f || chartHeight <= 0f) return@Canvas
 
-                    if (coords.isNotEmpty()) {
-                        val fillPath = Path().apply {
-                            moveTo(coords.first().x, height)
-                            lineTo(coords.first().x, coords.first().y)
-                            for (i in 1 until coords.size) {
-                                val prev = coords[i - 1]
-                                val curr = coords[i]
-                                val cx = (prev.x + curr.x) / 2f
-                                cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
-                            }
-                            lineTo(coords.last().x, height)
-                            close()
-                        }
+            val y0 = chartTop
+            val y1 = chartTop + chartHeight / 2f
+            val y2 = chartBottom
 
-                        val strokePath = Path().apply {
-                            moveTo(coords.first().x, coords.first().y)
-                            for (i in 1 until coords.size) {
-                                val prev = coords[i - 1]
-                                val curr = coords[i]
-                                val cx = (prev.x + curr.x) / 2f
-                                cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
-                            }
-                        }
+            // 1. Draw horizontal grid lines & exactly straight Y-axis text
+            val fontMetricsY = yAxisPaint.fontMetrics
+            val textYOffset = (fontMetricsY.descent + fontMetricsY.ascent) / 2f
 
-                        drawPath(
-                            path = fillPath,
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    strokeColor.copy(alpha = 0.35f),
-                                    strokeColor.copy(alpha = 0.12f),
-                                    Color.Transparent,
-                                ),
-                            ),
-                        )
-
-                        drawPath(
-                            path = strokePath,
-                            color = strokeColor,
-                            style = Stroke(
-                                width = 2.dp.toPx(),
-                                cap = StrokeCap.Round,
-                                join = StrokeJoin.Round,
-                            ),
-                        )
-                    }
-                }
+            drawIntoCanvas { composeCanvas ->
+                val canvas = composeCanvas.nativeCanvas
+                canvas.drawText(yTopLabel, yAxisX, y0 - textYOffset, yAxisPaint)
+                canvas.drawText(yMidLabel, yAxisX, y1 - textYOffset, yAxisPaint)
+                canvas.drawText(yBottomLabel, yAxisX, y2 - textYOffset, yAxisPaint)
             }
 
-            Spacer(Modifier.height(2.dp))
+            for (lineY in listOf(y0, y1, y2)) {
+                drawLine(
+                    color = gridColor,
+                    start = Offset(chartLeft, lineY),
+                    end = Offset(chartRight, lineY),
+                    strokeWidth = 1f,
+                )
+            }
 
-            // X-axis time labels (aligned under canvas)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 31.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = timeLabels.start,
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = FontFamily.Monospace,
-                    color = labelColor,
-                    maxLines = 1,
-                )
-                if (timeLabels.mid.isNotEmpty()) {
-                    Text(
-                        text = timeLabels.mid,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        color = labelColor,
-                        maxLines = 1,
-                    )
+            // 2. Draw curve
+            val maxVal = 100f
+            val minVal = 0f
+            val stepX = chartWidth / (values.size - 1).coerceAtLeast(1)
+
+            val coords = values.mapIndexed { idx, v ->
+                val x = chartLeft + idx * stepX
+                val norm = ((v - minVal) / (maxVal - minVal)).coerceIn(0f, 1f)
+                val y = chartBottom - (norm * chartHeight)
+                Offset(x, y)
+            }
+
+            if (coords.isNotEmpty()) {
+                val fillPath = Path().apply {
+                    moveTo(coords.first().x, chartBottom)
+                    lineTo(coords.first().x, coords.first().y)
+                    for (i in 1 until coords.size) {
+                        val prev = coords[i - 1]
+                        val curr = coords[i]
+                        val cx = (prev.x + curr.x) / 2f
+                        cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                    }
+                    lineTo(coords.last().x, chartBottom)
+                    close()
                 }
-                Text(
-                    text = timeLabels.end,
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = FontFamily.Monospace,
-                    color = labelColor,
-                    maxLines = 1,
+
+                val strokePath = Path().apply {
+                    moveTo(coords.first().x, coords.first().y)
+                    for (i in 1 until coords.size) {
+                        val prev = coords[i - 1]
+                        val curr = coords[i]
+                        val cx = (prev.x + curr.x) / 2f
+                        cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                    }
+                }
+
+                drawPath(
+                    path = fillPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            strokeColor.copy(alpha = 0.35f),
+                            strokeColor.copy(alpha = 0.12f),
+                            Color.Transparent,
+                        ),
+                        startY = chartTop,
+                        endY = chartBottom,
+                    ),
                 )
+
+                drawPath(
+                    path = strokePath,
+                    color = strokeColor,
+                    style = Stroke(
+                        width = 2.dp.toPx(),
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round,
+                    ),
+                )
+            }
+
+            // 3. Draw X-axis time labels
+            val fontMetricsX = xAxisPaint.fontMetrics
+            val timeY = height - 3.dp.toPx() - fontMetricsX.descent
+
+            drawIntoCanvas { composeCanvas ->
+                val canvas = composeCanvas.nativeCanvas
+
+                xAxisPaint.textAlign = Paint.Align.LEFT
+                canvas.drawText(timeLabels.start, chartLeft, timeY, xAxisPaint)
+
+                if (timeLabels.mid.isNotEmpty()) {
+                    xAxisPaint.textAlign = Paint.Align.CENTER
+                    canvas.drawText(timeLabels.mid, chartLeft + chartWidth / 2f, timeY, xAxisPaint)
+                }
+
+                xAxisPaint.textAlign = Paint.Align.RIGHT
+                canvas.drawText(timeLabels.end, chartRight, timeY, xAxisPaint)
             }
         }
     }
@@ -1106,7 +1097,7 @@ private fun ChargingSpeedCanvas(
     val screenOffColor = Color(0xFF10B981) // emerald for screen off (faster)
     val screenOnColor = Color(0xFFF59E0B)  // amber for screen on (throttled)
     val gridColor = colorScheme.outline.copy(alpha = 0.12f)
-    val labelColor = colorScheme.onSurface.copy(alpha = 0.50f)
+    val labelColor = colorScheme.onSurface.copy(alpha = 0.55f)
 
     val unitSymbol = when (unit) {
         SpeedUnit.WATTS -> "W"
@@ -1116,6 +1107,18 @@ private fun ChargingSpeedCanvas(
 
     val timeLabels = remember(points, startTimeMs, endTimeMs, isActive) {
         resolveChartTimeLabels(points, startTimeMs, endTimeMs, isActive)
+    }
+
+    val yAxisPaint = remember {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = Typeface.MONOSPACE
+            textAlign = Paint.Align.RIGHT
+        }
+    }
+    val xAxisPaint = remember {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = Typeface.MONOSPACE
+        }
     }
 
     val screenOffPoints = points.filter { !it.isScreenOn }
@@ -1163,181 +1166,149 @@ private fun ChargingSpeedCanvas(
             modifier = modifier
                 .clip(RoundedCornerShape(10.dp))
                 .background(colorScheme.surfaceContainerHighest.copy(alpha = 0.20f))
-                .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
-                .padding(start = 7.dp, end = 7.dp, top = 6.dp, bottom = 4.dp),
+                .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Y-axis labels
-                    Column(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(26.dp),
-                        verticalArrangement = Arrangement.SpaceBetween,
-                        horizontalAlignment = Alignment.End,
-                    ) {
-                        Text(
-                            text = yTopLabel,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            fontFamily = FontFamily.Monospace,
-                            color = labelColor,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = yMidLabel,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            fontFamily = FontFamily.Monospace,
-                            color = labelColor,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = yBottomLabel,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            fontFamily = FontFamily.Monospace,
-                            color = labelColor,
-                            maxLines = 1,
-                        )
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val width = size.width
+                val height = size.height
+                if (width <= 0f || height <= 0f) return@Canvas
+
+                yAxisPaint.color = labelColor.toArgb()
+                yAxisPaint.textSize = 8.5.sp.toPx()
+                xAxisPaint.color = labelColor.toArgb()
+                xAxisPaint.textSize = 8.5.sp.toPx()
+
+                val maxTextWidth = maxOf(
+                    yAxisPaint.measureText(yTopLabel),
+                    yAxisPaint.measureText(yMidLabel),
+                    yAxisPaint.measureText(yBottomLabel),
+                )
+
+                val leftMargin = 6.dp.toPx()
+                val yAxisX = leftMargin + maxTextWidth
+                val gap = 5.dp.toPx()
+                val chartLeft = yAxisX + gap
+                val chartRight = width - 8.dp.toPx()
+                val chartWidth = chartRight - chartLeft
+
+                val topPadding = 9.dp.toPx()
+                val xAxisHeight = 15.dp.toPx()
+                val chartBottom = height - xAxisHeight
+                val chartTop = topPadding
+                val chartHeight = chartBottom - chartTop
+
+                if (chartWidth <= 0f || chartHeight <= 0f) return@Canvas
+
+                val y0 = chartTop
+                val y1 = chartTop + chartHeight / 2f
+                val y2 = chartBottom
+
+                // 1. Draw horizontal grid lines & exactly straight Y-axis text
+                val fontMetricsY = yAxisPaint.fontMetrics
+                val textYOffset = (fontMetricsY.descent + fontMetricsY.ascent) / 2f
+
+                drawIntoCanvas { composeCanvas ->
+                    val canvas = composeCanvas.nativeCanvas
+                    canvas.drawText(yTopLabel, yAxisX, y0 - textYOffset, yAxisPaint)
+                    canvas.drawText(yMidLabel, yAxisX, y1 - textYOffset, yAxisPaint)
+                    canvas.drawText(yBottomLabel, yAxisX, y2 - textYOffset, yAxisPaint)
+                }
+
+                for (lineY in listOf(y0, y1, y2)) {
+                    drawLine(
+                        color = gridColor,
+                        start = Offset(chartLeft, lineY),
+                        end = Offset(chartRight, lineY),
+                        strokeWidth = 1f,
+                    )
+                }
+
+                // 2. Draw curve
+                val stepX = chartWidth / (values.size - 1).coerceAtLeast(1)
+
+                val coords = values.mapIndexed { idx, v ->
+                    val x = chartLeft + idx * stepX
+                    val norm = ((v - minVal) / range).coerceIn(0f, 1f)
+                    val y = chartBottom - (norm * chartHeight)
+                    Offset(x, y)
+                }
+
+                if (coords.isNotEmpty()) {
+                    val fillPath = Path().apply {
+                        moveTo(coords.first().x, chartBottom)
+                        lineTo(coords.first().x, coords.first().y)
+                        for (i in 1 until coords.size) {
+                            val prev = coords[i - 1]
+                            val curr = coords[i]
+                            val cx = (prev.x + curr.x) / 2f
+                            cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                        }
+                        lineTo(coords.last().x, chartBottom)
+                        close()
                     }
 
-                    Spacer(Modifier.width(5.dp))
-
-                    // Canvas plot
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .weight(1f),
-                    ) {
-                        val width = size.width
-                        val height = size.height
-
-                        // 3 horizontal grid lines (top, mid, bottom)
-                        for (i in 0..2) {
-                            val lineY = when (i) {
-                                0 -> 1.5.dp.toPx()
-                                1 -> height / 2f
-                                else -> height - 1.5.dp.toPx()
-                            }
-                            drawLine(
-                                color = gridColor,
-                                start = Offset(0f, lineY),
-                                end = Offset(width, lineY),
-                                strokeWidth = 1f,
-                            )
+                    val strokePath = Path().apply {
+                        moveTo(coords.first().x, coords.first().y)
+                        for (i in 1 until coords.size) {
+                            val prev = coords[i - 1]
+                            val curr = coords[i]
+                            val cx = (prev.x + curr.x) / 2f
+                            cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
                         }
+                    }
 
-                        val stepX = width / (values.size - 1).coerceAtLeast(1)
-                        val plotHeight = height - 4.dp.toPx()
+                    drawPath(
+                        path = fillPath,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                screenOffColor.copy(alpha = 0.35f),
+                                screenOffColor.copy(alpha = 0.12f),
+                                Color.Transparent,
+                            ),
+                            startY = chartTop,
+                            endY = chartBottom,
+                        ),
+                    )
 
-                        val coords = values.mapIndexed { idx, v ->
-                            val x = idx * stepX
-                            val norm = ((v - minVal) / range).coerceIn(0f, 1f)
-                            val y = 2.dp.toPx() + (1f - norm) * plotHeight
-                            Offset(x, y)
-                        }
+                    drawPath(
+                        path = strokePath,
+                        color = screenOffColor,
+                        style = Stroke(
+                            width = 2.dp.toPx(),
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round,
+                        ),
+                    )
 
-                        if (coords.isNotEmpty()) {
-                            val fillPath = Path().apply {
-                                moveTo(coords.first().x, height)
-                                lineTo(coords.first().x, coords.first().y)
-                                for (i in 1 until coords.size) {
-                                    val prev = coords[i - 1]
-                                    val curr = coords[i]
-                                    val cx = (prev.x + curr.x) / 2f
-                                    cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
-                                }
-                                lineTo(coords.last().x, height)
-                                close()
-                            }
-
-                            val strokePath = Path().apply {
-                                moveTo(coords.first().x, coords.first().y)
-                                for (i in 1 until coords.size) {
-                                    val prev = coords[i - 1]
-                                    val curr = coords[i]
-                                    val cx = (prev.x + curr.x) / 2f
-                                    cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
-                                }
-                            }
-
-                            drawPath(
-                                path = fillPath,
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        screenOffColor.copy(alpha = 0.35f),
-                                        screenOffColor.copy(alpha = 0.12f),
-                                        Color.Transparent,
-                                    ),
-                                ),
+                    // Draw distinct dots for screen-on periods (throttled)
+                    points.forEachIndexed { idx, p ->
+                        if (p.isScreenOn && idx < coords.size) {
+                            drawCircle(
+                                color = screenOnColor,
+                                radius = 2.5.dp.toPx(),
+                                center = coords[idx],
                             )
-
-                            drawPath(
-                                path = strokePath,
-                                color = screenOffColor,
-                                style = Stroke(
-                                    width = 2.dp.toPx(),
-                                    cap = StrokeCap.Round,
-                                    join = StrokeJoin.Round,
-                                ),
-                            )
-
-                            // Draw distinct dots for screen-on periods (throttled)
-                            points.forEachIndexed { idx, p ->
-                                if (p.isScreenOn && idx < coords.size) {
-                                    drawCircle(
-                                        color = screenOnColor,
-                                        radius = 2.5.dp.toPx(),
-                                        center = coords[idx],
-                                    )
-                                }
-                            }
                         }
                     }
                 }
 
-                Spacer(Modifier.height(2.dp))
+                // 3. Draw X-axis time labels
+                val fontMetricsX = xAxisPaint.fontMetrics
+                val timeY = height - 3.dp.toPx() - fontMetricsX.descent
 
-                // X-axis time labels (aligned under canvas)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 31.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = timeLabels.start,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        color = labelColor,
-                        maxLines = 1,
-                    )
+                drawIntoCanvas { composeCanvas ->
+                    val canvas = composeCanvas.nativeCanvas
+
+                    xAxisPaint.textAlign = Paint.Align.LEFT
+                    canvas.drawText(timeLabels.start, chartLeft, timeY, xAxisPaint)
+
                     if (timeLabels.mid.isNotEmpty()) {
-                        Text(
-                            text = timeLabels.mid,
-                            fontSize = 8.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            fontFamily = FontFamily.Monospace,
-                            color = labelColor,
-                            maxLines = 1,
-                        )
+                        xAxisPaint.textAlign = Paint.Align.CENTER
+                        canvas.drawText(timeLabels.mid, chartLeft + chartWidth / 2f, timeY, xAxisPaint)
                     }
-                    Text(
-                        text = timeLabels.end,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        color = labelColor,
-                        maxLines = 1,
-                    )
+
+                    xAxisPaint.textAlign = Paint.Align.RIGHT
+                    canvas.drawText(timeLabels.end, chartRight, timeY, xAxisPaint)
                 }
             }
         }
@@ -1398,10 +1369,22 @@ private fun TemperatureCurveCanvas(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val gridColor = colorScheme.outline.copy(alpha = 0.12f)
-    val labelColor = colorScheme.onSurface.copy(alpha = 0.50f)
+    val labelColor = colorScheme.onSurface.copy(alpha = 0.55f)
 
     val timeLabels = remember(points, startTimeMs, endTimeMs, isActive) {
         resolveChartTimeLabels(points, startTimeMs, endTimeMs, isActive)
+    }
+
+    val yAxisPaint = remember {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = Typeface.MONOSPACE
+            textAlign = Paint.Align.RIGHT
+        }
+    }
+    val xAxisPaint = remember {
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = Typeface.MONOSPACE
+        }
     }
 
     val values = remember(points) {
@@ -1427,170 +1410,138 @@ private fun TemperatureCurveCanvas(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(colorScheme.surfaceContainerHighest.copy(alpha = 0.20f))
-            .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
-            .padding(start = 7.dp, end = 7.dp, top = 6.dp, bottom = 4.dp),
+            .border(1.dp, colorScheme.outline.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Y-axis labels
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(26.dp),
-                    verticalArrangement = Arrangement.SpaceBetween,
-                    horizontalAlignment = Alignment.End,
-                ) {
-                    Text(
-                        text = yTopLabel,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        color = labelColor,
-                        maxLines = 1,
-                    )
-                    Text(
-                        text = yMidLabel,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        color = labelColor,
-                        maxLines = 1,
-                    )
-                    Text(
-                        text = yBottomLabel,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        color = labelColor,
-                        maxLines = 1,
-                    )
-                }
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = size.width
+            val height = size.height
+            if (width <= 0f || height <= 0f) return@Canvas
 
-                Spacer(Modifier.width(5.dp))
+            yAxisPaint.color = labelColor.toArgb()
+            yAxisPaint.textSize = 8.5.sp.toPx()
+            xAxisPaint.color = labelColor.toArgb()
+            xAxisPaint.textSize = 8.5.sp.toPx()
 
-                // Canvas plot
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f),
-                ) {
-                    val width = size.width
-                    val height = size.height
+            val maxTextWidth = maxOf(
+                yAxisPaint.measureText(yTopLabel),
+                yAxisPaint.measureText(yMidLabel),
+                yAxisPaint.measureText(yBottomLabel),
+            )
 
-                    // 3 horizontal grid lines (top, mid, bottom)
-                    for (i in 0..2) {
-                        val lineY = when (i) {
-                            0 -> 1.5.dp.toPx()
-                            1 -> height / 2f
-                            else -> height - 1.5.dp.toPx()
-                        }
-                        drawLine(
-                            color = gridColor,
-                            start = Offset(0f, lineY),
-                            end = Offset(width, lineY),
-                            strokeWidth = 1f,
-                        )
-                    }
+            val leftMargin = 6.dp.toPx()
+            val yAxisX = leftMargin + maxTextWidth
+            val gap = 5.dp.toPx()
+            val chartLeft = yAxisX + gap
+            val chartRight = width - 8.dp.toPx()
+            val chartWidth = chartRight - chartLeft
 
-                    val stepX = width / (values.size - 1).coerceAtLeast(1)
-                    val plotHeight = height - 4.dp.toPx()
+            val topPadding = 9.dp.toPx()
+            val xAxisHeight = 15.dp.toPx()
+            val chartBottom = height - xAxisHeight
+            val chartTop = topPadding
+            val chartHeight = chartBottom - chartTop
 
-                    val coords = values.mapIndexed { idx, v ->
-                        val x = idx * stepX
-                        val norm = ((v - minVal) / range).coerceIn(0f, 1f)
-                        val y = 2.dp.toPx() + (1f - norm) * plotHeight
-                        Offset(x, y)
-                    }
+            if (chartWidth <= 0f || chartHeight <= 0f) return@Canvas
 
-                    if (coords.isNotEmpty()) {
-                        val fillPath = Path().apply {
-                            moveTo(coords.first().x, height)
-                            lineTo(coords.first().x, coords.first().y)
-                            for (i in 1 until coords.size) {
-                                val prev = coords[i - 1]
-                                val curr = coords[i]
-                                val cx = (prev.x + curr.x) / 2f
-                                cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
-                            }
-                            lineTo(coords.last().x, height)
-                            close()
-                        }
+            val y0 = chartTop
+            val y1 = chartTop + chartHeight / 2f
+            val y2 = chartBottom
 
-                        val strokePath = Path().apply {
-                            moveTo(coords.first().x, coords.first().y)
-                            for (i in 1 until coords.size) {
-                                val prev = coords[i - 1]
-                                val curr = coords[i]
-                                val cx = (prev.x + curr.x) / 2f
-                                cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
-                            }
-                        }
+            // 1. Draw horizontal grid lines & exactly straight Y-axis text
+            val fontMetricsY = yAxisPaint.fontMetrics
+            val textYOffset = (fontMetricsY.descent + fontMetricsY.ascent) / 2f
 
-                        drawPath(
-                            path = fillPath,
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    color.copy(alpha = 0.35f),
-                                    color.copy(alpha = 0.12f),
-                                    Color.Transparent,
-                                ),
-                            ),
-                        )
-
-                        drawPath(
-                            path = strokePath,
-                            color = color,
-                            style = Stroke(
-                                width = 2.dp.toPx(),
-                                cap = StrokeCap.Round,
-                                join = StrokeJoin.Round,
-                            ),
-                        )
-                    }
-                }
+            drawIntoCanvas { composeCanvas ->
+                val canvas = composeCanvas.nativeCanvas
+                canvas.drawText(yTopLabel, yAxisX, y0 - textYOffset, yAxisPaint)
+                canvas.drawText(yMidLabel, yAxisX, y1 - textYOffset, yAxisPaint)
+                canvas.drawText(yBottomLabel, yAxisX, y2 - textYOffset, yAxisPaint)
             }
 
-            Spacer(Modifier.height(2.dp))
+            for (lineY in listOf(y0, y1, y2)) {
+                drawLine(
+                    color = gridColor,
+                    start = Offset(chartLeft, lineY),
+                    end = Offset(chartRight, lineY),
+                    strokeWidth = 1f,
+                )
+            }
 
-            // X-axis time labels (aligned under canvas)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 31.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = timeLabels.start,
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = FontFamily.Monospace,
-                    color = labelColor,
-                    maxLines = 1,
-                )
-                if (timeLabels.mid.isNotEmpty()) {
-                    Text(
-                        text = timeLabels.mid,
-                        fontSize = 8.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        fontFamily = FontFamily.Monospace,
-                        color = labelColor,
-                        maxLines = 1,
-                    )
+            // 2. Draw curve
+            val stepX = chartWidth / (values.size - 1).coerceAtLeast(1)
+
+            val coords = values.mapIndexed { idx, v ->
+                val x = chartLeft + idx * stepX
+                val norm = ((v - minVal) / range).coerceIn(0f, 1f)
+                val y = chartBottom - (norm * chartHeight)
+                Offset(x, y)
+            }
+
+            if (coords.isNotEmpty()) {
+                val fillPath = Path().apply {
+                    moveTo(coords.first().x, chartBottom)
+                    lineTo(coords.first().x, coords.first().y)
+                    for (i in 1 until coords.size) {
+                        val prev = coords[i - 1]
+                        val curr = coords[i]
+                        val cx = (prev.x + curr.x) / 2f
+                        cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                    }
+                    lineTo(coords.last().x, chartBottom)
+                    close()
                 }
-                Text(
-                    text = timeLabels.end,
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = FontFamily.Monospace,
-                    color = labelColor,
-                    maxLines = 1,
+
+                val strokePath = Path().apply {
+                    moveTo(coords.first().x, coords.first().y)
+                    for (i in 1 until coords.size) {
+                        val prev = coords[i - 1]
+                        val curr = coords[i]
+                        val cx = (prev.x + curr.x) / 2f
+                        cubicTo(cx, prev.y, cx, curr.y, curr.x, curr.y)
+                    }
+                }
+
+                drawPath(
+                    path = fillPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            color.copy(alpha = 0.35f),
+                            color.copy(alpha = 0.12f),
+                            Color.Transparent,
+                        ),
+                        startY = chartTop,
+                        endY = chartBottom,
+                    ),
                 )
+
+                drawPath(
+                    path = strokePath,
+                    color = color,
+                    style = Stroke(
+                        width = 2.dp.toPx(),
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round,
+                    ),
+                )
+            }
+
+            // 3. Draw X-axis time labels
+            val fontMetricsX = xAxisPaint.fontMetrics
+            val timeY = height - 3.dp.toPx() - fontMetricsX.descent
+
+            drawIntoCanvas { composeCanvas ->
+                val canvas = composeCanvas.nativeCanvas
+
+                xAxisPaint.textAlign = Paint.Align.LEFT
+                canvas.drawText(timeLabels.start, chartLeft, timeY, xAxisPaint)
+
+                if (timeLabels.mid.isNotEmpty()) {
+                    xAxisPaint.textAlign = Paint.Align.CENTER
+                    canvas.drawText(timeLabels.mid, chartLeft + chartWidth / 2f, timeY, xAxisPaint)
+                }
+
+                xAxisPaint.textAlign = Paint.Align.RIGHT
+                canvas.drawText(timeLabels.end, chartRight, timeY, xAxisPaint)
             }
         }
     }
