@@ -365,7 +365,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                     dev.may.taskmanager.R.string.anomaly_desc_net_screen_off,
                     appName,
                     formattedVal,
-                    durationMin.toString(),
+                    "${durationMin}m",
                 )
 
                 val (detectedService, cause) = detectBackgroundServiceAndCause(pkgName, uid, startWindow, endWindow)
@@ -504,15 +504,15 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         val desc = context.getString(
             dev.may.taskmanager.R.string.anomaly_desc_deep_sleep,
             appName,
-            awakeMinutes.toString(),
-            offMinutes.toString(),
+            "${awakeMinutes}m",
+            "${offMinutes}m",
         )
 
         val anomaly = AnomalyEvent(
             packageName = targetPkg,
             appName = appName,
             type = AnomalyType.DEEP_SLEEP,
-            valueFormatted = "${awakeMinutes}m acordado",
+            valueFormatted = context.getString(dev.may.taskmanager.R.string.anomaly_value_awake_minutes, awakeMinutes.toInt()),
             description = desc,
             timestamp = now,
             screenWasOff = true,
@@ -597,7 +597,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                             dev.may.taskmanager.R.string.anomaly_desc_net_screen_on,
                             appLabel,
                             formatted,
-                            "30",
+                            "30s",
                         )
 
                         val (detectedService, cause) = detectBackgroundServiceAndCause(pkgName, uid, intervalStart, intervalEnd)

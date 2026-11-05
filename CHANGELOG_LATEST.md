@@ -1,6 +1,5 @@
-### MAY Task Manager v1.0.14
-- Sincronizacao do tempo de tela desligada e metricas da notificacao com as estatisticas do app.
-- Unificacao do calculo de metricas entre a tela de estatisticas de bateria e o painel de notificacao persistente.
-- Atualizacao periodica e reativa do snapshot de estatisticas em segundo plano e ao alternar estado de tela.
-- Extracao de textos de carregamento da notificacao para recursos de strings sem textos hardcoded.
+### MAY Task Manager v1.0.15
+- Correcao de conversao de formato em notificacoes de anomalias de CPU, RAM e sono profundo em segundo plano.
+- Adequacao dos especificadores de strings para porcentagens e valores formatados sem erros de conversao.
+- Extracao da formatacao de tempo acordado em segundo plano para recursos de strings traduziveis.
 ---
