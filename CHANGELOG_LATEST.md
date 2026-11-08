@@ -1,5 +1,5 @@
-### MAY Task Manager v1.0.18
-- Sincronizacao de metricas de consumo real da bateria entre a Visao Geral e a aba de Aplicativos.
-- Sincronizacao do card resumo de apps para exibir a porcentagem e mAh reais da sessao.
-- Proporcionalidade exata em mAh e porcentagem para cada aplicativo na listagem de consumo.
+### MAY Task Manager v1.0.19
+- Integracao de Quick Settings Tiles para Modo Desenvolvedor, Depuracao USB e Depuracao WiFi.
+- Painel compacto de opcoes de desenvolvedor na tela de Ferramentas sincronizado em tempo real.
+- Suporte a alternancia rapida com elevacao automatica de permissoes via root.
 ---

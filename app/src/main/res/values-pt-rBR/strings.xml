@@ -1365,4 +1365,20 @@
     <string name="notif_charge_received">Carga Recebida: +%1$d%% (+%2$d mAh) em %3$s</string>
     <string name="notif_charge_cycles_used">Ciclos de Bateria Gastos: %1$s ciclos</string>
     <string name="notif_charge_battery_temp">Temperatura da Bateria: %1$d°C</string>
+
+    <!-- DevTiles / Quick Settings Developer Options -->
+    <string name="tile_dev_mode">Modo Desenv.</string>
+    <string name="tile_usb_debug">Depuração USB</string>
+    <string name="tile_wifi_debug">Depuração WiFi</string>
+    <string name="toast_permission_write_secure_settings">Permissão WRITE_SECURE_SETTINGS ou Root necessária</string>
+    <string name="toast_wifi_debug_requires_android_11">Depuração WiFi requer Android 11+</string>
+    <string name="tools_dev_tiles_title">Opções de Desenvolvedor</string>
+    <string name="tools_dev_tiles_desc">Controles rápidos para opções do sistema e depuração ADB</string>
+    <string name="tools_dev_mode_title">Modo Desenvolvedor</string>
+    <string name="tools_dev_mode_desc">Ativar configurações de desenvolvedor do sistema</string>
+    <string name="tools_usb_debug_title">Depuração USB</string>
+    <string name="tools_usb_debug_desc">Modo de depuração quando o USB estiver conectado</string>
+    <string name="tools_wifi_debug_title">Depuração WiFi</string>
+    <string name="tools_wifi_debug_desc">Depuração ADB via rede Wi-Fi</string>
+    <string name="tools_wifi_debug_ip_port">IP: %1$s • Porta: %2$s</string>
 </resources>

@@ -1404,4 +1404,20 @@
     <string name="notif_charge_received">Charge Received: +%1$d%% (+%2$d mAh) in %3$s</string>
     <string name="notif_charge_cycles_used">Battery Cycles Used: %1$s cycles</string>
     <string name="notif_charge_battery_temp">Battery Temperature: %1$d°C</string>
+
+    <!-- DevTiles / Quick Settings Developer Options -->
+    <string name="tile_dev_mode">Dev Mode</string>
+    <string name="tile_usb_debug">USB Debugging</string>
+    <string name="tile_wifi_debug">Wireless Debugging</string>
+    <string name="toast_permission_write_secure_settings">WRITE_SECURE_SETTINGS permission or Root required</string>
+    <string name="toast_wifi_debug_requires_android_11">Wireless debugging requires Android 11+</string>
+    <string name="tools_dev_tiles_title">Developer Quick Toggles</string>
+    <string name="tools_dev_tiles_desc">Quick toggles for developer options and ADB debugging</string>
+    <string name="tools_dev_mode_title">Developer Mode</string>
+    <string name="tools_dev_mode_desc">Enable or disable system developer settings</string>
+    <string name="tools_usb_debug_title">USB Debugging</string>
+    <string name="tools_usb_debug_desc">Debug mode when USB is connected</string>
+    <string name="tools_wifi_debug_title">Wireless Debugging</string>
+    <string name="tools_wifi_debug_desc">ADB debugging over Wi-Fi network</string>
+    <string name="tools_wifi_debug_ip_port">IP: %1$s • Port: %2$s</string>
 </resources>

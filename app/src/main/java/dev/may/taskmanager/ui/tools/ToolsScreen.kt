@@ -3,8 +3,13 @@ package dev.may.taskmanager.ui.tools
 
 import android.content.Context
 import android.content.Intent
+import android.database.ContentObserver
 import android.net.Uri
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -55,6 +60,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +68,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,9 +78,11 @@ import dev.may.taskmanager.R
 import dev.may.taskmanager.installer.PackageInstallDialog
 import dev.may.taskmanager.root.AppLogCaptureService
 import dev.may.taskmanager.service.MayAccessibilityService
+import dev.may.taskmanager.tiles.DevTilesController
 import dev.may.taskmanager.ui.root.AppLogViewerDialog
 import dev.may.taskmanager.ui.theme.dynamicBorderColor
 import dev.may.taskmanager.ui.theme.glass.GlassCard
+import kotlinx.coroutines.launch
 
 @Composable
 fun ToolsScreen(
@@ -116,13 +125,69 @@ fun ToolsScreen(
         }
     }
 
+    val scope = rememberCoroutineScope()
+
+    var isDevModeEnabled by remember {
+        mutableStateOf(DevTilesController.isDevModeEnabled(context))
+    }
+    var isUsbDebugEnabled by remember {
+        mutableStateOf(DevTilesController.isUsbDebugEnabled(context))
+    }
+    var isWifiDebugEnabled by remember {
+        mutableStateOf(DevTilesController.isWifiDebugEnabled(context))
+    }
+    var wifiIpAddress by remember {
+        mutableStateOf(DevTilesController.getIpAddress(context))
+    }
+    var wifiPort by remember {
+        mutableStateOf(DevTilesController.getAdbWifiPort(context))
+    }
+
     var isAccessibilityGloballyEnabled by remember {
         mutableStateOf(checkAccessibilityEnabled())
     }
 
     DisposableEffect(Unit) {
         isAccessibilityGloballyEnabled = checkAccessibilityEnabled()
-        onDispose {}
+
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                isDevModeEnabled = DevTilesController.isDevModeEnabled(context)
+                isUsbDebugEnabled = DevTilesController.isUsbDebugEnabled(context)
+                isWifiDebugEnabled = DevTilesController.isWifiDebugEnabled(context)
+                wifiIpAddress = DevTilesController.getIpAddress(context)
+                wifiPort = DevTilesController.getAdbWifiPort(context)
+            }
+        }
+
+        try {
+            context.contentResolver.registerContentObserver(
+                Settings.Global.getUriFor(DevTilesController.KEY_DEV_MODE),
+                false,
+                observer
+            )
+            context.contentResolver.registerContentObserver(
+                Settings.Global.getUriFor(DevTilesController.KEY_USB_DEBUG),
+                false,
+                observer
+            )
+            context.contentResolver.registerContentObserver(
+                Settings.Global.getUriFor(DevTilesController.KEY_WIFI_DEBUG),
+                false,
+                observer
+            )
+            context.contentResolver.registerContentObserver(
+                Settings.Global.getUriFor(DevTilesController.KEY_WIFI_DEBUG_PORT),
+                false,
+                observer
+            )
+        } catch (_: Exception) {}
+
+        onDispose {
+            try {
+                context.contentResolver.unregisterContentObserver(observer)
+            } catch (_: Exception) {}
+        }
     }
 
     LazyColumn(
@@ -282,6 +347,129 @@ fun ToolsScreen(
                                 softWrap = false
                             )
                         }
+                    }
+                }
+            }
+        }
+
+        // Section: Opções de Desenvolvedor (DevTiles)
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth(), cornerRadiusDp = 16.dp) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_dev_mode),
+                                contentDescription = null,
+                                tint = colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = stringResource(R.string.tools_dev_tiles_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = stringResource(R.string.tools_dev_tiles_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colorScheme.onSurfaceVariant
+                    )
+
+                    HorizontalDivider(
+                        color = dynamicBorderColor(alpha = 0.20f),
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // 1. Modo Desenvolvedor
+                        DevToggleRow(
+                            title = stringResource(R.string.tools_dev_mode_title),
+                            desc = stringResource(R.string.tools_dev_mode_desc),
+                            iconRes = R.drawable.ic_dev_mode,
+                            isChecked = isDevModeEnabled,
+                            onToggle = {
+                                scope.launch {
+                                    val success = DevTilesController.toggleSetting(context, DevTilesController.KEY_DEV_MODE)
+                                    if (!success) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.toast_permission_write_secure_settings),
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            }
+                        )
+
+                        // 2. Depuração USB
+                        DevToggleRow(
+                            title = stringResource(R.string.tools_usb_debug_title),
+                            desc = stringResource(R.string.tools_usb_debug_desc),
+                            iconRes = R.drawable.ic_usb,
+                            isChecked = isUsbDebugEnabled,
+                            onToggle = {
+                                scope.launch {
+                                    val success = DevTilesController.toggleSetting(context, DevTilesController.KEY_USB_DEBUG)
+                                    if (!success) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.toast_permission_write_secure_settings),
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            }
+                        )
+
+                        // 3. Depuração WiFi
+                        val wifiSubtitle = if (isWifiDebugEnabled) {
+                            stringResource(R.string.tools_wifi_debug_ip_port, wifiIpAddress, wifiPort)
+                        } else {
+                            stringResource(R.string.tools_wifi_debug_desc)
+                        }
+                        DevToggleRow(
+                            title = stringResource(R.string.tools_wifi_debug_title),
+                            desc = wifiSubtitle,
+                            iconRes = R.drawable.ic_wifi_tethering,
+                            isChecked = isWifiDebugEnabled,
+                            onToggle = {
+                                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.toast_wifi_debug_requires_android_11),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@DevToggleRow
+                                }
+                                scope.launch {
+                                    val success = DevTilesController.toggleSetting(context, DevTilesController.KEY_WIFI_DEBUG)
+                                    if (!success) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.toast_permission_write_secure_settings),
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -529,6 +717,68 @@ fun ToolsScreen(
         PackageInstallDialog(
             apkUri = uri,
             onDismiss = { selectedApkUri = null }
+        )
+    }
+}
+
+@Composable
+private fun DevToggleRow(
+    title: String,
+    desc: String,
+    iconRes: Int,
+    isChecked: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(colorScheme.surface.copy(alpha = 0.35f))
+            .border(1.dp, colorScheme.outline.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = if (isChecked) colorScheme.primary.copy(alpha = 0.15f) else colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(34.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = null,
+                    tint = if (isChecked) colorScheme.primary else colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = desc,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isChecked) colorScheme.primary.copy(alpha = 0.85f) else colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Switch(
+            checked = isChecked,
+            onCheckedChange = { onToggle() },
+            modifier = Modifier.scale(0.80f)
         )
     }
 }
