@@ -282,6 +282,10 @@ fun BatteryStatsScreen(
                 HorizontalDivider()
 
                 // Pager content
+                val metrics = remember(snapshot, drainState) {
+                    BatteryDisplayMetrics.resolve(snapshot, drainState)
+                }
+
                 CompositionLocalProvider(LocalShowAppNames provides showAppNames) {
                     HorizontalPager(
                         state = pagerState,
@@ -311,12 +315,14 @@ fun BatteryStatsScreen(
                                             snackbarHost.showSnackbar(statsResetFailedMsg)
                                         }
                                     }
-                                }
+                                },
+                                metrics = metrics,
                             )
                             1 -> AppsTab(
                                 apps = snapshot?.apps ?: emptyList(),
                                 estimatedCapacityMah = snapshot?.estimatedCapacityMah ?: 0,
-                                totalDischargePercent = (snapshot?.screenOnDischargePercent ?: 0f) + (snapshot?.screenOffDischargePercent ?: 0f),
+                                metrics = metrics,
+                                totalDischargePercent = metrics.totalDischargePercent,
                             )
                             2 -> {
                                 val kwl = if (snapshot?.kernelWakelocks.isNullOrEmpty()) {
@@ -563,12 +569,10 @@ private fun BatteryMetricItem(
 
 @Composable
 private fun BatteryOverviewCard(
-    snapshot: BatteryStatsParser.FullSnapshot?,
-    drainState: DrainState,
+    metrics: BatteryDisplayMetrics,
     onResetStats: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val metrics = BatteryDisplayMetrics.resolve(snapshot, drainState)
     val screenOnMs = metrics.screenOnMs
     val totalTimeMs = metrics.totalTimeMs
     val screenOffMs = metrics.screenOffMs
@@ -664,6 +668,7 @@ private fun OverviewTab(
     onToggleEnforceDoze: (Boolean) -> Unit,
     onConfigureEnforceDoze: () -> Unit,
     onResetStats: () -> Unit,
+    metrics: BatteryDisplayMetrics = BatteryDisplayMetrics.resolve(snapshot, drainState),
 ) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -671,8 +676,7 @@ private fun OverviewTab(
     ) {
         item {
             BatteryOverviewCard(
-                snapshot = snapshot,
-                drainState = drainState,
+                metrics = metrics,
                 onResetStats = onResetStats,
             )
         }
@@ -1097,13 +1101,37 @@ private fun CurrentStateCard(
 private fun AppsTab(
     apps: List<BatteryStatsParser.AppPowerStats>,
     estimatedCapacityMah: Int = 0,
+    metrics: BatteryDisplayMetrics? = null,
     totalDischargePercent: Float = 0f,
 ) {
     var sortBy by remember { mutableStateOf(AppSortOption.POWER) }
     var showSystemApps by remember { mutableStateOf(false) }
 
-    val effectiveCapacity = if (estimatedCapacityMah > 0) estimatedCapacityMah.toDouble() else 4500.0
+    val sessionDischargePct = metrics?.totalDischargePercent?.takeIf { it > 0f } ?: totalDischargePercent
+
+    val effectiveCapacity = when {
+        estimatedCapacityMah > 0 -> estimatedCapacityMah.toDouble()
+        metrics != null && metrics.totalDrainMah > 0.0 && metrics.totalDischargePercent > 0f ->
+            (metrics.totalDrainMah / metrics.totalDischargePercent) * 100.0
+        else -> 4500.0
+    }
+
     val totalAppsPowerMah = remember(apps) { apps.sumOf { it.powerMah } }
+
+    val sessionDrainMah = when {
+        metrics != null && metrics.totalDrainMah > 0.0 -> metrics.totalDrainMah
+        sessionDischargePct > 0f -> (sessionDischargePct / 100.0) * effectiveCapacity
+        else -> totalAppsPowerMah
+    }
+
+    val displaySummaryMah = if (sessionDischargePct > 0f) sessionDrainMah else totalAppsPowerMah
+    val displaySummaryPct = if (sessionDischargePct > 0f) {
+        sessionDischargePct
+    } else if (effectiveCapacity > 0.0) {
+        (totalAppsPowerMah / effectiveCapacity * 100.0).toFloat().coerceAtLeast(0f)
+    } else {
+        0f
+    }
 
     val filteredApps = remember(apps, sortBy, showSystemApps) {
         apps.filter { app ->
@@ -1123,8 +1151,8 @@ private fun AppsTab(
 
     Column(modifier = Modifier.fillMaxSize()) {
         AppsSummaryCard(
-            totalPowerMah = totalAppsPowerMah,
-            capacityMah = effectiveCapacity,
+            totalPowerMah = displaySummaryMah,
+            totalDischargePercent = displaySummaryPct,
             activeAppsCount = apps.count { it.powerMah > 0.05 },
             modifier = Modifier
                 .fillMaxWidth()
@@ -1197,7 +1225,8 @@ private fun AppsTab(
                         app = app,
                         capacityMah = effectiveCapacity,
                         totalSessionAppsMah = totalAppsPowerMah,
-                        sessionDischargePct = totalDischargePercent,
+                        sessionDischargePct = sessionDischargePct,
+                        totalSessionDrainMah = sessionDrainMah,
                     )
                 }
             }
@@ -1208,14 +1237,10 @@ private fun AppsTab(
 @Composable
 private fun AppsSummaryCard(
     totalPowerMah: Double,
-    capacityMah: Double,
+    totalDischargePercent: Float,
     activeAppsCount: Int,
     modifier: Modifier = Modifier,
 ) {
-    val pctOfCapacity = if (capacityMah > 0) {
-        (totalPowerMah / capacityMah * 100.0).coerceAtLeast(0.0)
-    } else 0.0
-
     FrostedCard(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1252,7 +1277,7 @@ private fun AppsSummaryCard(
                 Text(
                     text = stringResource(
                         R.string.total_apps_power_subtitle,
-                        String.format(Locale.getDefault(), "%.1f", pctOfCapacity),
+                        String.format(Locale.getDefault(), "%.1f", totalDischargePercent),
                         activeAppsCount
                     ),
                     style = MaterialTheme.typography.bodySmall,
@@ -1265,7 +1290,7 @@ private fun AppsSummaryCard(
                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
             ) {
                 Text(
-                    text = String.format(Locale.getDefault(), "%.1f%%", pctOfCapacity),
+                    text = String.format(Locale.getDefault(), "%.1f%%", totalDischargePercent),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -1300,6 +1325,7 @@ private fun AppStatsCard(
     capacityMah: Double = 4500.0,
     totalSessionAppsMah: Double = 0.0,
     sessionDischargePct: Float = 0f,
+    totalSessionDrainMah: Double = 0.0,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val appIconDrawable = rememberAppIcon(app.packageName)
@@ -1319,6 +1345,12 @@ private fun AppStatsCard(
         (app.powerMah / totalSessionAppsMah) * sessionDischargePct.toDouble()
     } else {
         percentOfBattery
+    }
+
+    val displayMah = if (sessionDischargePct > 0f && totalSessionAppsMah > 0.0 && totalSessionDrainMah > 0.0) {
+        (app.powerMah / totalSessionAppsMah) * totalSessionDrainMah
+    } else {
+        app.powerMah
     }
 
     FrostedCard(
@@ -1419,7 +1451,7 @@ private fun AppStatsCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                         Text(
-                            text = String.format(Locale.getDefault(), "%.1f mAh", app.powerMah),
+                            text = String.format(Locale.getDefault(), "%.1f mAh", displayMah),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
