@@ -159,10 +159,10 @@ private enum class TaskManagerTab {
     HISTORY,
     BACKGROUND,
     NETWORK,
-    BATTERY,
     CYCLES,
     TOOLS,
     SETTINGS,
+    BATTERY,
 }
 
 /**
@@ -433,17 +433,6 @@ fun TaskManagerScreen(
                         )
                     }
 
-                    TaskManagerTab.BATTERY -> {
-                        BatteryStatsScreen(
-                            onBack = {
-                                scope.launch {
-                                    pagerState.animateScrollToPage(TaskManagerTab.PERFORMANCE.ordinal)
-                                }
-                            },
-                            showHeader = false,
-                        )
-                    }
-
                     TaskManagerTab.CYCLES -> {
                         BatteryCyclesScreen(
                             allApps = allApps,
@@ -464,6 +453,17 @@ fun TaskManagerScreen(
                             activeThemeId = activeThemeId,
                             onSelectTheme = onSelectTheme,
                             onNavigateBack = {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(TaskManagerTab.PERFORMANCE.ordinal)
+                                }
+                            },
+                            showHeader = false,
+                        )
+                    }
+
+                    TaskManagerTab.BATTERY -> {
+                        BatteryStatsScreen(
+                            onBack = {
                                 scope.launch {
                                     pagerState.animateScrollToPage(TaskManagerTab.PERFORMANCE.ordinal)
                                 }
@@ -550,10 +550,10 @@ private fun CleanTaskManagerTopBar(
                         TaskManagerTab.HISTORY -> stringResource(R.string.task_manager_tab_history) to Icons.Filled.CalendarMonth
                         TaskManagerTab.BACKGROUND -> stringResource(R.string.task_manager_tab_background) to Icons.Filled.Bedtime
                         TaskManagerTab.NETWORK -> stringResource(R.string.task_manager_tab_network) to Icons.Filled.Wifi
-                        TaskManagerTab.BATTERY -> stringResource(R.string.task_manager_tab_battery) to Icons.Filled.BatteryChargingFull
                         TaskManagerTab.CYCLES -> stringResource(R.string.task_manager_tab_cycles) to Icons.Filled.Autorenew
                         TaskManagerTab.TOOLS -> stringResource(R.string.task_manager_tab_tools) to Icons.Filled.Build
                         TaskManagerTab.SETTINGS -> stringResource(R.string.task_manager_tab_settings) to Icons.Filled.Settings
+                        TaskManagerTab.BATTERY -> stringResource(R.string.task_manager_tab_battery) to Icons.Filled.BatteryChargingFull
                     }
                     ExpressiveTabPill(
                         title = title,

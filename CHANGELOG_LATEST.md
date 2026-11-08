@@ -1,5 +1,5 @@
-### MAY Task Manager v1.0.16
-- Correcao do carregamento de icones de aplicativos na tela de processos na primeira inicializacao.
-- Pre-carregamento assincrono e cache em memoria da lista de aplicativos instalados.
-- Sincronizacao de estado reativo e fallback direto por pacote para exibicao imediata de icones.
+### MAY Task Manager v1.0.17
+- Correcao do calculo de porcentagem de consumo da bateria e drenagem de apps no historico diario.
+- Eliminacao de formulas estimadas artificiais e calculo estrito por ciclo e linha do tempo do dia.
+- Reordenacao da aba de Bateria para a ultima posicao do aplicativo, apos Configuracoes.
 ---

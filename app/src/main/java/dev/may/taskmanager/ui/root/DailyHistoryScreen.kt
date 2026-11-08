@@ -158,8 +158,7 @@ fun DailyHistoryScreen(
             },
             onRefresh = {
                 scope.launch {
-                    repository.refreshDay(LocalDate.now())
-                    repository.loadMonthRecords(selectedYearMonth.year, selectedYearMonth.monthValue)
+                    repository.loadMonthRecords(selectedYearMonth.year, selectedYearMonth.monthValue, forceRecompute = true)
                 }
             },
             onJumpToToday = {

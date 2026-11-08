@@ -22,6 +22,8 @@ import dev.may.taskmanager.battery.AdvancedDrainTracker
 import dev.may.taskmanager.battery.BatteryCycleRepository
 import dev.may.taskmanager.battery.CycleType
 import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -307,44 +309,80 @@ class DailyHistoryRepository private constructor(private val context: Context) {
         // 2. Gather App Launches, Screen On Time, Reboots, Shutdowns from UsageEvents
         val eventStats = computeUsageEventsForDay(startOfDay, endOfDay)
 
-        // 3. Compute Top Battery Consumers for the day
-        val batteryConsumers = computeBatteryConsumers(date, eventStats.appScreenTimes, eventStats.appLaunches)
-
-        // 4. Background anomalies from AnomalyHistoryRepository for this day
+        // 3. Background anomalies from AnomalyHistoryRepository for this day
         val anomalyRepo = AnomalyHistoryRepository.getInstance(context)
         val anomaliesForDay = anomalyRepo.events.value.filter { it.timestamp in startOfDay..endOfDay }
         val anomalyCount = anomaliesForDay.size
         val deepSleepCount = anomaliesForDay.count { it.type == AnomalyType.DEEP_SLEEP }
 
-        // 5. Merge with recorded battery drain, cycles repository, and tracker telemetry
-        val cyclesRepo = runCatching { BatteryCycleRepository.getInstance(context) }.getOrNull()
-        val todayCycles = cyclesRepo?.cyclesFlow?.value?.filter {
-            it.type == CycleType.DISCHARGE &&
-                ((it.startTimeMs in startOfDay..endOfDay) || (it.endTimeMs in startOfDay..endOfDay) || (it.isActive && it.startTimeMs <= endOfDay))
-        }
-        val todayCyclesDrain = todayCycles?.sumOf {
-            if (it.batteryDeltaPercent > 0) it.batteryDeltaPercent
-            else abs(it.startBatteryLevel - it.endBatteryLevel)
-        } ?: 0
-
+        // 4. Compute battery drain strictly for this day from cycles, timeline, and real broadcasts
         val drainTracker = runCatching { AdvancedDrainTracker.getInstance(context) }.getOrNull()
-        val trackerDrainMah = drainTracker?.drainState?.value?.totalDrainMah ?: 0.0
         val capacity = drainTracker?.drainState?.value?.batteryCapacityMah ?: 4000.0
-        val trackerDrainPct = if (capacity > 0 && trackerDrainMah > 0) ((trackerDrainMah / capacity) * 100.0).toInt() else 0
 
-        val sotHours = eventStats.screenOnTimeMs / 3600000.0
-        val soffHours = eventStats.screenOffTimeMs / 3600000.0
-        val estimatedDrain = ((sotHours * 12.0) + (soffHours * 1.0)).toInt().coerceIn(0, 100)
+        val cyclesRepo = runCatching { BatteryCycleRepository.getInstance(context) }.getOrNull()
+        val dayCycles = cyclesRepo?.cyclesFlow?.value?.filter {
+            it.type == CycleType.DISCHARGE &&
+                it.startTimeMs < endOfDay &&
+                (if (it.isActive) System.currentTimeMillis() else it.endTimeMs) > startOfDay
+        }.orEmpty()
 
-        val existingDrain = existing?.batteryDrainPercent ?: 0
-        val calculatedDrain = maxOf(
-            existingDrain,
-            todayCyclesDrain,
-            trackerDrainPct,
-            if (eventStats.screenOnTimeMs > 60_000L) estimatedDrain else 0
+        var cyclesDrainForDay = 0
+        for (cycle in dayCycles) {
+            val effectiveEnd = if (cycle.isActive) minOf(System.currentTimeMillis(), endOfDay) else cycle.endTimeMs
+            val cyclePoints = cycle.telemetryPoints
+                .filter { it.timestamp in startOfDay..endOfDay }
+                .sortedBy { it.timestamp }
+
+            if (cyclePoints.size >= 2) {
+                var pDrain = 0
+                for (i in 0 until cyclePoints.size - 1) {
+                    val drop = cyclePoints[i].batteryLevel - cyclePoints[i + 1].batteryLevel
+                    if (drop > 0) pDrain += drop
+                }
+                cyclesDrainForDay += pDrain
+            } else {
+                val overlapStart = maxOf(cycle.startTimeMs, startOfDay)
+                val overlapEnd = minOf(effectiveEnd, endOfDay)
+                val overlapMs = (overlapEnd - overlapStart).coerceAtLeast(0L)
+                val totalDuration = (effectiveEnd - cycle.startTimeMs).coerceAtLeast(1L)
+                val cycleDelta = if (cycle.batteryDeltaPercent > 0) {
+                    cycle.batteryDeltaPercent
+                } else {
+                    abs(cycle.startBatteryLevel - cycle.endBatteryLevel)
+                }
+                val prorated = ((overlapMs.toDouble() / totalDuration) * cycleDelta).roundToInt()
+                cyclesDrainForDay += prorated
+            }
+        }
+
+        // Timeline drain from existing recorded points in the day
+        val timelinePoints = existing?.batteryTimeline
+            ?.filter { it.timestamp in startOfDay..endOfDay }
+            ?.sortedBy { it.timestamp }
+            .orEmpty()
+        var timelineDrain = 0
+        for (i in 0 until timelinePoints.size - 1) {
+            val drop = timelinePoints[i].batteryLevel - timelinePoints[i + 1].batteryLevel
+            if (drop > 0) timelineDrain += drop
+        }
+
+        val battDrain = when {
+            cyclesDrainForDay > 0 -> cyclesDrainForDay
+            timelineDrain > 0 -> timelineDrain
+            isToday && (existing?.batteryDrainPercent ?: 0) in 1..100 -> existing!!.batteryDrainPercent
+            else -> 0
+        }.coerceIn(0, 100)
+
+        val battMah = ((battDrain / 100.0) * capacity).roundToLong()
+
+        // 5. Compute Top Battery Consumers for the day (scaled to actual day battery drain)
+        val batteryConsumers = computeBatteryConsumers(
+            date = date,
+            appScreenTimes = eventStats.appScreenTimes,
+            appLaunches = eventStats.appLaunches,
+            dayDrainPercent = battDrain,
+            capacityMah = capacity,
         )
-        val battDrain = if (calculatedDrain > 0) calculatedDrain else existingDrain
-        val battMah = existing?.batteryDrainMah ?: ((battDrain / 100.0) * capacity).toLong()
 
         val ramAvg = if (existing != null && existing.ramSamplesCount > 0) {
             existing.averageRamPercent
@@ -573,7 +611,11 @@ class DailyHistoryRepository private constructor(private val context: Context) {
     /**
      * Precomputes or loads all days for the specified month.
      */
-    suspend fun loadMonthRecords(year: Int, month: Int): List<DailyUsageRecord> = withContext(Dispatchers.IO) {
+    suspend fun loadMonthRecords(
+        year: Int,
+        month: Int,
+        forceRecompute: Boolean = false,
+    ): List<DailyUsageRecord> = withContext(Dispatchers.IO) {
         _isRefreshing.value = true
         val list = mutableListOf<DailyUsageRecord>()
         val now = LocalDate.now()
@@ -587,8 +629,14 @@ class DailyHistoryRepository private constructor(private val context: Context) {
 
             val dateKey = date.format(DATE_FORMATTER)
             val existing = memoryRecords[dateKey]
-            if (existing != null && !date.isEqual(now) && existing.appLaunches.isNotEmpty() && existing.batteryTimeline.isNotEmpty()) {
-                val sanitized = sanitizeRecord(existing, ignoredPkgs)
+            val hasCorruptedConsumers = existing?.topBatteryConsumers?.any { it.drainPercent > 100.0 } == true
+            val hasCorruptedDrain = existing != null && existing.batteryDrainPercent > 100
+            val shouldRecompute = forceRecompute || existing == null || date.isEqual(now) ||
+                existing.appLaunches.isEmpty() || existing.batteryTimeline.isEmpty() ||
+                hasCorruptedConsumers || hasCorruptedDrain
+
+            if (!shouldRecompute) {
+                val sanitized = sanitizeRecord(existing!!, ignoredPkgs)
                 list.add(sanitized)
             } else {
                 val computed = refreshDay(date)
@@ -782,6 +830,8 @@ class DailyHistoryRepository private constructor(private val context: Context) {
         date: LocalDate,
         appScreenTimes: Map<String, Long>,
         appLaunches: List<AppDailyLaunchStat>,
+        dayDrainPercent: Int,
+        capacityMah: Double,
     ): List<DailyBatteryConsumer> {
         val totalScreenTime = appScreenTimes.values.sum().coerceAtLeast(1L)
         val list = mutableListOf<DailyBatteryConsumer>()
@@ -789,13 +839,22 @@ class DailyHistoryRepository private constructor(private val context: Context) {
         for (launch in appLaunches.take(15)) {
             val time = launch.screenTimeMs
             if (time <= 0L) continue
-            val ratio = (time.toDouble() / totalScreenTime.toDouble()).coerceIn(0.01, 1.0)
-            val drainPct = (ratio * 100.0 * 10.0).toInt() / 10.0
+            val ratio = (time.toDouble() / totalScreenTime.toDouble()).coerceIn(0.001, 1.0)
+            val drainPct = if (dayDrainPercent > 0) {
+                ((ratio * dayDrainPercent) * 10.0).roundToInt() / 10.0
+            } else {
+                ((ratio * 100.0) * 10.0).roundToInt() / 10.0
+            }
+            val drainMah = if (dayDrainPercent > 0 && capacityMah > 0) {
+                ((drainPct / 100.0) * capacityMah).roundToLong()
+            } else null
+
             list.add(
                 DailyBatteryConsumer(
                     packageName = launch.packageName,
                     appName = launch.appName,
                     drainPercent = drainPct,
+                    drainMah = drainMah,
                 )
             )
         }
