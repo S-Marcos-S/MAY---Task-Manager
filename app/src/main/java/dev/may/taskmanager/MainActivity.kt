@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package dev.may.taskmanager
 
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.ColorDrawable
@@ -31,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import dev.may.taskmanager.data.AppInfo
+import dev.may.taskmanager.data.AppRepository
 import dev.may.taskmanager.root.TaskManagerEvents
 import dev.may.taskmanager.root.anomaly.BackgroundAnomalyNotificationManager
 import dev.may.taskmanager.root.log.CrashManager
@@ -41,7 +41,6 @@ import dev.may.taskmanager.ui.theme.MayTheme
 import dev.may.taskmanager.ui.theme.glass.WallpaperGlassProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.Locale
 
 private const val PREFS_NAME = "may_task_manager_prefs"
 private const val KEY_ACTIVE_THEME = "active_theme_id"
@@ -65,7 +64,9 @@ class MainActivity : ComponentActivity() {
                 mutableStateOf(prefs.getString(KEY_ACTIVE_THEME, "system_dynamic") ?: "system_dynamic")
             }
             var currentScreen by remember { mutableStateOf(CurrentScreen.TASK_MANAGER) }
-            var allApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+            var allApps by remember {
+                mutableStateOf(AppRepository.getCachedApps() ?: emptyList())
+            }
 
             LaunchedEffect(Unit) {
                 withContext(Dispatchers.IO) {
@@ -207,16 +208,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadInstalledApps(context: Context): List<AppInfo> {
-        val pm = context.packageManager
-        val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-        }
-        val resolveInfos = pm.queryIntentActivities(mainIntent, 0)
-        return resolveInfos.mapNotNull { ri ->
-            val ai = ri.activityInfo ?: return@mapNotNull null
-            val componentName = ComponentName(ai.packageName, ai.name)
-            val label = ri.loadLabel(pm).toString().ifBlank { ai.packageName }
-            AppInfo(componentName = componentName, label = label)
-        }.sortedBy { it.label.lowercase(Locale.ROOT) }
+        return AppRepository(context).queryAllApps()
     }
 }

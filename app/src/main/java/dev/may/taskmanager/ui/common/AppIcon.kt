@@ -56,7 +56,12 @@ fun AppIcon(
     var bitmap by remember(packageName) { mutableStateOf(IconMemoryCache.get(packageName)) }
 
     LaunchedEffect(packageName) {
-        if (bitmap == null) {
+        if (bitmap == null && packageName.isNotBlank()) {
+            val cached = IconMemoryCache.get(packageName)
+            if (cached != null) {
+                bitmap = cached
+                return@LaunchedEffect
+            }
             val loaded = withContext(Dispatchers.IO) {
                 try {
                     val pm = context.packageManager

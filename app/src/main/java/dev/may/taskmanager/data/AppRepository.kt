@@ -8,13 +8,20 @@ import android.content.pm.PackageManager
 
 class AppRepository(private val context: Context) {
 
+    companion object {
+        @Volatile
+        private var cachedApps: List<AppInfo>? = null
+
+        fun getCachedApps(): List<AppInfo>? = cachedApps
+    }
+
     private val pm: PackageManager get() = context.packageManager
 
     fun queryAllApps(): List<AppInfo> {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         @Suppress("DEPRECATION")
         val resolveInfos = pm.queryIntentActivities(intent, 0)
-        return resolveInfos
+        val apps = resolveInfos
             .mapNotNull { ri ->
                 val ai = ri.activityInfo ?: return@mapNotNull null
                 AppInfo(
@@ -24,5 +31,7 @@ class AppRepository(private val context: Context) {
             }
             .distinctBy { it.key }
             .sortedBy { it.label.lowercase() }
+        cachedApps = apps
+        return apps
     }
 }

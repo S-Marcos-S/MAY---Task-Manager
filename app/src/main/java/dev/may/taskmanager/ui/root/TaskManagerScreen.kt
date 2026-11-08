@@ -105,6 +105,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -183,6 +184,7 @@ fun TaskManagerScreen(
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
+    val currentAllApps by rememberUpdatedState(allApps)
 
     val tabs = remember { TaskManagerTab.entries }
     val pagerState = rememberPagerState(
@@ -233,7 +235,7 @@ fun TaskManagerScreen(
         scope.launch {
             if (showSpinner) isRefreshing = true
             val perf = SystemTaskInspector.getPerformanceSnapshot(context)
-            val tasks = SystemTaskInspector.getRunningTasks(context, allApps)
+            val tasks = SystemTaskInspector.getRunningTasks(context, currentAllApps)
 
             performanceSnapshot = perf
             runningTasksSnapshot = tasks
@@ -262,6 +264,12 @@ fun TaskManagerScreen(
             batteryDischargeHistory.add(battMa)
 
             isRefreshing = false
+        }
+    }
+
+    LaunchedEffect(allApps) {
+        if (allApps.isNotEmpty()) {
+            refreshAll(showSpinner = false)
         }
     }
 
@@ -1014,9 +1022,18 @@ private fun ProcessRowCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Icon or Generic System Icon
-            if (item.appInfo != null) {
+            val appInfo = item.appInfo
+            if (appInfo != null) {
                 AppIcon(
-                    app = item.appInfo,
+                    app = appInfo,
+                    sizeDp = 38,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .border(1.dp, colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                )
+            } else if (!isSystem && !item.isSystemProcess && item.packageName.isNotBlank() && item.packageName.contains(".")) {
+                AppIcon(
+                    packageName = item.packageName,
                     sizeDp = 38,
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))

@@ -4,11 +4,15 @@ package dev.may.taskmanager
 import android.app.Application
 import dev.may.taskmanager.battery.AdvancedDrainTracker
 import dev.may.taskmanager.battery.DrainNotificationManager
+import dev.may.taskmanager.data.AppRepository
 import dev.may.taskmanager.network.NetSpeedSettings
 import dev.may.taskmanager.network.SpeedMonitorService
 import dev.may.taskmanager.root.anomaly.BackgroundAnomalyWatcher
 import dev.may.taskmanager.ui.theme.glass.WallpaperGlassProvider
 import dev.may.taskmanager.update.UpdateManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MayApp : Application() {
 
@@ -23,6 +27,9 @@ class MayApp : Application() {
         }
         if (NetSpeedSettings(this).isEnabled) {
             SpeedMonitorService.start(this)
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            AppRepository(this@MayApp).queryAllApps()
         }
     }
 

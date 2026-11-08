@@ -1,5 +1,5 @@
-### MAY Task Manager v1.0.15
-- Correcao de conversao de formato em notificacoes de anomalias de CPU, RAM e sono profundo em segundo plano.
-- Adequacao dos especificadores de strings para porcentagens e valores formatados sem erros de conversao.
-- Extracao da formatacao de tempo acordado em segundo plano para recursos de strings traduziveis.
+### MAY Task Manager v1.0.16
+- Correcao do carregamento de icones de aplicativos na tela de processos na primeira inicializacao.
+- Pre-carregamento assincrono e cache em memoria da lista de aplicativos instalados.
+- Sincronizacao de estado reativo e fallback direto por pacote para exibicao imediata de icones.
 ---

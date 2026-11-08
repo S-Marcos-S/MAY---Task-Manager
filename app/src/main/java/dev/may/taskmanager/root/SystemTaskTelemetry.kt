@@ -3,6 +3,7 @@ package dev.may.taskmanager.root
 
 import android.annotation.SuppressLint
 import android.app.ActivityManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -413,11 +414,13 @@ object SystemTaskInspector {
             val baseCmd = cmd.substringBefore(" ").substringAfterLast("/")
             val cleanCmd = baseCmd.removeSurrounding("[", "]").removeSurrounding("(", ")")
 
-            val matchedApp = appsByPackage.values.firstOrNull { app ->
-                AppRootInspector.isPackageProcess(cmd, app.packageName) ||
-                    cleanCmd == app.packageName ||
-                    cleanCmd.startsWith("${app.packageName}:")
-            }
+            val matchedApp = appsByPackage[cleanCmd]
+                ?: appsByPackage[cleanCmd.substringBefore(":")]
+                ?: appsByPackage.values.firstOrNull { app ->
+                    AppRootInspector.isPackageProcess(cmd, app.packageName) ||
+                        cleanCmd == app.packageName ||
+                        cleanCmd.startsWith("${app.packageName}:")
+                }
 
             if (matchedApp != null) {
                 val pkg = matchedApp.packageName
@@ -471,6 +474,10 @@ object SystemTaskInspector {
 
                     val ramMb = (proc.memPercent / 100.0) * totalRamMb
                     val (impact, powerMw) = calculatePowerImpact(proc.cpuPercent, isFg, isSystem = false)
+                    val resolvedAppInfo = appsByPackage[pkgName] ?: AppInfo(
+                        componentName = ComponentName(pkgName, ""),
+                        label = label,
+                    )
                     val item = TaskProcessItem(
                         pid = proc.pid,
                         packageName = pkgName,
@@ -481,7 +488,7 @@ object SystemTaskInspector {
                         ramMb = ramMb,
                         isForeground = isFg,
                         isSystemProcess = false,
-                        appInfo = null,
+                        appInfo = resolvedAppInfo,
                         powerImpact = impact,
                         estimatedPowerMw = powerMw,
                     )
