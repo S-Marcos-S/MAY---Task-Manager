@@ -139,6 +139,11 @@ object TelemetryValidator {
                 TelemetryNature.UNAVAILABLE,
                 "Acesso a estatisticas individuais de CPU por processo restrito pelo SELinux sem Root"
             )
+            deltaCpuMs < 0L -> Triple(
+                ConfidenceLevel.LOW,
+                TelemetryNature.ESTIMATE,
+                "Reinicializacao ou reciclagem de PID detectada; baseline reiniciado"
+            )
             consecutiveHits >= 2 -> Triple(
                 ConfidenceLevel.HIGH,
                 TelemetryNature.DIRECT_MEASUREMENT,

@@ -1428,6 +1428,7 @@
     <string name="telemetry_nature_direct">Direta</string>
     <string name="telemetry_nature_aggregated">Agregada</string>
     <string name="telemetry_nature_estimate">Estimativa</string>
+    <string name="telemetry_nature_inference">Inferência</string>
     <string name="telemetry_nature_unavailable">Indisponível</string>
     <string name="telemetry_attribution_inconclusive">Inconclusiva</string>
     <string name="telemetry_status_active">Ativo</string>

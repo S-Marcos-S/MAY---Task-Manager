@@ -250,11 +250,15 @@ class AnomalyHistoryRepository private constructor(private val context: Context)
                 val service = if (obj.has("serviceOrProcess")) obj.optString("serviceOrProcess") else null
                 val cause = if (obj.has("probableCause")) obj.optString("probableCause") else null
 
-                val confName = obj.optString("confidence", ConfidenceLevel.HIGH.name)
-                val confidence = runCatching { ConfidenceLevel.valueOf(confName) }.getOrDefault(ConfidenceLevel.HIGH)
+                val isLegacy = !obj.has("confidence")
+                val confName = obj.optString("confidence", ConfidenceLevel.LOW.name)
+                val confidence = runCatching { ConfidenceLevel.valueOf(confName) }.getOrDefault(ConfidenceLevel.LOW)
 
-                val natureName = obj.optString("nature", TelemetryNature.DIRECT_MEASUREMENT.name)
-                val nature = runCatching { TelemetryNature.valueOf(natureName) }.getOrDefault(TelemetryNature.DIRECT_MEASUREMENT)
+                val natureName = obj.optString("nature", TelemetryNature.ESTIMATE.name)
+                val nature = runCatching { TelemetryNature.valueOf(natureName) }.getOrDefault(TelemetryNature.ESTIMATE)
+
+                val defaultReason = if (isLegacy) "Registro legado anterior sem metadados de medicao" else null
+                val reason = if (obj.has("reason")) obj.optString("reason") else defaultReason
 
                 val ts = obj.optLong("timestamp", System.currentTimeMillis())
                 val start = obj.optLong("startTime", ts)
@@ -282,13 +286,13 @@ class AnomalyHistoryRepository private constructor(private val context: Context)
                         durationMs = duration,
                         confidence = confidence,
                         nature = nature,
-                        source = obj.optString("source", "system"),
-                        isEstimated = obj.optBoolean("isEstimated", false),
+                        source = obj.optString("source", if (isLegacy) "legacy" else "system"),
+                        isEstimated = if (isLegacy) true else obj.optBoolean("isEstimated", false),
                         isComplete = obj.optBoolean("isComplete", true),
                         rootAvailable = obj.optBoolean("rootAvailable", false),
-                        collectionMethod = obj.optString("collectionMethod", "native"),
+                        collectionMethod = obj.optString("collectionMethod", if (isLegacy) "legacy_import" else "native"),
                         isFallback = obj.optBoolean("isFallback", false),
-                        reason = if (obj.has("reason")) obj.optString("reason") else null,
+                        reason = reason,
                     )
                 )
             }

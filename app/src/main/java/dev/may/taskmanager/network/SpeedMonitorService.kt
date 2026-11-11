@@ -163,6 +163,7 @@ class SpeedMonitorService : Service() {
     private var lastElapsedRealtimeNanos: Long = 0L
     private var lastValidSampleTimeMillis: Long = 0L
     private var isCollectionError: Boolean = false
+    private var isStale: Boolean = false
     private var lastStatsUpdateTime: Long = 0L
     private var connectivityManager: ConnectivityManager? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
@@ -411,18 +412,31 @@ class SpeedMonitorService : Service() {
         val rxState = TelemetryValidator.evaluateCounter(currentTotalRx, lastRxBytes)
         val txState = TelemetryValidator.evaluateCounter(currentTotalTx, lastTxBytes)
 
+        val isStaleInterval = (lastElapsedRealtimeNanos > 0L && deltaTime > 30.0)
+
         if (!isSupported || rxState == TelemetryValidator.CounterState.NEGATIVE_OR_UNSUPPORTED || txState == TelemetryValidator.CounterState.NEGATIVE_OR_UNSUPPORTED) {
             isCollectionError = true
+            isStale = false
         } else if (rxState == TelemetryValidator.CounterState.RESET_OR_REBOOT || txState == TelemetryValidator.CounterState.RESET_OR_REBOOT) {
             // Reinicialização de contadores detectada (reboot ou reinício de driver de rede)
             isCollectionError = false
+            isStale = false
             lastRxBytes = currentTotalRx
             lastTxBytes = currentTotalTx
             lastElapsedRealtimeNanos = nowNanos
-            lastValidSampleTimeMillis = currentTime
+            return
+        } else if (isStaleInterval) {
+            // Intervalo excessivo (>30s): descarta velocidade instantanea para evitar picos artificiais
+            isCollectionError = false
+            isStale = true
+            lastRxBytes = currentTotalRx
+            lastTxBytes = currentTotalTx
+            lastElapsedRealtimeNanos = nowNanos
+            updateNotification(0.0, 0.0, 0.0, "--", "--", "--", formatBytes(dailyMobileTotal), formatBytes(dailyWifiTotal), emptyList())
             return
         } else {
             isCollectionError = false
+            isStale = false
         }
 
         val deltaRx = if (!isCollectionError && lastRxBytes > 0L && currentTotalRx >= lastRxBytes) currentTotalRx - lastRxBytes else 0L
@@ -435,7 +449,9 @@ class SpeedMonitorService : Service() {
             lastRxBytes = currentTotalRx
             lastTxBytes = currentTotalTx
             lastElapsedRealtimeNanos = nowNanos
-            lastValidSampleTimeMillis = currentTime
+            if (lastRxBytes > 0L) {
+                lastValidSampleTimeMillis = currentTime
+            }
         }
 
         val isDownload = downloadSpeed >= uploadSpeed
@@ -762,10 +778,11 @@ class SpeedMonitorService : Service() {
         } else {
             "--:--:--"
         }
+        val isStaleData = isStale || (lastValidSampleTimeMillis > 0L && System.currentTimeMillis() - lastValidSampleTimeMillis > 15000L)
         val statusText = when {
             isCollectionError -> getString(R.string.telemetry_status_error)
             !isScreenOn -> getString(R.string.telemetry_status_paused)
-            System.currentTimeMillis() - lastValidSampleTimeMillis > 12000L && lastValidSampleTimeMillis > 0L -> getString(R.string.telemetry_status_stale)
+            isStaleData -> getString(R.string.telemetry_status_stale)
             else -> getString(R.string.telemetry_status_active)
         }
 
@@ -776,7 +793,7 @@ class SpeedMonitorService : Service() {
             appendLine(getString(R.string.net_speed_last_sample, lastSampleTimeStr))
 
             if (settings.isRealTimeEnabled) {
-                if (isCollectionError) {
+                if (isCollectionError || isStaleData) {
                     appendLine("${getString(R.string.net_speed_download)}: --  |  ${getString(R.string.net_speed_upload)}: --")
                 } else {
                     appendLine("${getString(R.string.net_speed_download)}: $downSpeedText  |  ${getString(R.string.net_speed_upload)}: $upSpeedText")

@@ -214,4 +214,21 @@ class SpeedMonitorAppDeltasTest {
         assertEquals(ConfidenceLevel.LOW, rxSample.confidence)
         assertTrue(rxSample.isEstimated)
     }
+
+    @Test
+    fun telemetryValidator_flagsStaleIntervalAccurately() {
+        val (rxSample, txSample) = TelemetryValidator.computeGlobalNetworkSpeed(
+            currentRx = 2_000_000L,
+            currentTx = 2_000_000L,
+            prevRx = 1_000_000L,
+            prevTx = 1_000_000L,
+            deltaNanos = 45_000_000_000L, // 45 segundos (> 30s)
+            isSupported = true,
+            rootAvailable = false,
+        )
+
+        assertEquals(ConfidenceLevel.LOW, rxSample.confidence)
+        assertEquals(dev.may.taskmanager.telemetry.TelemetryNature.AGGREGATED_STATISTIC, rxSample.nature)
+        assertEquals(ConfidenceLevel.LOW, txSample.confidence)
+    }
 }

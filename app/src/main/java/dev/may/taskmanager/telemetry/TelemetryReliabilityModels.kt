@@ -23,6 +23,7 @@ enum class TelemetryNature(val labelRes: Int) {
     DIRECT_MEASUREMENT(R.string.telemetry_nature_direct),
     AGGREGATED_STATISTIC(R.string.telemetry_nature_aggregated),
     ESTIMATE(R.string.telemetry_nature_estimate),
+    INFERENCE(R.string.telemetry_nature_inference),
     UNAVAILABLE(R.string.telemetry_nature_unavailable);
 
     fun getLabel(context: Context): String = context.getString(labelRes)

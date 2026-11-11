@@ -25,6 +25,7 @@ import dev.may.taskmanager.root.AppRootInspector
 import dev.may.taskmanager.root.SystemTaskInspector
 import dev.may.taskmanager.telemetry.ConfidenceLevel
 import dev.may.taskmanager.telemetry.TelemetryNature
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -38,8 +39,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -88,6 +91,8 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
     private val captureMutex = Mutex()
     private var isSnapshotReady = false
+    private var activeCaptureDeferred: CompletableDeferred<Boolean>? = null
+    private var currentSessionId: String = ""
 
     private val isRunning = AtomicBoolean(false)
     private var screenOnLoopJob: Job? = null
@@ -100,6 +105,15 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
     private data class UidNetSample(val rx: Long, val tx: Long, val timestamp: Long)
 
+    // Identidade imutavel do processo para rastreamento de CPU sem colisao de PIDs reciclados
+    private data class ProcessIdentity(val pid: Int, val processName: String)
+    private data class ProcessCpuSample(val cpuTimeMs: Long, val monotonicMs: Long, val consecutiveHits: Int)
+    private val processCpuTracker = ConcurrentHashMap<ProcessIdentity, ProcessCpuSample>()
+
+    // Rastreamento temporal de RAM baseado em RSS real por identidade de processo
+    private data class ProcessRamSample(val rssMb: Double, val monotonicMs: Long)
+    private val processRamHistory = ConcurrentHashMap<ProcessIdentity, MutableList<ProcessRamSample>>()
+
     // Cache de amostras de rede para cálculo diferencial (tela ligada)
     private val activeNetSamples = ConcurrentHashMap<Int, UidNetSample>()
 
@@ -109,12 +123,6 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
     // Controle de pacotes temporariamente silenciados (mute) e cooldown de alertas
     private val mutedPackages = ConcurrentHashMap<String, Long>()
     private val lastAlertTimeMap = ConcurrentHashMap<String, Long>()
-
-    // Rastreamento de CPU para confirmação de anomalia persistente (evita falso-positivo de picos de 1s)
-    private val cpuHighAppConsecutiveCycles = ConcurrentHashMap<String, Int>()
-
-    // Rastreamento temporal de RAM para diferenciação entre pico isolado, consumo estável e vazamento (leak)
-    private val ramGrowthHistory = ConcurrentHashMap<String, MutableList<Pair<Long, Double>>>()
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, intent: Intent) {
@@ -219,7 +227,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         if (isScreenInteractive) {
             startScreenOnEvaluationLoop()
         } else {
-            captureScreenOffSnapshot()
+            onScreenTurnedOff()
         }
     }
 
@@ -228,6 +236,11 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         if (!isRunning.getAndSet(false)) return
         screenOnLoopJob?.cancel()
         screenOnLoopJob = null
+        activeCaptureDeferred?.cancel()
+        activeCaptureDeferred = null
+        currentSessionId = ""
+        isSnapshotReady = false
+        _watcherState.value = AnomalyWatcherState.INACTIVE
         _isMonitoring.value = false
 
         if (screenReceiverRegistered) {
@@ -238,34 +251,48 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
     private fun onScreenTurnedOff() {
         isScreenInteractive = false
+        val sessionId = UUID.randomUUID().toString()
+        currentSessionId = sessionId
         screenOffTimeRealtime = SystemClock.elapsedRealtime()
         screenOffUptime = SystemClock.uptimeMillis()
         screenOffWallTime = System.currentTimeMillis()
         isSnapshotReady = false
         _watcherState.value = AnomalyWatcherState.PREPARING_CAPTURE
 
+        // Cancela captura pendente anterior em caso de alternancia rapida
+        activeCaptureDeferred?.cancel()
+        val deferred = CompletableDeferred<Boolean>()
+        activeCaptureDeferred = deferred
+
         // Regra de Ouro: suspende qualquer loop de polling ativo. O processador DEVE dormir 100%.
         screenOnLoopJob?.cancel()
         screenOnLoopJob = null
 
-        captureScreenOffSnapshot()
+        captureScreenOffSnapshot(sessionId, deferred)
     }
 
     private fun onScreenTurnedOn() {
         if (isScreenInteractive) return
         isScreenInteractive = true
 
+        val sessionId = currentSessionId
         val now = SystemClock.elapsedRealtime()
         val nowUptime = SystemClock.uptimeMillis()
         val durationOffMs = now - screenOffTimeRealtime
         val awakeOffMs = (nowUptime - screenOffUptime).coerceAtLeast(0L)
 
-        // Se a tela ficou desligada por mais de 5 segundos, analisa a fotografia diferencial
+        // Se a tela ficou desligada por mais de 5 segundos, aguarda a fotografia e analisa
         if (screenOffTimeRealtime > 0L && durationOffMs >= 5_000L) {
             scope.launch(Dispatchers.IO) {
                 _watcherState.value = AnomalyWatcherState.EVALUATION_IN_PROGRESS
+
+                // Aguarda conclusao da captura da sessao ativa com timeout finito de 5 segundos
+                val captureSuccess = withTimeoutOrNull(5000L) {
+                    activeCaptureDeferred?.await()
+                } ?: false
+
                 captureMutex.withLock {
-                    if (isSnapshotReady) {
+                    if (currentSessionId == sessionId && captureSuccess && isSnapshotReady) {
                         evaluateScreenOffDifferential(durationOffMs)
                         evaluateDeepSleepDisruption(durationOffMs, awakeOffMs)
                         _watcherState.value = AnomalyWatcherState.EVALUATION_COMPLETED
@@ -274,6 +301,8 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                     }
                 }
             }
+        } else {
+            _watcherState.value = AnomalyWatcherState.INACTIVE
         }
 
         if (isRunning.get() && _config.value.isEnabled) {
@@ -319,29 +348,40 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
      * Tira uma fotografia leve de todos os UIDs instalados via TrafficStats no instante em que a tela apaga.
      * Custo de CPU: < 1ms (chamadas C in-memory diretas do kernel eBPF/TrafficStats).
      */
-    private fun captureScreenOffSnapshot() {
+    private fun captureScreenOffSnapshot(sessionId: String, deferred: CompletableDeferred<Boolean>) {
         scope.launch(Dispatchers.IO) {
             captureMutex.withLock {
-                val pm = context.packageManager
-                val installed = runCatching { pm.getInstalledApplications(0) }.getOrDefault(emptyList())
-                val map = mutableMapOf<Int, UidNetSample>()
-                val now = SystemClock.elapsedRealtime()
+                if (currentSessionId != sessionId) {
+                    deferred.complete(false)
+                    return@withLock
+                }
+                try {
+                    val pm = context.packageManager
+                    val installed = runCatching { pm.getInstalledApplications(0) }.getOrDefault(emptyList())
+                    val map = mutableMapOf<Int, UidNetSample>()
+                    val now = SystemClock.elapsedRealtime()
 
-                for (app in installed) {
-                    val uid = app.uid
-                    if (uid >= 10000 && !map.containsKey(uid)) {
-                        val rx = TrafficStats.getUidRxBytes(uid)
-                        val tx = TrafficStats.getUidTxBytes(uid)
-                        if (rx > 0L || tx > 0L) {
-                            map[uid] = UidNetSample(rx, tx, now)
+                    for (app in installed) {
+                        val uid = app.uid
+                        if (uid >= 10000 && !map.containsKey(uid)) {
+                            val rx = TrafficStats.getUidRxBytes(uid)
+                            val tx = TrafficStats.getUidTxBytes(uid)
+                            if (rx > 0L || tx > 0L) {
+                                map[uid] = UidNetSample(rx, tx, now)
+                            }
                         }
                     }
+                    screenOffNetSnapshots.clear()
+                    screenOffNetSnapshots.putAll(map)
+                    isSnapshotReady = true
+                    _watcherState.value = AnomalyWatcherState.CAPTURE_COMPLETED
+                    _watcherState.value = AnomalyWatcherState.SCREEN_OFF
+                    deferred.complete(true)
+                } catch (e: Exception) {
+                    isSnapshotReady = false
+                    _watcherState.value = AnomalyWatcherState.COLLECTION_UNAVAILABLE
+                    deferred.complete(false)
                 }
-                screenOffNetSnapshots.clear()
-                screenOffNetSnapshots.putAll(map)
-                isSnapshotReady = true
-                _watcherState.value = AnomalyWatcherState.CAPTURE_COMPLETED
-                _watcherState.value = AnomalyWatcherState.SCREEN_OFF
             }
         }
     }
@@ -523,6 +563,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         val pm = context.packageManager
         val now = System.currentTimeMillis()
         var suspectInfo: ResolvedUidInfo? = null
+        var isFromUsageEvents = false
 
         // 1. Investigacao com Root: busca wakelocks parciais ativos
         if (AppRootInspector.isRootAvailable()) {
@@ -547,7 +588,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
             }
         }
 
-        // 2. Investigacao via UsageEvents (Android padrao)
+        // 2. Investigacao via UsageEvents (Android padrao) - Tratado estritamente como inferencia/contexto
         if (suspectInfo == null) {
             val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             if (usm != null) {
@@ -578,6 +619,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                             packageCount = 1,
                             allPackages = listOf(topPkg),
                         )
+                        isFromUsageEvents = true
                     }
                 }
             }
@@ -616,8 +658,22 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
         val confidence = when {
             isDeviceLevel -> ConfidenceLevel.LOW
-            suspectInfo?.isSharedUid == true -> ConfidenceLevel.MEDIUM
-            else -> ConfidenceLevel.HIGH
+            isFromUsageEvents -> ConfidenceLevel.LOW // Inferencia indireta sem comprovacao causal
+            suspectInfo?.isSharedUid == true -> ConfidenceLevel.LOW
+            else -> ConfidenceLevel.MEDIUM // Wakelock ativo no instante final nao comprova duracao inteira
+        }
+
+        val nature = when {
+            isDeviceLevel -> TelemetryNature.AGGREGATED_STATISTIC
+            isFromUsageEvents -> TelemetryNature.INFERENCE
+            else -> TelemetryNature.ESTIMATE
+        }
+
+        val reasonText = when {
+            isDeviceLevel -> "Dispositivo permaneceu acordado sem evidencia conclusiva de wakelock de um unico app"
+            isFromUsageEvents -> "Servico em primeiro plano iniciado durante o repouso; causalidade de wakelock nao comprovada"
+            suspectInfo?.isSharedUid == true -> "Wakelock ativo em UID compartilhado no termino do repouso"
+            else -> "Wakelock parcial ativo detectado no final da janela de repouso"
         }
 
         val anomaly = AnomalyEvent(
@@ -634,13 +690,13 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
             endTime = now,
             durationMs = sleepDurationMs,
             confidence = confidence,
-            nature = if (isDeviceLevel) TelemetryNature.AGGREGATED_STATISTIC else TelemetryNature.DIRECT_MEASUREMENT,
-            source = if (!isDeviceLevel) "dumpsys power/UsageEvents" else "SystemClock.uptimeMillis",
-            isEstimated = isDeviceLevel || suspectInfo?.isSharedUid == true,
+            nature = nature,
+            source = if (!isDeviceLevel) (if (isFromUsageEvents) "UsageEvents" else "dumpsys power") else "SystemClock.uptimeMillis",
+            isEstimated = true,
             isComplete = true,
             rootAvailable = AppRootInspector.isRootAvailable(),
             collectionMethod = if (AppRootInspector.isRootAvailable()) "root_dumpsys" else "system_framework",
-            reason = if (isDeviceLevel) "Dispositivo permaneceu acordado sem evidencia conclusiva de wakelock de um unico app" else if (suspectInfo?.isSharedUid == true) "UID compartilhado" else null,
+            reason = reasonText,
         )
 
         recordAnomaly(anomaly)
@@ -787,34 +843,57 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         val pm = context.packageManager
         val coresCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
 
-        // Leitura rápida de processos via ps
-        val psOutput = if (AppRootInspector.isRootAvailable()) {
-            AppRootInspector.runSuCommand("ps -A -o PID,USER,%CPU,ARGS 2>/dev/null || ps -o PID,USER,%CPU,ARGS 2>/dev/null").getOrNull() ?: ""
-        } else {
-            ""
+        // Leitura precisa de tempo de CPU acumulado (TIME) via ps com root
+        if (!AppRootInspector.isRootAvailable()) {
+            return
         }
 
+        val psOutput = AppRootInspector.runSuCommand("ps -A -o PID,USER,TIME,ARGS 2>/dev/null || ps -o PID,USER,TIME,ARGS 2>/dev/null").getOrNull() ?: ""
         if (psOutput.isBlank()) return
+
+        val nowMono = SystemClock.elapsedRealtime()
+        val currentPids = mutableSetOf<ProcessIdentity>()
 
         psOutput.lineSequence().forEach { line ->
             val trimmed = line.trim()
             if (trimmed.isEmpty() || trimmed.startsWith("PID")) return@forEach
             val tokens = trimmed.split(Regex("\\s+"))
             if (tokens.size >= 4) {
-                val rawCpu = tokens[2].toDoubleOrNull() ?: 0.0
-                val normalizedCpu = (rawCpu / coresCount).coerceIn(0.0, 100.0)
+                val pid = tokens[0].toIntOrNull() ?: return@forEach
+                val timeStr = tokens[2]
+                val cpuTimeMs = SystemTaskInspector.parseCpuTimeToMs(timeStr)
                 val cmd = tokens.subList(3, tokens.size).joinToString(" ")
                 val cleanCmd = cmd.substringBefore(" ").substringAfterLast("/").removeSurrounding("[", "]").removeSurrounding("(", ")")
 
                 if (cleanCmd.contains(".") && !cleanCmd.startsWith("/") && cleanCmd != fgPackage && cleanCmd != context.packageName) {
                     val pkgName = cleanCmd.substringBefore(":")
-                    if (!cfg.whitelistedPackages.contains(pkgName) && !isPackageMuted(pkgName)) {
-                        if (normalizedCpu >= cfg.sensitivity.cpuPercent) {
-                            // Incrementa contador de ciclos consecutivos para confirmar abuso contínuo
-                            val cycles = (cpuHighAppConsecutiveCycles[pkgName] ?: 0) + 1
-                            cpuHighAppConsecutiveCycles[pkgName] = cycles
+                    val identity = ProcessIdentity(pid, cleanCmd)
+                    currentPids.add(identity)
 
-                            if (cycles >= 2) {
+                    if (!cfg.whitelistedPackages.contains(pkgName) && !isPackageMuted(pkgName)) {
+                        val prev = processCpuTracker[identity]
+                        if (prev == null) {
+                            // Primeira observação: registra baseline de calibração (não gera alerta)
+                            processCpuTracker[identity] = ProcessCpuSample(cpuTimeMs, nowMono, 0)
+                            return@forEach
+                        }
+
+                        val deltaCpuMs = cpuTimeMs - prev.cpuTimeMs
+                        val deltaWallMs = (nowMono - prev.monotonicMs).coerceAtLeast(1L)
+
+                        if (deltaCpuMs < 0L || deltaWallMs > 60_000L) {
+                            // PID reciclado ou amostra desatualizada (stale): reinicia baseline
+                            processCpuTracker[identity] = ProcessCpuSample(cpuTimeMs, nowMono, 0)
+                            return@forEach
+                        }
+
+                        val normalizedCpu = ((deltaCpuMs.toDouble() / (deltaWallMs * coresCount)) * 100.0).coerceIn(0.0, 100.0)
+
+                        if (normalizedCpu >= cfg.sensitivity.cpuPercent) {
+                            val hits = prev.consecutiveHits + 1
+                            processCpuTracker[identity] = ProcessCpuSample(cpuTimeMs, nowMono, hits)
+
+                            if (hits >= 2) {
                                 val lastAlert = lastAlertTimeMap[pkgName] ?: 0L
                                 if (nowWall - lastAlert >= COOLDOWN_MS) {
                                     val appLabel = runCatching {
@@ -838,20 +917,20 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                                         description = desc,
                                         timestamp = nowWall,
                                         screenWasOff = false,
-                                        pid = tokens[0].toIntOrNull(),
+                                        pid = pid,
                                         rawValue = normalizedCpu,
                                         unit = "%",
-                                        startTime = nowWall - (cycles * SCREEN_ON_INTERVAL_MS),
+                                        startTime = nowWall - (hits * SCREEN_ON_INTERVAL_MS),
                                         endTime = nowWall,
-                                        durationMs = cycles * SCREEN_ON_INTERVAL_MS,
+                                        durationMs = hits * SCREEN_ON_INTERVAL_MS,
                                         confidence = ConfidenceLevel.HIGH,
                                         nature = TelemetryNature.DIRECT_MEASUREMENT,
-                                        source = "ps/root",
+                                        source = "ps/TIME (proc/stat)",
                                         isEstimated = false,
                                         isComplete = true,
                                         rootAvailable = true,
                                         collectionMethod = "consecutive_samples",
-                                        reason = "Confirmacao continuada por $cycles ciclos consecutivos via CPU do kernel",
+                                        reason = "Confirmacao continuada por $hits amostras consecutivas via tempo de CPU do kernel",
                                     )
 
                                     recordAnomaly(anomaly)
@@ -860,12 +939,14 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                                 }
                             }
                         } else {
-                            cpuHighAppConsecutiveCycles[pkgName] = 0
+                            processCpuTracker[identity] = ProcessCpuSample(cpuTimeMs, nowMono, 0)
                         }
                     }
                 }
             }
         }
+        // Limpa processos encerrados do histórico
+        processCpuTracker.keys.retainAll(currentPids)
     }
 
     private suspend fun evaluateRamAnomalies(cfg: AnomalyWatcherConfig, fgPackage: String?, nowWall: Long) {
@@ -873,46 +954,50 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         val memInfo = ActivityManager.MemoryInfo()
         am.getMemoryInfo(memInfo)
 
-        // Só gera alerta se o sistema estiver sob pressão real de memória (menos de 15% livre ou lowMemory flag)
+        // Só gera alerta se o sistema estiver sob pressão real de memória (menos de 18% livre ou lowMemory flag)
         val ramPercentFree = (memInfo.availMem.toDouble() / memInfo.totalMem.toDouble()) * 100.0
         if (!memInfo.lowMemory && ramPercentFree > 18.0) return
 
         val pm = context.packageManager
         val thresholdMb = cfg.sensitivity.ramMb.toDouble()
-        val totalRamMb = memInfo.totalMem / (1024.0 * 1024.0)
+        val nowMono = SystemClock.elapsedRealtime()
+        val currentPids = mutableSetOf<ProcessIdentity>()
 
         // Identifica processos com RSS alto em segundo plano
         if (AppRootInspector.isRootAvailable()) {
-            val psOutput = AppRootInspector.runSuCommand("ps -A -o PID,USER,%MEM,ARGS 2>/dev/null").getOrNull() ?: ""
+            val psOutput = AppRootInspector.runSuCommand("ps -A -o PID,USER,RSS,ARGS 2>/dev/null || ps -o PID,USER,RSS,ARGS 2>/dev/null").getOrNull() ?: ""
             psOutput.lineSequence().forEach { line ->
                 val trimmed = line.trim()
                 if (trimmed.isEmpty() || trimmed.startsWith("PID")) return@forEach
                 val tokens = trimmed.split(Regex("\\s+"))
                 if (tokens.size >= 4) {
-                    val memPercent = tokens[2].toDoubleOrNull() ?: 0.0
-                    val ramMb = (memPercent / 100.0) * totalRamMb
+                    val pid = tokens[0].toIntOrNull() ?: return@forEach
+                    val rssKb = tokens[2].toDoubleOrNull() ?: 0.0
+                    val ramMb = rssKb / 1024.0
                     val cmd = tokens.subList(3, tokens.size).joinToString(" ")
                     val cleanCmd = cmd.substringBefore(" ").substringAfterLast("/").removeSurrounding("[", "]").removeSurrounding("(", ")")
 
                     if (cleanCmd.contains(".") && !cleanCmd.startsWith("/") && cleanCmd != fgPackage && cleanCmd != context.packageName) {
                         val pkgName = cleanCmd.substringBefore(":")
+                        val identity = ProcessIdentity(pid, cleanCmd)
+                        currentPids.add(identity)
+
                         if (ramMb >= thresholdMb && !cfg.whitelistedPackages.contains(pkgName) && !isPackageMuted(pkgName)) {
-                            // Analise de tendencia temporal
-                            val history = ramGrowthHistory.getOrPut(pkgName) { mutableListOf() }
-                            val now = SystemClock.elapsedRealtime()
-                            history.add(Pair(now, ramMb))
-                            history.removeAll { now - it.first > 300_000L }
+                            // Analise de tendencia temporal por identidade de processo
+                            val history = processRamHistory.getOrPut(identity) { mutableListOf() }
+                            history.add(ProcessRamSample(ramMb, nowMono))
+                            history.removeAll { nowMono - it.monotonicMs > 300_000L }
 
                             val isContinuousGrowth = history.size >= 3 &&
-                                history[history.size - 1].second > history[history.size - 2].second &&
-                                history[history.size - 2].second > history[history.size - 3].second
+                                history[history.size - 1].rssMb > history[history.size - 2].rssMb &&
+                                history[history.size - 2].rssMb > history[history.size - 3].rssMb
 
                             val cause = if (isContinuousGrowth) {
-                                val deltaMb = (history.last().second - history.first().second).toInt()
-                                val deltaSec = ((now - history.first().first) / 1000L).coerceAtLeast(1L)
-                                "Possivel vazamento: crescimento continuo de +${deltaMb}MB em ${deltaSec}s"
+                                val deltaMb = (history.last().rssMb - history.first().rssMb).toInt()
+                                val deltaSec = ((nowMono - history.first().monotonicMs) / 1000L).coerceAtLeast(1L)
+                                "Possivel vazamento: crescimento continuo de memoria observado (+${deltaMb}MB em ${deltaSec}s)"
                             } else {
-                                "Consumo elevado de memoria RSS em segundo plano"
+                                "Consumo elevado persistente de memoria RSS em segundo plano"
                             }
 
                             val lastAlert = lastAlertTimeMap[pkgName] ?: 0L
@@ -938,28 +1023,35 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                                     description = desc,
                                     timestamp = nowWall,
                                     screenWasOff = false,
-                                    pid = tokens[0].toIntOrNull(),
+                                    pid = pid,
                                     serviceOrProcess = cleanCmd,
                                     probableCause = cause,
                                     rawValue = ramMb,
                                     unit = "MB",
-                                    startTime = if (history.isNotEmpty()) nowWall - (now - history.first().first) else nowWall,
+                                    startTime = if (history.isNotEmpty()) nowWall - (nowMono - history.first().monotonicMs) else nowWall,
                                     endTime = nowWall,
-                                    durationMs = if (history.isNotEmpty()) (now - history.first().first) else 0L,
-                                    confidence = ConfidenceLevel.HIGH,
-                                    nature = TelemetryNature.DIRECT_MEASUREMENT,
-                                    source = "ps/ActivityManager",
-                                    isEstimated = false,
+                                    durationMs = if (history.isNotEmpty()) (nowMono - history.first().monotonicMs) else 0L,
+                                    confidence = if (isContinuousGrowth) ConfidenceLevel.MEDIUM else ConfidenceLevel.HIGH,
+                                    nature = if (isContinuousGrowth) TelemetryNature.INFERENCE else TelemetryNature.DIRECT_MEASUREMENT,
+                                    source = "ps/RSS",
+                                    isEstimated = isContinuousGrowth,
                                     isComplete = true,
                                     rootAvailable = true,
                                     collectionMethod = "temporal_trend",
-                                    reason = if (isContinuousGrowth) "Crescimento continuo de RAM em 3 amostras consecutivas sob pressao" else "Uso de RAM alto estavel sem indicio de vazamento",
+                                    reason = if (isContinuousGrowth) "Crescimento continuo de RAM em 3 amostras consecutivas sob pressao" else "Uso de RAM RSS alto estavel sem indicio de vazamento",
                                 )
 
                                 recordAnomaly(anomaly)
                                 notificationManager.postAnomalyNotification(anomaly, icon)
                                 lastAlertTimeMap[pkgName] = nowWall
                             }
+                        }
+                    }
+                }
+            }
+            processRamHistory.keys.retainAll(currentPids)
+        }
+    }
                         }
                     }
                 }

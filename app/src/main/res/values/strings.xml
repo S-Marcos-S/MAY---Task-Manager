@@ -1436,6 +1436,7 @@
     <string name="telemetry_nature_direct">Direct</string>
     <string name="telemetry_nature_aggregated">Aggregated</string>
     <string name="telemetry_nature_estimate">Estimate</string>
+    <string name="telemetry_nature_inference">Inference</string>
     <string name="telemetry_nature_unavailable">Unavailable</string>
     <string name="telemetry_attribution_inconclusive">Inconclusive</string>
     <string name="telemetry_status_active">Active</string>

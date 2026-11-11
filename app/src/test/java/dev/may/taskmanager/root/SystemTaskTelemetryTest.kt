@@ -137,4 +137,23 @@ class SystemTaskTelemetryTest {
         assertEquals(TelemetryNature.UNAVAILABLE, sample.nature)
         assertFalse(sample.isComplete)
     }
+
+    @Test
+    fun `telemetryValidator handles negative deltaCpu as recycled process reset`() {
+        val sample = TelemetryValidator.classifyProcessCpu(
+            packageName = "com.recycled.app",
+            uid = 10099,
+            pid = 9999,
+            deltaCpuMs = -200L, // PID reciclado pelo kernel
+            deltaWallMs = 1000L,
+            coresCount = 8,
+            consecutiveHits = 0,
+            rootAvailable = true,
+        )
+
+        assertEquals(0.0, sample.value, 0.001)
+        assertEquals(ConfidenceLevel.LOW, sample.confidence)
+        assertEquals(TelemetryNature.ESTIMATE, sample.nature)
+        assertTrue(sample.isEstimated)
+    }
 }

@@ -70,13 +70,24 @@ object DeviceCapabilitiesDiagnostics {
         )
     }
 
+    fun probeSuCommand(cmd: String): Boolean {
+        if (!AppRootInspector.isRootAvailable()) return false
+        val res = AppRootInspector.runSuCommand(cmd).getOrNull()
+        return !res.isNullOrBlank()
+    }
+
     fun inspectProcessCpuTelemetry(context: Context): CapabilityReport {
         val isRoot = AppRootInspector.isRootAvailable()
-        val state = if (isRoot) CapabilityState.FULL_ACCESS else CapabilityState.LIMITED_ACCESS
-        val details = if (isRoot) {
-            "Acesso Root ativo: telemetria de CPU individual via ps e proc/stat com medicao diferencial direta"
-        } else {
-            "Sem acesso Root: SELinux restringe a leitura de CPU de outros processos; apenas memoria PSS e processos visiveis pelo Android"
+        val hasProcAccess = isRoot && probeSuCommand("cat /proc/1/stat 2>/dev/null")
+        val state = when {
+            hasProcAccess -> CapabilityState.FULL_ACCESS
+            isRoot -> CapabilityState.LIMITED_ACCESS
+            else -> CapabilityState.LIMITED_ACCESS
+        }
+        val details = when {
+            hasProcAccess -> "Acesso Root ativo e verificado: telemetria de CPU individual via ps e proc/stat com medicao diferencial direta"
+            isRoot -> "Root detectado, mas leitura de /proc/1/stat bloqueada por politica do kernel ou permissao negada"
+            else -> "Sem acesso Root: SELinux restringe a leitura de CPU de outros processos; ActivityManager fornece apenas processos visiveis"
         }
 
         return CapabilityReport(
@@ -84,7 +95,7 @@ object DeviceCapabilitiesDiagnostics {
             title = context.getString(R.string.diag_cap_cpu_title),
             description = context.getString(R.string.diag_cap_cpu_desc),
             state = state,
-            isRootGranted = isRoot,
+            isRootGranted = hasProcAccess,
             isSpecialAccessGranted = false,
             isSystemSupported = true,
             technicalDetails = details,
@@ -93,25 +104,41 @@ object DeviceCapabilitiesDiagnostics {
 
     fun inspectMemoryTelemetry(context: Context): CapabilityReport {
         val isRoot = AppRootInspector.isRootAvailable()
+        val hasMeminfo = !isRoot || probeSuCommand("cat /proc/meminfo 2>/dev/null")
+        val state = if (isRoot && !hasMeminfo) CapabilityState.LIMITED_ACCESS else CapabilityState.FULL_ACCESS
+        val details = when {
+            isRoot && hasMeminfo -> "Acesso total verificado a RSS, PSS e proc/meminfo com analise de tendencia temporal"
+            isRoot -> "Root detectado, mas leitura de /proc/meminfo bloqueada; operando via ActivityManager"
+            else -> "Acesso a PSS via ActivityManager e memoria global via MemoryInfo"
+        }
+
         return CapabilityReport(
             id = "ram",
             title = context.getString(R.string.diag_cap_ram_title),
             description = context.getString(R.string.diag_cap_ram_desc),
-            state = CapabilityState.FULL_ACCESS,
-            isRootGranted = isRoot,
+            state = state,
+            isRootGranted = isRoot && hasMeminfo,
             isSpecialAccessGranted = false,
             isSystemSupported = true,
-            technicalDetails = if (isRoot) "Acesso total a RSS, PSS e proc/meminfo com analise de tendencia temporal" else "Acesso a PSS via ActivityManager e memoria global via MemoryInfo",
+            technicalDetails = details,
         )
     }
 
     fun inspectBatteryTelemetry(context: Context): CapabilityReport {
         val isRoot = AppRootInspector.isRootAvailable()
         val hasUsage = hasUsageStatsAccess(context)
-        val state = if (isRoot) CapabilityState.FULL_ACCESS else if (hasUsage) CapabilityState.LIMITED_ACCESS else CapabilityState.PERMISSION_REQUIRED
+        val hasPowerDumpsys = isRoot && probeSuCommand("dumpsys power -h 2>/dev/null || dumpsys power 2>/dev/null | head -n 5")
+
+        val state = when {
+            hasPowerDumpsys -> CapabilityState.FULL_ACCESS
+            isRoot -> CapabilityState.LIMITED_ACCESS
+            hasUsage -> CapabilityState.LIMITED_ACCESS
+            else -> CapabilityState.PERMISSION_REQUIRED
+        }
 
         val details = when {
-            isRoot -> "Acesso Root ativo: dumpsys batterystats e dumpsys power disponiveis com rastreamento completo de wakelocks"
+            hasPowerDumpsys -> "Acesso Root ativo e verificado: dumpsys power disponivel com rastreamento de wakelocks"
+            isRoot -> "Root detectado, mas comando dumpsys power retornou vazio ou falhou"
             hasUsage -> "UsageStats ativo para eventos em primeiro plano; wakelocks de baixo nivel requerem Root ou ADB"
             else -> "Acesso basico ao BatteryManager; requer acesso de uso ou Root para analise aprofundada de repouso"
         }
@@ -121,7 +148,7 @@ object DeviceCapabilitiesDiagnostics {
             title = context.getString(R.string.diag_cap_battery_title),
             description = context.getString(R.string.diag_cap_battery_desc),
             state = state,
-            isRootGranted = isRoot,
+            isRootGranted = hasPowerDumpsys,
             isSpecialAccessGranted = hasUsage,
             isSystemSupported = true,
             technicalDetails = details,

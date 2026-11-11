@@ -66,11 +66,12 @@ class AnomalyHistoryRepositoryTest {
         val array = JSONArray(legacyJson)
         val obj = array.getJSONObject(0)
 
-        val confName = obj.optString("confidence", ConfidenceLevel.HIGH.name)
-        val confidence = runCatching { ConfidenceLevel.valueOf(confName) }.getOrDefault(ConfidenceLevel.HIGH)
+        val isLegacy = !obj.has("confidence")
+        val confName = obj.optString("confidence", ConfidenceLevel.LOW.name)
+        val confidence = runCatching { ConfidenceLevel.valueOf(confName) }.getOrDefault(ConfidenceLevel.LOW)
 
-        val natureName = obj.optString("nature", TelemetryNature.DIRECT_MEASUREMENT.name)
-        val nature = runCatching { TelemetryNature.valueOf(natureName) }.getOrDefault(TelemetryNature.DIRECT_MEASUREMENT)
+        val natureName = obj.optString("nature", TelemetryNature.ESTIMATE.name)
+        val nature = runCatching { TelemetryNature.valueOf(natureName) }.getOrDefault(TelemetryNature.ESTIMATE)
 
         val event = AnomalyEvent(
             id = obj.optString("id", UUID.randomUUID().toString()),
@@ -85,12 +86,23 @@ class AnomalyHistoryRepositoryTest {
             unit = obj.optString("unit", ""),
             confidence = confidence,
             nature = nature,
+            isEstimated = if (isLegacy) true else obj.optBoolean("isEstimated", false),
+            reason = if (isLegacy) "Registro legado anterior sem metadados de medicao" else null,
         )
 
         assertEquals("legacy-id-1", event.id)
         assertEquals("com.legacy.app", event.packageName)
         assertEquals(0.0, event.rawValue, 0.01)
-        assertEquals(ConfidenceLevel.HIGH, event.confidence)
-        assertEquals(TelemetryNature.DIRECT_MEASUREMENT, event.nature)
+        assertEquals(ConfidenceLevel.LOW, event.confidence)
+        assertEquals(TelemetryNature.ESTIMATE, event.nature)
+        assertTrue(event.isEstimated)
+    }
+
+    @Test
+    fun jsonParsing_handlesMalformedJsonGracefully() {
+        val malformed = "{ this is not a valid json array }"
+        val result = runCatching { JSONArray(malformed) }
+        assertTrue(result.isFailure)
+    }
     }
 }
