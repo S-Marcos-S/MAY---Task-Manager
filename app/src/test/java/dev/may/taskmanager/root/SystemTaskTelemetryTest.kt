@@ -156,4 +156,43 @@ class SystemTaskTelemetryTest {
         assertEquals(TelemetryNature.ESTIMATE, sample.nature)
         assertTrue(sample.isEstimated)
     }
+
+    @Test
+    fun `parseProcStat parses Linux proc stat line correctly including comm with spaces and parentheses`() {
+        val sampleLine = "12345 (Chrome: privileged process) S 1 1234 1234 0 -1 4194560 100 0 0 0 150 250 0 0 20 0 10 0 543210 1234567 1000 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 0 0 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0"
+        val stat = SystemTaskInspector.parseProcStat(sampleLine)
+
+        assertNotNull(stat)
+        assertEquals(12345, stat?.pid)
+        assertEquals("Chrome: privileged process", stat?.comm)
+        assertEquals("S", stat?.state)
+        assertEquals(150L, stat?.utimeTicks)
+        assertEquals(250L, stat?.stimeTicks)
+        assertEquals(543210L, stat?.starttimeTicks)
+        assertEquals(400L, stat?.totalCpuTicks)
+    }
+
+    @Test
+    fun `parseVmRssKb parses VmRSS correctly from status content`() {
+        val statusText = """
+            Name: chrome
+            Umask: 0077
+            State: S (sleeping)
+            VmPeak: 123456 kB
+            VmSize: 100000 kB
+            VmHWM: 45000 kB
+            VmRSS: 32768 kB
+            RssAnon: 20000 kB
+        """.trimIndent()
+
+        val rssKb = SystemTaskInspector.parseVmRssKb(statusText)
+        assertEquals(32768L, rssKb)
+    }
+
+    @Test
+    fun `parseVmRssKb returns null when VmRSS is absent`() {
+        val statusText = "Name: init\nState: S\n"
+        val rssKb = SystemTaskInspector.parseVmRssKb(statusText)
+        assertEquals(null, rssKb)
+    }
 }

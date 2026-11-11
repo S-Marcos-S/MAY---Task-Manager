@@ -193,7 +193,7 @@
     <string name="anomaly_desc_net_screen_on">%1$s transferiu %2$s em segundo plano (%3$s).</string>
     <string name="anomaly_desc_cpu">%1$s consumiu %2$s de CPU em segundo plano.</string>
     <string name="anomaly_desc_ram">%1$s está usando %2$s de RAM em segundo plano.</string>
-    <string name="anomaly_desc_deep_sleep">%1$s manteve o sistema acordado por %2$s em %3$s de tela desligada.</string>
+    <string name="anomaly_desc_deep_sleep">Aparelho acordado por %2$s em %3$s de tela desligada (possível correlação com %1$s).</string>
     <string name="anomaly_value_awake_minutes">%1$dm acordado</string>
     <string name="anomaly_cause_download">Download em segundo plano</string>
     <string name="anomaly_cause_upload">Upload em segundo plano</string>
@@ -1229,11 +1229,27 @@
     <string name="net_speed_interval_desc">Frequência de atualização em tempo real (maior intervalo = menos bateria)</string>
     <string name="net_speed_status">Status: %1$s</string>
     <string name="net_speed_last_sample">Atualizado: %1$s</string>
+    <string name="net_speed_app_normal">• %1$s: %2$s</string>
     <string name="net_speed_app_divergence">• %1$s: %2$s (agregado)</string>
+    <string name="net_speed_apps_inconclusive">Consumo por app: Inconclusivo (sincronização lenta)</string>
 
     <!-- Anomalias de repouso do dispositivo -->
     <string name="anomaly_device_deep_sleep_title">Sono Profundo do Dispositivo</string>
     <string name="anomaly_device_deep_sleep_desc">O aparelho permaneceu ativo por %1$s de %2$s com a tela desligada. Atribuição a app específico inconclusiva.</string>
+    <string name="system_uid_root">Sistema (Root)</string>
+    <string name="system_uid_android">Sistema Android</string>
+    <string name="shared_uid_app_count">%1$s (+%2$d apps)</string>
+    <string name="anomaly_shared_uid_info">• UID %1$d compartilhado (%2$d apps)</string>
+    <string name="anomaly_reason_shared_uid">UID compartilhado entre: %s</string>
+    <string name="anomaly_cause_ram_leak_suspect">Possível vazamento: crescimento contínuo de memória observado (+%1$d MB em %2$ds)</string>
+    <string name="anomaly_cause_ram_high_persistent">Consumo elevado persistente de memória RSS em segundo plano</string>
+    <string name="anomaly_reason_ram_leak">Crescimento contínuo de RAM em %1$d amostras consecutivas sob pressão</string>
+    <string name="anomaly_reason_ram_stable">Uso de RAM RSS alto estável sem indício de vazamento</string>
+    <string name="anomaly_reason_cpu_hits">Confirmação continuada por %1$d amostras consecutivas via tempo de CPU do kernel</string>
+    <string name="anomaly_reason_deep_sleep_device">Dispositivo permaneceu acordado sem evidência conclusiva de um único app</string>
+    <string name="anomaly_reason_deep_sleep_fgs">Serviço em primeiro plano iniciado durante o repouso; causalidade de wakelock não comprovada</string>
+    <string name="anomaly_reason_deep_sleep_shared">Wakelock ativo em UID compartilhado no término do repouso</string>
+    <string name="anomaly_reason_deep_sleep_wakelock">Wakelock parcial ativo detectado no final da janela de repouso</string>
 
     
     <string name="battery_auto_reset_title">Redefinição Automática (Auto Reset)</string>

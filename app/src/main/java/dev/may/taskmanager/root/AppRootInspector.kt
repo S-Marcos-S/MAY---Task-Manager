@@ -12,11 +12,14 @@ import android.net.TrafficStats
 import android.os.Build
 import dev.may.taskmanager.update.RootInstaller
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.util.Calendar
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeoutException
 
 enum class AppProcessStatus {
     FOREGROUND,
@@ -626,15 +629,27 @@ object AppRootInspector {
     }
 
     /**
-     * Runs an arbitrary shell command using the su binary.
+     * Runs an arbitrary shell command using the su binary with timeout protection.
      */
-    suspend fun runSuCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun runSuCommand(command: String, timeoutMs: Long = 5000L): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
             val process = ProcessBuilder("su", "-c", command)
                 .redirectErrorStream(true)
                 .start()
-            val output = process.inputStream.bufferedReader().use { it.readText() }
-            val exitCode = process.waitFor()
+            val outputDeferred = async(Dispatchers.IO) {
+                process.inputStream.bufferedReader().use { it.readText() }
+            }
+            val completed = withTimeoutOrNull(timeoutMs) {
+                val text = outputDeferred.await()
+                val exitCode = process.waitFor()
+                Pair(exitCode, text)
+            }
+            if (completed == null) {
+                process.destroyForcibly()
+                outputDeferred.cancel()
+                throw TimeoutException("Root command timed out after ${timeoutMs}ms: $command")
+            }
+            val (exitCode, output) = completed
             if (exitCode == 0 || output.isNotBlank()) {
                 output
             } else {

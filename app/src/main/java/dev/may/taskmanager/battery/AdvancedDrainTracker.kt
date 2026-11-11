@@ -239,16 +239,16 @@ class AdvancedDrainTracker private constructor(
             if (resetOnPlug && !hasResetForCurrentChargeCycle) {
                 hasResetForCurrentChargeCycle = true
                 scope.launch {
-                    resetSession()
-                    updateDrainState()
+                    resetSessionSuspending()
                 }
+                return
             } else if (autoResetCharging && (currentPct >= target || currentPct >= 100 || status == BatteryManager.BATTERY_STATUS_FULL)) {
                 if (!hasResetForCurrentChargeCycle) {
                     hasResetForCurrentChargeCycle = true
                     scope.launch {
-                        resetSession()
-                        updateDrainState()
+                        resetSessionSuspending()
                     }
+                    return
                 }
             }
         } else {
@@ -279,23 +279,24 @@ class AdvancedDrainTracker private constructor(
     }
 
     fun onPowerConnected() {
-        hasResetForCurrentChargeCycle = false
         val prefs = context.getSharedPreferences("battery_prefs", Context.MODE_PRIVATE)
         val resetOnPlug = prefs.getBoolean("auto_reset_on_plug_connected", false)
         scope.launch {
             if (resetOnPlug) {
                 hasResetForCurrentChargeCycle = true
-                resetSession()
-            }
-            takeSnapshot()?.let { snapshot ->
-                snapshotMutex.withLock {
-                    processSnapshot(snapshot)
-                    lastSnapshot = snapshot
-                    updateDrainState()
-                    saveSession()
+                resetSessionSuspending()
+            } else {
+                takeSnapshot()?.let { snapshot ->
+                    snapshotMutex.withLock {
+                        processSnapshot(snapshot)
+                        lastSnapshot = snapshot
+                        updateDrainState()
+                        saveSession()
+                    }
                 }
+                refreshDetailedStatsAsync()
             }
-            refreshDetailedStatsAsync()
+            DrainNotificationManager.getInstance(context).updateNow()
         }
     }
 
@@ -309,7 +310,7 @@ class AdvancedDrainTracker private constructor(
             if (autoResetCharging && (level >= target || level >= 100)) {
                 if (!hasResetForCurrentChargeCycle) {
                     hasResetForCurrentChargeCycle = true
-                    resetSession()
+                    resetSessionSuspending()
                 }
             }
             hasResetForCurrentChargeCycle = false
@@ -322,6 +323,7 @@ class AdvancedDrainTracker private constructor(
                 }
             }
             refreshDetailedStatsAsync()
+            DrainNotificationManager.getInstance(context).updateNow()
         }
     }
 
@@ -698,7 +700,7 @@ class AdvancedDrainTracker private constructor(
         saveSession()
     }
 
-    fun resetSession() {
+    suspend fun resetSessionSuspending() {
         clearSavedSession()
         val now = System.currentTimeMillis()
         val nowRealtime = SystemClock.elapsedRealtime()
@@ -741,8 +743,30 @@ class AdvancedDrainTracker private constructor(
             batteryTemperatureC = getBatteryTemperatureC()
         )
 
-        scope.launch(Dispatchers.IO) {
+        snapshotMutex.withLock {
+            val snapshot = takeSnapshot()
+            lastSnapshot = snapshot
+            if (snapshot != null) {
+                lastDropMah = snapshot.batteryMah
+                lastDropLevel = snapshot.batteryLevel
+                lastDropScreenOnTime = 0L
+                lastDropScreenOffTime = 0L
+                lastDropDeepSleepTime = 0L
+                lastDropAwakeTime = 0L
+                lastDropRealtime = snapshot.elapsedRealtime
+                lastDropUptime = snapshot.uptimeMillis
+                lastDropIsCharging = snapshot.isCharging
+            } else {
+                lastDropMah = null
+                lastDropLevel = null
+            }
+            updateDrainState()
+            saveSession()
+        }
+
+        withContext(Dispatchers.IO) {
             try {
+                detailedCollector.clearSnapshot()
                 shellRunner.exec("dumpsys batterystats --reset", allowEmpty = true)
                 Log.d(TAG, "dumpsys batterystats --reset executed on resetSession")
                 refreshDetailedStatsAsync()
@@ -751,30 +775,14 @@ class AdvancedDrainTracker private constructor(
             }
         }
 
-        scope.launch {
-            snapshotMutex.withLock {
-                val snapshot = takeSnapshot()
-                lastSnapshot = snapshot
-                if (snapshot != null) {
-                    lastDropMah = snapshot.batteryMah
-                    lastDropLevel = snapshot.batteryLevel
-                    lastDropScreenOnTime = 0L
-                    lastDropScreenOffTime = 0L
-                    lastDropDeepSleepTime = 0L
-                    lastDropAwakeTime = 0L
-                    lastDropRealtime = snapshot.elapsedRealtime
-                    lastDropUptime = snapshot.uptimeMillis
-                    lastDropIsCharging = snapshot.isCharging
-                } else {
-                    lastDropMah = null
-                    lastDropLevel = null
-                }
-                updateDrainState()
-                saveSession()
-            }
-        }
-
+        DrainNotificationManager.getInstance(context).updateNow()
         Log.i(TAG, "Battery drain tracking session reset")
+    }
+
+    fun resetSession() {
+        scope.launch {
+            resetSessionSuspending()
+        }
     }
 
     private fun registerReceivers() {

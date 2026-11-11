@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Process
 import dev.may.taskmanager.R
 import dev.may.taskmanager.root.AppRootInspector
+import java.util.concurrent.TimeUnit
 
 enum class CapabilityState {
     FULL_ACCESS,
@@ -70,15 +71,40 @@ object DeviceCapabilitiesDiagnostics {
         )
     }
 
-    fun probeSuCommand(cmd: String): Boolean {
+    fun probeSuCommand(cmd: String, timeoutMs: Long = 2000L): Boolean {
         if (!AppRootInspector.isRootAvailable()) return false
         return runCatching {
             val process = ProcessBuilder("su", "-c", cmd)
                 .redirectErrorStream(true)
                 .start()
-            val output = process.inputStream.bufferedReader().use { it.readText() }
-            val exitCode = process.waitFor()
-            exitCode == 0 && output.isNotBlank()
+            val readerThread = Thread {
+                runCatching { process.inputStream.bufferedReader().use { it.readText() } }
+            }
+            readerThread.start()
+            val completed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
+            } else {
+                var elapsed = 0L
+                var done = false
+                while (elapsed < timeoutMs) {
+                    try {
+                        process.exitValue()
+                        done = true
+                        break
+                    } catch (_: IllegalThreadStateException) {
+                        Thread.sleep(50)
+                        elapsed += 50
+                    }
+                }
+                done
+            }
+            if (!completed) {
+                process.destroyForcibly()
+                return false
+            }
+            readerThread.join(300)
+            val exitCode = process.exitValue()
+            exitCode == 0
         }.getOrDefault(false)
     }
 

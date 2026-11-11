@@ -89,6 +89,114 @@ class SpeedMonitorService : Service() {
         }
 
         fun calculateActiveAppsFromDeltas(
+            currentRxTotals: Map<Int, Long>,
+            previousRxTotals: Map<Int, Long>,
+            currentTxTotals: Map<Int, Long>,
+            previousTxTotals: Map<Int, Long>,
+            deltaTimeSec: Double,
+            minBytesPerSec: Double,
+            totalDownSpeed: Double = 0.0,
+            totalUpSpeed: Double = 0.0,
+            resolveName: (Int) -> String?
+        ): List<ActiveAppSpeed> {
+            if (deltaTimeSec <= 0.0) return emptyList()
+            val totalDeviceSpeed = totalDownSpeed + totalUpSpeed
+
+            // Regra 4 e 7: Se a velocidade geral do dispositivo for menor que o limiar mínimo,
+            // o dispositivo está ocioso. Estatísticas acumuladas passadas não devem ser
+            // apresentadas como velocidade instantânea atual.
+            if (totalDeviceSpeed > 0.0 && totalDeviceSpeed < minBytesPerSec) {
+                return emptyList()
+            }
+
+            val allUids = currentRxTotals.keys + currentTxTotals.keys
+
+            data class RawUidSpeed(
+                val uid: Int,
+                val rxSpeed: Double,
+                val txSpeed: Double,
+                val totalSpeed: Double
+            )
+
+            val rawList = mutableListOf<RawUidSpeed>()
+
+            for (uid in allUids) {
+                if (uid < 10000 && uid != 0 && uid != 1000) continue
+
+                val curRx = currentRxTotals[uid] ?: 0L
+                val prevRx = previousRxTotals[uid] ?: curRx
+                val deltaRx = (curRx - prevRx).coerceAtLeast(0L)
+
+                val curTx = currentTxTotals[uid] ?: 0L
+                val prevTx = previousTxTotals[uid] ?: curTx
+                val deltaTx = (curTx - prevTx).coerceAtLeast(0L)
+
+                val rawRxSpeed = deltaRx / deltaTimeSec
+                val rawTxSpeed = deltaTx / deltaTimeSec
+                val rawTotal = rawRxSpeed + rawTxSpeed
+
+                if (rawTotal >= minBytesPerSec) {
+                    rawList.add(RawUidSpeed(uid, rawRxSpeed, rawTxSpeed, rawTotal))
+                }
+            }
+
+            if (rawList.isEmpty()) return emptyList()
+
+            val sumRawRx = rawList.sumOf { it.rxSpeed }
+            val sumRawTx = rawList.sumOf { it.txSpeed }
+            val sumRawTotal = sumRawRx + sumRawTx
+
+            // Verificação de divergência (atraso de agregação de lote do NetworkStatsManager)
+            val rxDiverges = totalDownSpeed > 0.0 && sumRawRx > (totalDownSpeed * 1.05)
+            val txDiverges = totalUpSpeed > 0.0 && sumRawTx > (totalUpSpeed * 1.05)
+            val totalDiverges = (totalDeviceSpeed > 0.0 && sumRawTotal > (totalDeviceSpeed * 1.05)) || rxDiverges || txDiverges
+
+            // Aplicação da Lei da Conservação Física:
+            // A soma das velocidades atribuídas aos aplicativos no mesmo intervalo não pode
+            // fisicamente ultrapassar a medição real instantânea do dispositivo.
+            val result = mutableListOf<ActiveAppSpeed>()
+
+            for (item in rawList) {
+                val name = resolveName(item.uid) ?: continue
+
+                val adjustedRx = if (rxDiverges && sumRawRx > 0.0) {
+                    (item.rxSpeed / sumRawRx) * totalDownSpeed
+                } else if (totalDownSpeed <= 0.0 && totalDeviceSpeed > 0.0) {
+                    0.0
+                } else {
+                    item.rxSpeed
+                }
+
+                val adjustedTx = if (txDiverges && sumRawTx > 0.0) {
+                    (item.txSpeed / sumRawTx) * totalUpSpeed
+                } else if (totalUpSpeed <= 0.0 && totalDeviceSpeed > 0.0) {
+                    0.0
+                } else {
+                    item.txSpeed
+                }
+
+                val finalSpeed = adjustedRx + adjustedTx
+
+                if (finalSpeed >= minBytesPerSec) {
+                    result.add(
+                        ActiveAppSpeed(
+                            appName = name,
+                            speedBytesSec = finalSpeed,
+                            rxSpeedBytesSec = adjustedRx,
+                            txSpeedBytesSec = adjustedTx,
+                            uid = item.uid,
+                            nature = TelemetryNature.AGGREGATED_STATISTIC,
+                            confidence = if (totalDiverges) ConfidenceLevel.LOW else ConfidenceLevel.MEDIUM,
+                            hasDivergence = totalDiverges,
+                        )
+                    )
+                }
+            }
+
+            return result.sortedByDescending { it.speedBytesSec }
+        }
+
+        fun calculateActiveAppsFromDeltas(
             currentTotals: Map<Int, Long>,
             previousTotals: Map<Int, Long>,
             deltaTimeSec: Double,
@@ -97,6 +205,11 @@ class SpeedMonitorService : Service() {
             resolveName: (Int) -> String?
         ): List<ActiveAppSpeed> {
             if (deltaTimeSec <= 0.0) return emptyList()
+
+            if (totalDeviceSpeed > 0.0 && totalDeviceSpeed < minBytesPerSec) {
+                return emptyList()
+            }
+
             val rawActive = mutableListOf<ActiveAppSpeed>()
             for ((uid, current) in currentTotals) {
                 if (uid < 10000 && uid != 0 && uid != 1000) continue
@@ -125,12 +238,12 @@ class SpeedMonitorService : Service() {
             val sumRaw = rawActive.sumOf { it.speedBytesSec }
             val hasDivergence = totalDeviceSpeed > 0.0 && sumRaw > (totalDeviceSpeed * 1.05)
 
-            // Princípio fundamental: nunca distorcer ou reescalar artificialmente a velocidade
-            // dos apps por fator global apenas para forçar a soma. Quando houver divergência
-            // decorrente da granularidade/atraso do NetworkStatsManager, registrar explicitamente.
+            // Princípio de conservação física: normaliza proporcionalmente se houver divergência
             val result = rawActive.map { app ->
-                if (hasDivergence) {
+                if (hasDivergence && sumRaw > 0.0) {
+                    val scaledSpeed = (app.speedBytesSec / sumRaw) * totalDeviceSpeed
                     app.copy(
+                        speedBytesSec = scaledSpeed,
                         hasDivergence = true,
                         confidence = ConfidenceLevel.LOW,
                     )
@@ -147,13 +260,15 @@ class SpeedMonitorService : Service() {
     data class ActiveAppSpeed(
         val appName: String,
         val speedBytesSec: Double,
+        val rxSpeedBytesSec: Double = 0.0,
+        val txSpeedBytesSec: Double = 0.0,
         val uid: Int? = null,
         val isSharedUid: Boolean = false,
         val nature: TelemetryNature = TelemetryNature.AGGREGATED_STATISTIC,
         val confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM,
         val hasDivergence: Boolean = false,
     )
-    private data class RecentAppRecord(val speedBytesSec: Double, val timestamp: Long)
+    private data class RecentAppRecord(val app: ActiveAppSpeed, val timestamp: Long)
 
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var settings: NetSpeedSettings
@@ -184,7 +299,8 @@ class SpeedMonitorService : Service() {
     private var lastAppsSummary = ""
 
     private val appNameCache = mutableMapOf<Int, String>()
-    private val lastUidCumulativeTotals = mutableMapOf<Int, Long>()
+    private val lastUidRxTotals = mutableMapOf<Int, Long>()
+    private val lastUidTxTotals = mutableMapOf<Int, Long>()
     private val recentActiveApps = mutableMapOf<String, RecentAppRecord>()
     private var lastAppStatsQueryTime = 0L
 
@@ -483,8 +599,8 @@ class SpeedMonitorService : Service() {
             }
         }
 
-        val activeApps = if (isViewingApps) getActiveAppsSpeed(deltaTime, totalSpeed) else emptyList()
-        val appsSummary = if (isViewingApps) activeApps.joinToString { "${it.appName}:${it.speedBytesSec}" } else ""
+        val activeApps = if (isViewingApps) getActiveAppsSpeed(deltaTime, finalDownSpeed, finalUpSpeed) else emptyList()
+        val appsSummary = if (isViewingApps) activeApps.joinToString { "${it.appName}:${it.speedBytesSec}:${it.rxSpeedBytesSec}:${it.txSpeedBytesSec}" } else ""
 
         // Only notify if something meaningful changed or if forceUpdate is requested
         if (forceUpdate ||
@@ -551,28 +667,39 @@ class SpeedMonitorService : Service() {
         val startOfDay = calendar.timeInMillis
         val currentTime = System.currentTimeMillis()
 
-        val totals = mutableMapOf<Int, Long>()
-        collectUidCumulative(nsm, ConnectivityManager.TYPE_WIFI, startOfDay, currentTime, totals)
-        collectUidCumulative(nsm, ConnectivityManager.TYPE_MOBILE, startOfDay, currentTime, totals)
-        collectUidCumulative(nsm, ConnectivityManager.TYPE_ETHERNET, startOfDay, currentTime, totals)
+        val rxTotals = mutableMapOf<Int, Long>()
+        val txTotals = mutableMapOf<Int, Long>()
+        collectUidCumulative(nsm, ConnectivityManager.TYPE_WIFI, startOfDay, currentTime, rxTotals, txTotals)
+        collectUidCumulative(nsm, ConnectivityManager.TYPE_MOBILE, startOfDay, currentTime, rxTotals, txTotals)
+        collectUidCumulative(nsm, ConnectivityManager.TYPE_ETHERNET, startOfDay, currentTime, rxTotals, txTotals)
 
-        lastUidCumulativeTotals.clear()
-        lastUidCumulativeTotals.putAll(totals)
+        lastUidRxTotals.clear()
+        lastUidRxTotals.putAll(rxTotals)
+        lastUidTxTotals.clear()
+        lastUidTxTotals.putAll(txTotals)
         lastAppStatsQueryTime = currentTime
     }
 
-    private fun getActiveAppsSpeed(deltaTime: Double, totalDeviceSpeed: Double): List<ActiveAppSpeed> {
+    private fun getActiveAppsSpeed(
+        deltaTime: Double,
+        totalDownSpeed: Double,
+        totalUpSpeed: Double
+    ): List<ActiveAppSpeed> {
         if (!hasUsageStatsPermission()) {
             tryAutoGrantUsagePermission()
             return emptyList()
         }
 
+        val totalDeviceSpeed = totalDownSpeed + totalUpSpeed
         val currentTime = System.currentTimeMillis()
         val minBytesPerSec = (settings.minAppUsageKb.coerceAtLeast(1L) * 1024.0)
 
-        // If total device speed is virtually zero or below threshold, clear cached apps immediately
+        // Se a velocidade geral do dispositivo for menor que o limiar mínimo,
+        // o dispositivo está ocioso. Limpa imediatamente apps recentes para não apresentar
+        // estatísticas acumuladas passadas como se fossem velocidades instantâneas atuais.
         if (totalDeviceSpeed < minBytesPerSec && recentActiveApps.isNotEmpty()) {
             recentActiveApps.clear()
+            return emptyList()
         }
 
         val nsm = getSystemService(Context.NETWORK_STATS_SERVICE) as? NetworkStatsManager ?: return emptyList()
@@ -585,53 +712,69 @@ class SpeedMonitorService : Service() {
         }
         val startOfDay = calendar.timeInMillis
 
-        val currentTotals = mutableMapOf<Int, Long>()
-        collectUidCumulative(nsm, ConnectivityManager.TYPE_WIFI, startOfDay, currentTime, currentTotals)
-        collectUidCumulative(nsm, ConnectivityManager.TYPE_MOBILE, startOfDay, currentTime, currentTotals)
-        collectUidCumulative(nsm, ConnectivityManager.TYPE_ETHERNET, startOfDay, currentTime, currentTotals)
+        val currentRxTotals = mutableMapOf<Int, Long>()
+        val currentTxTotals = mutableMapOf<Int, Long>()
+        collectUidCumulative(nsm, ConnectivityManager.TYPE_WIFI, startOfDay, currentTime, currentRxTotals, currentTxTotals)
+        collectUidCumulative(nsm, ConnectivityManager.TYPE_MOBILE, startOfDay, currentTime, currentRxTotals, currentTxTotals)
+        collectUidCumulative(nsm, ConnectivityManager.TYPE_ETHERNET, startOfDay, currentTime, currentRxTotals, currentTxTotals)
 
-        if (lastUidCumulativeTotals.isNotEmpty() && lastAppStatsQueryTime > 0) {
+        if (lastUidRxTotals.isNotEmpty() && lastAppStatsQueryTime > 0) {
             val elapsedSec = ((currentTime - lastAppStatsQueryTime) / 1000.0)
             if (elapsedSec >= 0.8) {
                 val detected = calculateActiveAppsFromDeltas(
-                    currentTotals = currentTotals,
-                    previousTotals = lastUidCumulativeTotals,
+                    currentRxTotals = currentRxTotals,
+                    previousRxTotals = lastUidRxTotals,
+                    currentTxTotals = currentTxTotals,
+                    previousTxTotals = lastUidTxTotals,
                     deltaTimeSec = elapsedSec,
                     minBytesPerSec = minBytesPerSec,
-                    totalDeviceSpeed = totalDeviceSpeed,
+                    totalDownSpeed = totalDownSpeed,
+                    totalUpSpeed = totalUpSpeed,
                     resolveName = { uid -> getAppNameForUid(uid) }
                 )
                 if (detected.isNotEmpty()) {
                     isAppsLoading = false
                     recentActiveApps.clear()
                     for (app in detected) {
-                        recentActiveApps[app.appName] = RecentAppRecord(app.speedBytesSec, currentTime)
+                        recentActiveApps[app.appName] = RecentAppRecord(app, currentTime)
                     }
                 } else if (currentTime - appsViewStartTime >= 1800L) {
                     isAppsLoading = false
                 }
-                lastUidCumulativeTotals.clear()
-                lastUidCumulativeTotals.putAll(currentTotals)
+                lastUidRxTotals.clear()
+                lastUidRxTotals.putAll(currentRxTotals)
+                lastUidTxTotals.clear()
+                lastUidTxTotals.putAll(currentTxTotals)
                 lastAppStatsQueryTime = currentTime
             }
         } else {
-            lastUidCumulativeTotals.clear()
-            lastUidCumulativeTotals.putAll(currentTotals)
+            lastUidRxTotals.clear()
+            lastUidRxTotals.putAll(currentRxTotals)
+            lastUidTxTotals.clear()
+            lastUidTxTotals.putAll(currentTxTotals)
             lastAppStatsQueryTime = currentTime
         }
 
         // Prune records older than 2500ms
         recentActiveApps.entries.removeAll { (currentTime - it.value.timestamp) > 2500L }
 
-        val activeList = recentActiveApps.map { (name, record) ->
-            val hasDivergence = totalDeviceSpeed > 0.0 && record.speedBytesSec > (totalDeviceSpeed * 1.05)
-            ActiveAppSpeed(
-                appName = name,
-                speedBytesSec = record.speedBytesSec,
-                nature = TelemetryNature.AGGREGATED_STATISTIC,
-                confidence = if (hasDivergence) ConfidenceLevel.LOW else ConfidenceLevel.MEDIUM,
-                hasDivergence = hasDivergence,
-            )
+        // Conservação física contínua: se a velocidade global diminuiu, a velocidade do app em cache
+        // não pode ultrapassar a velocidade total física atual do dispositivo.
+        val maxAllowed = (totalDeviceSpeed * 1.05).coerceAtLeast(0.0)
+        val activeList = recentActiveApps.values.map { record ->
+            val app = record.app
+            if (totalDeviceSpeed > 0.0 && app.speedBytesSec > maxAllowed) {
+                val factor = totalDeviceSpeed / app.speedBytesSec
+                app.copy(
+                    speedBytesSec = totalDeviceSpeed,
+                    rxSpeedBytesSec = app.rxSpeedBytesSec * factor,
+                    txSpeedBytesSec = app.txSpeedBytesSec * factor,
+                    hasDivergence = true,
+                    confidence = ConfidenceLevel.LOW
+                )
+            } else {
+                app
+            }
         }.filter { it.speedBytesSec >= minBytesPerSec }
          .sortedByDescending { it.speedBytesSec }
          .take(4)
@@ -650,7 +793,8 @@ class SpeedMonitorService : Service() {
         networkType: Int,
         startTime: Long,
         endTime: Long,
-        result: MutableMap<Int, Long>
+        rxResult: MutableMap<Int, Long>,
+        txResult: MutableMap<Int, Long>
     ) {
         try {
             val stats = nsm.querySummary(networkType, null, startTime, endTime)
@@ -658,8 +802,8 @@ class SpeedMonitorService : Service() {
             while (stats.hasNextBucket()) {
                 stats.getNextBucket(bucket)
                 val uid = bucket.uid
-                val current = result[uid] ?: 0L
-                result[uid] = current + bucket.rxBytes + bucket.txBytes
+                rxResult[uid] = (rxResult[uid] ?: 0L) + bucket.rxBytes
+                txResult[uid] = (txResult[uid] ?: 0L) + bucket.txBytes
             }
             stats.close()
         } catch (_: Throwable) {}
@@ -671,8 +815,8 @@ class SpeedMonitorService : Service() {
         if (cached != null) return cached
 
         val resolvedName = when (uid) {
-            0 -> "Sistema (Root)"
-            1000 -> "Sistema Android"
+            0 -> getString(R.string.system_uid_root)
+            1000 -> getString(R.string.system_uid_android)
             else -> {
                 val packages = packageManager.getPackagesForUid(uid)
                 if (packages.isNullOrEmpty()) {
@@ -682,7 +826,7 @@ class SpeedMonitorService : Service() {
                         val info = packageManager.getApplicationInfo(packages[0], 0)
                         packageManager.getApplicationLabel(info).toString()
                     }.getOrDefault(packages[0])
-                    "$firstApp (+${packages.size - 1} apps)"
+                    getString(R.string.shared_uid_app_count, firstApp, packages.size - 1)
                 } else {
                     val pkg = packages[0]
                     if (pkg == packageName) return null
@@ -718,6 +862,17 @@ class SpeedMonitorService : Service() {
             bytesPerSecond >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB/s", bytesPerSecond / (1024 * 1024))
             bytesPerSecond >= 1024 -> String.format(Locale.getDefault(), "%d KB/s", (bytesPerSecond / 1024).toInt())
             else -> String.format(Locale.getDefault(), "%d B/s", bytesPerSecond.toInt())
+        }
+    }
+
+    private fun formatAppSpeedText(app: ActiveAppSpeed): String {
+        val rx = app.rxSpeedBytesSec
+        val tx = app.txSpeedBytesSec
+        return when {
+            rx >= 1024.0 && tx >= 1024.0 -> "↓${formatSpeed(rx)} ↑${formatSpeed(tx)}"
+            tx >= 1024.0 && rx < 1024.0 -> "↑${formatSpeed(tx)}"
+            rx >= 1024.0 && tx < 1024.0 -> "↓${formatSpeed(rx)}"
+            else -> formatSpeed(app.speedBytesSec)
         }
     }
 
@@ -809,10 +964,11 @@ class SpeedMonitorService : Service() {
                 } else if (activeApps.isNotEmpty()) {
                     appendLine(getString(R.string.net_speed_active_apps_header, settings.minAppUsageKb))
                     for (app in activeApps) {
+                        val speedFormatted = formatAppSpeedText(app)
                         if (app.hasDivergence) {
-                            appendLine(getString(R.string.net_speed_app_divergence, app.appName, formatSpeed(app.speedBytesSec)))
+                            appendLine(getString(R.string.net_speed_app_divergence, app.appName, speedFormatted))
                         } else {
-                            appendLine("• ${app.appName}: ${formatSpeed(app.speedBytesSec)}")
+                            appendLine(getString(R.string.net_speed_app_normal, app.appName, speedFormatted))
                         }
                     }
                 } else if (isAppsLoading) {

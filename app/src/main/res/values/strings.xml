@@ -193,7 +193,7 @@
     <string name="anomaly_desc_net_screen_on">%1$s transferred %2$s in background (%3$s).</string>
     <string name="anomaly_desc_cpu">%1$s consumed %2$s CPU in background.</string>
     <string name="anomaly_desc_ram">%1$s is using %2$s RAM in background.</string>
-    <string name="anomaly_desc_deep_sleep">%1$s kept device awake for %2$s during %3$s screen off.</string>
+    <string name="anomaly_desc_deep_sleep">Device awake for %2$s during %3$s screen off (possible correlation with %1$s).</string>
     <string name="anomaly_value_awake_minutes">%1$dm awake</string>
     <string name="anomaly_cause_download">Background download</string>
     <string name="anomaly_cause_upload">Background upload</string>
@@ -1267,11 +1267,27 @@
     <string name="net_speed_interval_desc">Frequency of real-time speed updates (longer interval = less battery usage)</string>
     <string name="net_speed_status">Status: %1$s</string>
     <string name="net_speed_last_sample">Updated: %1$s</string>
+    <string name="net_speed_app_normal">• %1$s: %2$s</string>
     <string name="net_speed_app_divergence">• %1$s: %2$s (aggregated)</string>
+    <string name="net_speed_apps_inconclusive">App usage: Inconclusive (delayed sync)</string>
 
     <!-- Deep sleep device-level strings -->
     <string name="anomaly_device_deep_sleep_title">Device Deep Sleep</string>
     <string name="anomaly_device_deep_sleep_desc">Device remained awake for %1$s out of %2$s with screen off. App attribution is inconclusive.</string>
+    <string name="system_uid_root">System (Root)</string>
+    <string name="system_uid_android">Android System</string>
+    <string name="shared_uid_app_count">%1$s (+%2$d apps)</string>
+    <string name="anomaly_shared_uid_info">• Shared UID %1$d (%2$d apps)</string>
+    <string name="anomaly_reason_shared_uid">Shared UID between: %s</string>
+    <string name="anomaly_cause_ram_leak_suspect">Possible leak: continuous memory growth observed (+%1$d MB in %2$ds)</string>
+    <string name="anomaly_cause_ram_high_persistent">Persistent high RSS memory usage in background</string>
+    <string name="anomaly_reason_ram_leak">Continuous RAM growth across %1$d consecutive samples under pressure</string>
+    <string name="anomaly_reason_ram_stable">Stable high RSS RAM usage without leak indication</string>
+    <string name="anomaly_reason_cpu_hits">Continuous confirmation across %1$d consecutive samples via kernel CPU time</string>
+    <string name="anomaly_reason_deep_sleep_device">Device remained awake without conclusive evidence of a single culprit app</string>
+    <string name="anomaly_reason_deep_sleep_fgs">Foreground service started during sleep; wakelock causality not proven</string>
+    <string name="anomaly_reason_deep_sleep_shared">Active wakelock on shared UID at the end of sleep</string>
+    <string name="anomaly_reason_deep_sleep_wakelock">Active partial wakelock detected at the end of sleep window</string>
 
     
     <string name="battery_auto_reset_title">Auto Reset</string>

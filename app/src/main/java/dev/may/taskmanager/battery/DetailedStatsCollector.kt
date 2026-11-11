@@ -135,8 +135,13 @@ class DetailedStatsCollector(
         }
     }
 
+    fun clearSnapshot() {
+        _snapshot.value = null
+    }
+
     suspend fun resetStats(): Boolean {
         val outcome = shellRunner.exec("dumpsys batterystats --reset", allowEmpty = true)
+        _snapshot.value = null
         return outcome is ShellRunner.Outcome.Success
     }
 

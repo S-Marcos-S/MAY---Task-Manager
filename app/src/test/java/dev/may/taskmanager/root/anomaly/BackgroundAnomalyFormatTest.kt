@@ -56,6 +56,53 @@ class BackgroundAnomalyFormatTest {
             val awakeTemplate = awakeMatcher.group(1) ?: ""
             val formattedAwake = String.format(Locale.getDefault(), awakeTemplate, 15)
             assertTrue(formattedAwake.contains("15"))
+
+            val sharedUidPattern = Pattern.compile("<string name=\"anomaly_shared_uid_info\">(.*?)</string>")
+            val sharedUidMatcher = sharedUidPattern.matcher(content)
+            assertTrue("anomaly_shared_uid_info must exist in ${file.path}", sharedUidMatcher.find())
+            val sharedUidTemplate = sharedUidMatcher.group(1) ?: ""
+            val formattedSharedUid = String.format(Locale.getDefault(), sharedUidTemplate, 10045, 3)
+            assertTrue(formattedSharedUid.contains("10045"))
+            assertTrue(formattedSharedUid.contains("3"))
+
+            val ramLeakPattern = Pattern.compile("<string name=\"anomaly_cause_ram_leak_suspect\">(.*?)</string>")
+            val ramLeakMatcher = ramLeakPattern.matcher(content)
+            assertTrue("anomaly_cause_ram_leak_suspect must exist in ${file.path}", ramLeakMatcher.find())
+            val ramLeakTemplate = ramLeakMatcher.group(1) ?: ""
+            val formattedRamLeak = String.format(Locale.getDefault(), ramLeakTemplate, 50, 180)
+            assertTrue(formattedRamLeak.contains("50"))
+            assertTrue(formattedRamLeak.contains("180"))
+
+            val cpuHitsPattern = Pattern.compile("<string name=\"anomaly_reason_cpu_hits\">(.*?)</string>")
+            val cpuHitsMatcher = cpuHitsPattern.matcher(content)
+            assertTrue("anomaly_reason_cpu_hits must exist in ${file.path}", cpuHitsMatcher.find())
+            val cpuHitsTemplate = cpuHitsMatcher.group(1) ?: ""
+            val formattedCpuHits = String.format(Locale.getDefault(), cpuHitsTemplate, 3)
+            assertTrue(formattedCpuHits.contains("3"))
+
+            val appNormalPattern = Pattern.compile("<string name=\"net_speed_app_normal\">(.*?)</string>")
+            val appNormalMatcher = appNormalPattern.matcher(content)
+            assertTrue("net_speed_app_normal must exist in ${file.path}", appNormalMatcher.find())
+            val appNormalTemplate = appNormalMatcher.group(1) ?: ""
+            val formattedAppNormal = String.format(Locale.getDefault(), appNormalTemplate, "Telegram", "1.2 MB/s")
+            assertTrue(formattedAppNormal.contains("Telegram"))
+            assertTrue(formattedAppNormal.contains("1.2 MB/s"))
+
+            val appDivPattern = Pattern.compile("<string name=\"net_speed_app_divergence\">(.*?)</string>")
+            val appDivMatcher = appDivPattern.matcher(content)
+            assertTrue("net_speed_app_divergence must exist in ${file.path}", appDivMatcher.find())
+            val appDivTemplate = appDivMatcher.group(1) ?: ""
+            val formattedAppDiv = String.format(Locale.getDefault(), appDivTemplate, "Telegram", "1.2 MB/s")
+            assertTrue(formattedAppDiv.contains("Telegram"))
+            assertTrue(formattedAppDiv.contains("1.2 MB/s"))
+
+            val sharedUidCountPattern = Pattern.compile("<string name=\"shared_uid_app_count\">(.*?)</string>")
+            val sharedUidCountMatcher = sharedUidCountPattern.matcher(content)
+            assertTrue("shared_uid_app_count must exist in ${file.path}", sharedUidCountMatcher.find())
+            val sharedUidCountTemplate = sharedUidCountMatcher.group(1) ?: ""
+            val formattedSharedUidCount = String.format(Locale.getDefault(), sharedUidCountTemplate, "GMS", 2)
+            assertTrue(formattedSharedUidCount.contains("GMS"))
+            assertTrue(formattedSharedUidCount.contains("2"))
         }
     }
 }

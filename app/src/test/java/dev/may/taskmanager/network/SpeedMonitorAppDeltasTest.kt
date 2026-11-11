@@ -123,7 +123,7 @@ class SpeedMonitorAppDeltasTest {
     }
 
     @Test
-    fun calculateActiveAppsFromDeltas_preservesRealSpeedAndFlagsDivergenceWithoutArtificialDownscaling() {
+    fun calculateActiveAppsFromDeltas_scalesSpeedToConserveTotalBandwidthAndFlagsDivergence() {
         val previous = mapOf(10100 to 0L)
         val current = mapOf(10100 to 3_000_000L) // Delta = 3 MB/s in 1s
 
@@ -140,12 +140,176 @@ class SpeedMonitorAppDeltasTest {
 
         assertEquals(1, result.size)
         assertEquals("YouTube", result[0].appName)
-        // Regra fundamental: NUNCA apresentar estimativa ou diminuicao artificial
-        // como se fosse medicao comprovada. A medicao real delta (3 MB/s) e preservada
-        // e a divergencia estatistica e explicitamente sinalizada com confianca LOW.
-        assertEquals(3_000_000.0, result[0].speedBytesSec, 0.001)
+        // Lei da Conservação Física: a velocidade atribuída ao aplicativo não pode
+        // exceder a velocidade total física observada na interface de rede no mesmo intervalo.
+        // O valor é reconciliado proporcionalmente e sinalizado como agregado (hasDivergence = true).
+        assertEquals(1_000_000.0, result[0].speedBytesSec, 0.001)
         assertTrue(result[0].hasDivergence)
         assertEquals(ConfidenceLevel.LOW, result[0].confidence)
+    }
+
+    @Test
+    fun calculateActiveAppsFromDeltas_mandatoryTest1_comparesOverallSpeedWithSumOfAppSpeeds() {
+        // Cenário exato reportado:
+        // Download geral: 1,2 MB/s (1.200.000 B/s)
+        // Upload geral: 35 KB/s (35.000 B/s)
+        // Lote bruto do NetworkStatsManager: Telegram 2,8 MB/s RX, Termux 448 KB/s RX
+        val totalDownSpeed = 1_200_000.0
+        val totalUpSpeed = 35_000.0
+
+        val prevRx = mapOf(10100 to 0L, 10200 to 0L)
+        val curRx = mapOf(10100 to 2_800_000L, 10200 to 448_000L) // Telegram = 2.8M, Termux = 448K
+        val prevTx = mapOf(10100 to 0L, 10200 to 0L)
+        val curTx = mapOf(10100 to 0L, 10200 to 0L)
+
+        val names = mapOf(10100 to "Telegram", 10200 to "Termux")
+
+        val result = SpeedMonitorService.calculateActiveAppsFromDeltas(
+            currentRxTotals = curRx,
+            previousRxTotals = prevRx,
+            currentTxTotals = curTx,
+            previousTxTotals = prevTx,
+            deltaTimeSec = 1.0,
+            minBytesPerSec = 10_000.0,
+            totalDownSpeed = totalDownSpeed,
+            totalUpSpeed = totalUpSpeed,
+            resolveName = { names[it] }
+        )
+
+        assertEquals(2, result.size)
+        assertEquals("Telegram", result[0].appName)
+        assertEquals("Termux", result[1].appName)
+
+        // Soma das velocidades dos aplicativos DEVE ser compatível e igual ao download geral medido
+        val sumAppDown = result.sumOf { it.rxSpeedBytesSec }
+        val sumAppTotal = result.sumOf { it.speedBytesSec }
+        assertEquals(totalDownSpeed, sumAppDown, 0.01)
+        assertEquals(totalDownSpeed, sumAppTotal, 0.01)
+
+        // Telegram nunca pode ser 2.8 MB/s se o download geral é 1.2 MB/s
+        val expectedTelegram = (2_800_000.0 / (2_800_000.0 + 448_000.0)) * totalDownSpeed
+        val expectedTermux = (448_000.0 / (2_800_000.0 + 448_000.0)) * totalDownSpeed
+        assertEquals(expectedTelegram, result[0].rxSpeedBytesSec, 0.01)
+        assertEquals(expectedTermux, result[1].rxSpeedBytesSec, 0.01)
+        assertTrue(result[0].hasDivergence)
+        assertTrue(result[1].hasDivergence)
+    }
+
+    @Test
+    fun calculateActiveAppsFromDeltas_mandatoryTest2_simultaneousDownloadAndUploadAcrossApps() {
+        // App A baixando a 1 MB/s, App B enviando a 500 KB/s
+        val totalDownSpeed = 1_000_000.0
+        val totalUpSpeed = 500_000.0
+
+        val prevRx = mapOf(10100 to 0L, 10200 to 0L)
+        val curRx = mapOf(10100 to 1_000_000L, 10200 to 0L)
+        val prevTx = mapOf(10100 to 0L, 10200 to 0L)
+        val curTx = mapOf(10100 to 0L, 10200 to 500_000L)
+
+        val names = mapOf(10100 to "DownloaderApp", 10200 to "UploaderApp")
+
+        val result = SpeedMonitorService.calculateActiveAppsFromDeltas(
+            currentRxTotals = curRx,
+            previousRxTotals = prevRx,
+            currentTxTotals = curTx,
+            previousTxTotals = prevTx,
+            deltaTimeSec = 1.0,
+            minBytesPerSec = 10_000.0,
+            totalDownSpeed = totalDownSpeed,
+            totalUpSpeed = totalUpSpeed,
+            resolveName = { names[it] }
+        )
+
+        assertEquals(2, result.size)
+        val downApp = result.first { it.appName == "DownloaderApp" }
+        val upApp = result.first { it.appName == "UploaderApp" }
+
+        assertEquals(1_000_000.0, downApp.rxSpeedBytesSec, 0.01)
+        assertEquals(0.0, downApp.txSpeedBytesSec, 0.01)
+        assertEquals(1_000_000.0, downApp.speedBytesSec, 0.01)
+        assertFalse(downApp.hasDivergence)
+
+        assertEquals(0.0, upApp.rxSpeedBytesSec, 0.01)
+        assertEquals(500_000.0, upApp.txSpeedBytesSec, 0.01)
+        assertEquals(500_000.0, upApp.speedBytesSec, 0.01)
+        assertFalse(upApp.hasDivergence)
+    }
+
+    @Test
+    fun calculateActiveAppsFromDeltas_mandatoryTest3_accumulatedStatsNotPresentedAsInstantSpeedWhenIdle() {
+        // Dispositivo ocioso (0 B/s geral), mas NetworkStatsManager despejou lote atrasado de 5 MB
+        val totalDownSpeed = 0.0
+        val totalUpSpeed = 0.0
+
+        val prevRx = mapOf(10100 to 0L)
+        val curRx = mapOf(10100 to 5_000_000L)
+        val prevTx = mapOf(10100 to 0L)
+        val curTx = mapOf(10100 to 0L)
+
+        val result = SpeedMonitorService.calculateActiveAppsFromDeltas(
+            currentRxTotals = curRx,
+            previousRxTotals = prevRx,
+            currentTxTotals = curTx,
+            previousTxTotals = prevTx,
+            deltaTimeSec = 1.0,
+            minBytesPerSec = 10_000.0,
+            totalDownSpeed = totalDownSpeed,
+            totalUpSpeed = totalUpSpeed,
+            resolveName = { "StaleApp" }
+        )
+
+        // Estatísticas acumuladas passadas NÃO devem ser mostradas como velocidade instantânea quando ocioso
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun calculateActiveAppsFromDeltas_mandatoryTest4_sharedUidAndMultipleProcesses() {
+        // UID compartilhado por múltiplos processos/pacotes
+        val prev = mapOf(10050 to 0L)
+        val cur = mapOf(10050 to 800_000L)
+
+        val result = SpeedMonitorService.calculateActiveAppsFromDeltas(
+            currentTotals = cur,
+            previousTotals = prev,
+            deltaTimeSec = 1.0,
+            minBytesPerSec = 10_000.0,
+            totalDeviceSpeed = 1_000_000.0,
+            resolveName = { "Google Play Services (+2 apps)" }
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("Google Play Services (+2 apps)", result[0].appName)
+        assertEquals(800_000.0, result[0].speedBytesSec, 0.01)
+        assertFalse(result[0].hasDivergence)
+    }
+
+    @Test
+    fun calculateActiveAppsFromDeltas_mandatoryTest5_validatesUnitConsistency() {
+        // Validação estrita de unidades: B/s, KB/s, MB/s
+        val prev = mapOf(10100 to 0L, 10200 to 0L, 10300 to 0L)
+        val cur = mapOf(
+            10100 to 500L,             // 500 B/s (abaixo de 1 KB/s -> excluído pelo threshold de 1024)
+            10200 to 512_000L,         // 500 KB/s
+            10300 to 2_621_440L        // 2.5 MB/s
+        )
+
+        val names = mapOf(10100 to "ByteApp", 10200 to "KbApp", 10300 to "MbApp")
+
+        val result = SpeedMonitorService.calculateActiveAppsFromDeltas(
+            currentTotals = cur,
+            previousTotals = prev,
+            deltaTimeSec = 1.0,
+            minBytesPerSec = 1024.0, // 1 KB/s
+            totalDeviceSpeed = 5_000_000.0,
+            resolveName = { names[it] }
+        )
+
+        assertEquals(2, result.size)
+        assertEquals("MbApp", result[0].appName)
+        assertEquals(2_621_440.0, result[0].speedBytesSec, 0.01)
+
+        assertEquals("KbApp", result[1].appName)
+        assertEquals(512_000.0, result[1].speedBytesSec, 0.01)
     }
 
     @Test

@@ -190,6 +190,14 @@ class BackgroundAnomalyNotificationManager private constructor(private val conte
         notificationManager.cancel(notificationId)
     }
 
+    fun cancelNotificationForPackage(packageName: String) {
+        for (type in AnomalyType.values()) {
+            recentAlertTimestamps.remove("${packageName}_${type.name}")
+        }
+        val notificationId = 7000 + (packageName.hashCode() and 0x7FFF)
+        notificationManager.cancel(notificationId)
+    }
+
     private fun drawableToBitmap(drawable: Drawable): Bitmap? {
         if (drawable is BitmapDrawable && drawable.bitmap != null) {
             return drawable.bitmap

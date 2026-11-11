@@ -31,35 +31,45 @@ data class BatteryDisplayMetrics(
             snapshot: BatteryStatsParser.FullSnapshot?,
             drainState: DrainState
         ): BatteryDisplayMetrics {
+            // Se a sessão do DrainTracker acabou de ser resetada e o snapshot do dumpsys
+            // contém histórico antigo acumulado que não foi zerado, descarta o snapshot
+            // desatualizado para não sobrepor métricas antigas sobre a sessão recém-zerada.
+            val isSnapshotStale = snapshot != null &&
+                drainState.sessionStartTime > 0L &&
+                drainState.totalTimeMs < 60_000L &&
+                snapshot.batteryRealtimeMs > (drainState.totalTimeMs + 60_000L)
+
+            val effectiveSnapshot = if (isSnapshotStale) null else snapshot
+
             val screenOnMs = when {
-                snapshot != null && snapshot.screenOnTimeMs > 0L -> snapshot.screenOnTimeMs
+                effectiveSnapshot != null && effectiveSnapshot.screenOnTimeMs > 0L -> effectiveSnapshot.screenOnTimeMs
                 drainState.screenOnTimeMs > 0L -> drainState.screenOnTimeMs
                 else -> 0L
             }
 
             val totalTimeMs = when {
-                snapshot != null && snapshot.batteryRealtimeMs > 0L -> snapshot.batteryRealtimeMs
+                effectiveSnapshot != null && effectiveSnapshot.batteryRealtimeMs > 0L -> effectiveSnapshot.batteryRealtimeMs
                 drainState.totalTimeMs > 0L -> drainState.totalTimeMs
                 else -> 0L
             }
 
             val screenOffMs = when {
-                snapshot != null && snapshot.batteryRealtimeMs > snapshot.screenOnTimeMs ->
-                    (snapshot.batteryRealtimeMs - snapshot.screenOnTimeMs).coerceAtLeast(0L)
+                effectiveSnapshot != null && effectiveSnapshot.batteryRealtimeMs > effectiveSnapshot.screenOnTimeMs ->
+                    (effectiveSnapshot.batteryRealtimeMs - effectiveSnapshot.screenOnTimeMs).coerceAtLeast(0L)
                 drainState.screenOffTimeMs > 0L -> drainState.screenOffTimeMs
                 totalTimeMs > screenOnMs -> (totalTimeMs - screenOnMs).coerceAtLeast(0L)
                 else -> 0L
             }
 
             val screenOnDischarge = when {
-                snapshot != null && snapshot.screenOnDischargePercent > 0f -> snapshot.screenOnDischargePercent
+                effectiveSnapshot != null && effectiveSnapshot.screenOnDischargePercent > 0f -> effectiveSnapshot.screenOnDischargePercent
                 drainState.screenOnDrainMah > 0.0 && drainState.batteryCapacityMah > 0 ->
                     (drainState.screenOnDrainMah / drainState.batteryCapacityMah * 100.0).toFloat()
                 else -> 0f
             }
 
             val screenOffDischarge = when {
-                snapshot != null && snapshot.screenOffDischargePercent > 0f -> snapshot.screenOffDischargePercent
+                effectiveSnapshot != null && effectiveSnapshot.screenOffDischargePercent > 0f -> effectiveSnapshot.screenOffDischargePercent
                 drainState.screenOffDrainMah > 0.0 && drainState.batteryCapacityMah > 0 ->
                     (drainState.screenOffDrainMah / drainState.batteryCapacityMah * 100.0).toFloat()
                 else -> 0f
@@ -73,7 +83,7 @@ data class BatteryDisplayMetrics(
             }
 
             val capacityMah = when {
-                snapshot != null && snapshot.estimatedCapacityMah > 0 -> snapshot.estimatedCapacityMah.toDouble()
+                effectiveSnapshot != null && effectiveSnapshot.estimatedCapacityMah > 0 -> effectiveSnapshot.estimatedCapacityMah.toDouble()
                 drainState.batteryCapacityMah > 0 -> drainState.batteryCapacityMah
                 else -> 4000.0
             }
@@ -85,15 +95,15 @@ data class BatteryDisplayMetrics(
             }
 
             val deepSleepMs = when {
-                snapshot != null && snapshot.batteryRealtimeMs > 0L && snapshot.batteryRealtimeMs >= snapshot.batteryUptimeMs ->
-                    (snapshot.batteryRealtimeMs - snapshot.batteryUptimeMs).coerceAtMost(screenOffMs).coerceAtLeast(0L)
+                effectiveSnapshot != null && effectiveSnapshot.batteryRealtimeMs > 0L && effectiveSnapshot.batteryRealtimeMs >= effectiveSnapshot.batteryUptimeMs ->
+                    (effectiveSnapshot.batteryRealtimeMs - effectiveSnapshot.batteryUptimeMs).coerceAtMost(screenOffMs).coerceAtLeast(0L)
                 drainState.deepSleepTimeMs > 0L -> drainState.deepSleepTimeMs.coerceAtMost(screenOffMs)
                 else -> 0L
             }
 
             val awakeMs = when {
-                snapshot != null && snapshot.batteryUptimeMs > 0L && snapshot.batteryUptimeMs >= snapshot.screenOnTimeMs ->
-                    (snapshot.batteryUptimeMs - snapshot.screenOnTimeMs).coerceAtMost(screenOffMs).coerceAtLeast(0L)
+                effectiveSnapshot != null && effectiveSnapshot.batteryUptimeMs > 0L && effectiveSnapshot.batteryUptimeMs >= effectiveSnapshot.screenOnTimeMs ->
+                    (effectiveSnapshot.batteryUptimeMs - effectiveSnapshot.screenOnTimeMs).coerceAtMost(screenOffMs).coerceAtLeast(0L)
                 drainState.awakeTimeMs > 0L -> drainState.awakeTimeMs.coerceAtMost(screenOffMs)
                 screenOffMs >= deepSleepMs -> (screenOffMs - deepSleepMs).coerceAtLeast(0L)
                 else -> 0L

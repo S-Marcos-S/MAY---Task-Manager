@@ -110,8 +110,9 @@ object SystemTaskInspector {
     private data class NetSample(val rx: Long, val tx: Long, val timestamp: Long)
     private val lastNetSample = AtomicReference<NetSample?>(null)
 
+    data class ProcessKey(val pid: Int, val elapsed: String)
     private data class ProcCpuSnapshot(val cpuTimeMs: Long, val timestampMs: Long)
-    private val processCpuHistory = ConcurrentHashMap<Int, ProcCpuSnapshot>()
+    private val processCpuHistory = ConcurrentHashMap<ProcessKey, ProcCpuSnapshot>()
 
     /**
      * Parses time strings produced by ps (e.g., "0:01.01", "52:15.18", "01:36:15.22", "1-02:03:04.50")
@@ -166,6 +167,10 @@ object SystemTaskInspector {
      * Parses elapsed process uptime produced by ps (e.g., "00:05", "12:34", "01:23:45", "1-02:03:04")
      * into total milliseconds.
      */
+    /**
+     * Parses elapsed process uptime produced by ps (e.g., "00:05", "12:34", "01:23:45", "1-02:03:04")
+     * into total milliseconds.
+     */
     fun parseElapsedTimeToMs(elapsedStr: String): Long {
         val trimmed = elapsedStr.trim()
         if (trimmed.isEmpty()) return 0L
@@ -194,6 +199,50 @@ object SystemTaskInspector {
             }
             else -> 0L
         }
+    }
+
+    data class ProcStatInfo(
+        val pid: Int,
+        val comm: String,
+        val state: String,
+        val utimeTicks: Long,
+        val stimeTicks: Long,
+        val starttimeTicks: Long,
+    ) {
+        val totalCpuTicks: Long get() = utimeTicks + stimeTicks
+    }
+
+    /**
+     * Parses Linux /proc/<pid>/stat line accurately handling comm fields with spaces or parentheses.
+     */
+    fun parseProcStat(statContent: String): ProcStatInfo? {
+        val lastParen = statContent.lastIndexOf(')')
+        if (lastParen < 0) return null
+        val firstParen = statContent.indexOf('(')
+        val pidStr = statContent.substring(0, if (firstParen > 0) firstParen else statContent.indexOf(' ')).trim()
+        val pid = pidStr.toIntOrNull() ?: return null
+        val comm = if (firstParen in 0 until lastParen) statContent.substring(firstParen + 1, lastParen) else ""
+        val rest = statContent.substring(lastParen + 1).trim()
+        val tokens = rest.split(Regex("\\s+"))
+        if (tokens.size < 20) return null
+        val state = tokens[0]
+        val utime = tokens[11].toLongOrNull() ?: 0L
+        val stime = tokens[12].toLongOrNull() ?: 0L
+        val starttime = tokens[19].toLongOrNull() ?: 0L
+        return ProcStatInfo(pid, comm, state, utime, stime, starttime)
+    }
+
+    /**
+     * Parses VmRSS in kilobytes from Linux /proc/<pid>/status content.
+     */
+    fun parseVmRssKb(statusContent: String): Long? {
+        statusContent.lineSequence().forEach { line ->
+            if (line.startsWith("VmRSS:")) {
+                val kbStr = line.substringAfter("VmRSS:").trim().substringBefore(" ").trim()
+                return kbStr.toLongOrNull()
+            }
+        }
+        return null
     }
 
     fun readDeviceTotalNetBytes(): Pair<Long, Long> {
@@ -369,9 +418,10 @@ object SystemTaskInspector {
         val shellScript = """
             echo "===ACTIVITIES==="
             dumpsys window 2>/dev/null | grep -E "mCurrentFocus|mFocusedApp"
-            dumpsys activity activities 2>/dev/null | grep -E "topResumedActivity|mResumedActivity"
+            dumpsys activity activities 2>/dev/null | grep -E "topResumedActivity|mResumedActivity|visible=true"
+            dumpsys activity recents 2>/dev/null | grep -E "Recent #0"
             echo "===PS==="
-            ps -A -o PID,USER,S,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,S,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -A -o PID,USER,%CPU,%MEM,ARGS 2>/dev/null || ps -o PID,USER,%CPU,%MEM,ARGS 2>/dev/null
+            ps -A -o PID,USER,S,RSS,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,S,RSS,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -A -o PID,USER,S,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,S,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null
         """.trimIndent()
 
         val output = AppRootInspector.runSuCommand(shellScript).getOrDefault("")
@@ -387,7 +437,7 @@ object SystemTaskInspector {
         val coresCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
 
         val nowRealtime = SystemClock.elapsedRealtime()
-        val currentPids = mutableSetOf<Int>()
+        val currentKeys = mutableSetOf<ProcessKey>()
 
         // Parse processes with instantaneous delta CPU sampling (preventing cumulative lifetime %CPU decay)
         val rawList = mutableListOf<RawProc>()
@@ -399,23 +449,33 @@ object SystemTaskInspector {
 
             val pid = tokens[0].toIntOrNull() ?: return@forEach
             val user = tokens[1]
-            currentPids.add(pid)
 
-            // High-precision format with delta CPU calculation: PID,USER,S,%MEM,TIME+,ELAPSED,ARGS
-            val isHighPrecision = tokens.size >= 7 && (tokens[4].contains(":") || tokens[2].length == 1)
+            // Check if format contains RSS: PID,USER,S,RSS,%MEM,TIME+,ELAPSED,ARGS
+            val hasRss = tokens.size >= 8 && tokens[5].contains(":")
+            val isHighPrecision = hasRss || (tokens.size >= 7 && (tokens[4].contains(":") || tokens[2].length == 1))
 
-            val (cpuPercent, memPercent, args) = if (isHighPrecision) {
+            var cpuPercent = 0.0
+            var memPercent = 0.0
+            var rssMb: Double? = null
+            var elapsedStr = ""
+            var args = ""
+
+            if (hasRss) {
                 val state = tokens[2]
-                val mem = tokens[3].toDoubleOrNull() ?: 0.0
-                val timeStr = tokens[4]
-                val elapsedStr = tokens[5]
-                val cmdArgs = tokens.subList(6, tokens.size).joinToString(" ")
+                val rssKb = tokens[3].toDoubleOrNull() ?: 0.0
+                rssMb = rssKb / 1024.0
+                memPercent = tokens[4].toDoubleOrNull() ?: 0.0
+                val timeStr = tokens[5]
+                elapsedStr = tokens[6]
+                args = tokens.subList(7, tokens.size).joinToString(" ")
 
                 val cpuTimeMs = parseCpuTimeToMs(timeStr)
-                val prev = processCpuHistory[pid]
-                processCpuHistory[pid] = ProcCpuSnapshot(cpuTimeMs, nowRealtime)
+                val key = ProcessKey(pid, elapsedStr)
+                currentKeys.add(key)
+                val prev = processCpuHistory[key]
+                processCpuHistory[key] = ProcCpuSnapshot(cpuTimeMs, nowRealtime)
 
-                val cpu = if (prev != null) {
+                cpuPercent = if (prev != null) {
                     val deltaCpuMs = (cpuTimeMs - prev.cpuTimeMs).coerceAtLeast(0L)
                     val deltaWallMs = (nowRealtime - prev.timestampMs).coerceAtLeast(1L)
                     if (deltaCpuMs == 0L) {
@@ -424,7 +484,6 @@ object SystemTaskInspector {
                         ((deltaCpuMs.toDouble() / (deltaWallMs * coresCount)) * 100.0).coerceIn(0.0, 100.0)
                     }
                 } else {
-                    // First observation of this PID
                     if (state == "S" || state == "I" || state == "Z" || state == "T") {
                         0.0
                     } else {
@@ -436,20 +495,51 @@ object SystemTaskInspector {
                         }
                     }
                 }
-                Triple(cpu, mem, cmdArgs)
+            } else if (isHighPrecision) {
+                val state = tokens[2]
+                memPercent = tokens[3].toDoubleOrNull() ?: 0.0
+                val timeStr = tokens[4]
+                elapsedStr = tokens[5]
+                args = tokens.subList(6, tokens.size).joinToString(" ")
+
+                val cpuTimeMs = parseCpuTimeToMs(timeStr)
+                val key = ProcessKey(pid, elapsedStr)
+                currentKeys.add(key)
+                val prev = processCpuHistory[key]
+                processCpuHistory[key] = ProcCpuSnapshot(cpuTimeMs, nowRealtime)
+
+                cpuPercent = if (prev != null) {
+                    val deltaCpuMs = (cpuTimeMs - prev.cpuTimeMs).coerceAtLeast(0L)
+                    val deltaWallMs = (nowRealtime - prev.timestampMs).coerceAtLeast(1L)
+                    if (deltaCpuMs == 0L) {
+                        0.0
+                    } else {
+                        ((deltaCpuMs.toDouble() / (deltaWallMs * coresCount)) * 100.0).coerceIn(0.0, 100.0)
+                    }
+                } else {
+                    if (state == "S" || state == "I" || state == "Z" || state == "T") {
+                        0.0
+                    } else {
+                        val elapsedMs = parseElapsedTimeToMs(elapsedStr)
+                        if (elapsedMs in 1..4000L) {
+                            ((cpuTimeMs.toDouble() / (elapsedMs * coresCount)) * 100.0).coerceIn(0.0, 100.0)
+                        } else {
+                            0.0
+                        }
+                    }
+                }
             } else {
                 val rawCpu = tokens[2].toDoubleOrNull() ?: 0.0
-                val normalizedCpu = (rawCpu / coresCount).coerceIn(0.0, 100.0)
-                val mem = tokens[3].toDoubleOrNull() ?: 0.0
-                val cmdArgs = tokens.subList(4, tokens.size).joinToString(" ")
-                Triple(normalizedCpu, mem, cmdArgs)
+                cpuPercent = (rawCpu / coresCount).coerceIn(0.0, 100.0)
+                memPercent = tokens[3].toDoubleOrNull() ?: 0.0
+                args = tokens.subList(4, tokens.size).joinToString(" ")
             }
 
-            rawList.add(RawProc(pid, user, cpuPercent, memPercent, args))
+            rawList.add(RawProc(pid, user, cpuPercent, memPercent, args, rssMb, elapsedStr))
         }
 
         // Clean up history for dead/terminated PIDs
-        processCpuHistory.keys.retainAll(currentPids)
+        processCpuHistory.keys.retainAll(currentKeys)
 
         // Get total system RAM to convert %MEM into MB
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
@@ -480,7 +570,7 @@ object SystemTaskInspector {
             if (matchedApp != null) {
                 val pkg = matchedApp.packageName
                 val isFg = foregroundPackages.contains(pkg)
-                val ramMb = (proc.memPercent / 100.0) * totalRamMb
+                val ramMb = proc.rssMb ?: ((proc.memPercent / 100.0) * totalRamMb)
                 val (impact, powerMw) = calculatePowerImpact(proc.cpuPercent, isFg, isSystem = false)
                 val item = TaskProcessItem(
                     pid = proc.pid,
@@ -495,6 +585,7 @@ object SystemTaskInspector {
                     appInfo = matchedApp,
                     powerImpact = impact,
                     estimatedPowerMw = powerMw,
+                    rssMb = proc.rssMb,
                 )
                 if (isFg) {
                     foregroundList.add(item)
@@ -527,7 +618,7 @@ object SystemTaskInspector {
                         }.getOrDefault(pkgName)
                     }
 
-                    val ramMb = (proc.memPercent / 100.0) * totalRamMb
+                    val ramMb = proc.rssMb ?: ((proc.memPercent / 100.0) * totalRamMb)
                     val (impact, powerMw) = calculatePowerImpact(proc.cpuPercent, isFg, isSystem = false)
                     val resolvedAppInfo = appsByPackage[pkgName] ?: AppInfo(
                         componentName = ComponentName(pkgName, ""),
@@ -546,6 +637,7 @@ object SystemTaskInspector {
                         appInfo = resolvedAppInfo,
                         powerImpact = impact,
                         estimatedPowerMw = powerMw,
+                        rssMb = proc.rssMb,
                     )
 
                     if (isFg) {
@@ -555,7 +647,7 @@ object SystemTaskInspector {
                     }
                 } else {
                     // System daemon / kernel thread
-                    val ramMb = (proc.memPercent / 100.0) * totalRamMb
+                    val ramMb = proc.rssMb ?: ((proc.memPercent / 100.0) * totalRamMb)
                     val (impact, powerMw) = calculatePowerImpact(proc.cpuPercent, isForeground = false, isSystem = true)
                     systemList.add(
                         TaskProcessItem(
@@ -571,6 +663,7 @@ object SystemTaskInspector {
                             appInfo = null,
                             powerImpact = impact,
                             estimatedPowerMw = powerMw,
+                            rssMb = proc.rssMb,
                         )
                     )
                 }
@@ -598,6 +691,8 @@ object SystemTaskInspector {
         val cpuPercent: Double,
         val memPercent: Double,
         val args: String,
+        val rssMb: Double? = null,
+        val elapsedStr: String = "",
     )
 
     private suspend fun sampleGlobalCpuUsage(now: Long): Double {

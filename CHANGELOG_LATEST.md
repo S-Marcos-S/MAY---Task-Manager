@@ -1,8 +1,10 @@
-### MAY Task Manager v1.0.21
-- Eliminacao de condicao de corrida na captura de rede com sessao imutavel e sincronizacao via CompletableDeferred.
-- Medicao diferencial real de CPU baseada em tempo acumulado do kernel com identificacao de reciclagem de PID.
-- Deteccao de anomalia de repouso com diferenciacao rigorosa entre contexto de servico e wakelocks comprovados.
-- Medicao direta de RSS em KB na analise de memoria sob pressao e historico conservador para vazamentos.
-- Identificacao transparente de UIDs compartilhados e deteccao de dados obsoletos (stale) no monitor de rede.
-- Migracao retrocompativel de historico legado com classificacao conservadora de confianca e sondagens ativas em diagnosticos.
+### MAY Task Manager v1.0.22
+- Separacao estrita de RX (download) e TX (upload) na amostragem de consumo de rede por aplicativo.
+- Normalizacao proporcional por conservacao fisica para compatibilizar lotes atrasados do NetworkStatsManager com o trafego total do dispositivo.
+- Descarte imediato de velocidades acumuladas quando o dispositivo estiver ocioso, eliminando picos fantasmas.
+- Indicacao direcional de trafego (download e upload) na lista de aplicativos ativos da notificacao.
+- Correcao da opcao de resetar estatisticas de bateria ao conectar o carregador com sincronizacao atomica e invalidacao de snapshots obsoletos.
+- Supressao de falsos positivos de CPU e cancelamento de notificacao de anomalia quando o app esta visivel em primeiro plano.
+- Protecao de tempo limite (timeout) com destruicao forcada de processos em comandos de root para evitar travamento de corrotinas.
+- Prevencao de colisoes em reciclagem de PID via chave composta de identidade com tempo de execucao.
 ---
