@@ -7,6 +7,7 @@ import dev.may.taskmanager.telemetry.TelemetryValidator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -47,7 +48,7 @@ class SystemTaskTelemetryTest {
         assertEquals("com.android.chrome", item.packageName)
         assertTrue(item.isForeground)
         assertFalse(item.isSystemProcess)
-        assertEquals(5.2, item.cpuPercent, 0.01)
+        assertEquals(5.2, item.cpuPercent ?: 0.0, 0.01)
         assertEquals(128.5, item.ramMb, 0.01)
     }
 
@@ -61,11 +62,11 @@ class SystemTaskTelemetryTest {
                     processName = "com.example.app",
                     appName = "Example",
                     user = "app",
-                    cpuPercent = 0.0,
+                    cpuPercent = null,
                     ramMb = 45.0,
                     isForeground = true,
                     pssMb = 45.0,
-                    confidence = ConfidenceLevel.MEDIUM,
+                    confidence = ConfidenceLevel.UNAVAILABLE,
                 )
             ),
             rootAvailable = false,
@@ -77,7 +78,8 @@ class SystemTaskTelemetryTest {
         assertTrue(snapshot.isTelemetryLimited)
         assertEquals(1, snapshot.foregroundApps.size)
         assertEquals(45.0, snapshot.foregroundApps[0].pssMb ?: 0.0, 0.01)
-        assertEquals(ConfidenceLevel.MEDIUM, snapshot.foregroundApps[0].confidence)
+        assertNull(snapshot.foregroundApps[0].cpuPercent)
+        assertEquals(ConfidenceLevel.UNAVAILABLE, snapshot.foregroundApps[0].confidence)
     }
 
     @Test
@@ -210,23 +212,91 @@ class SystemTaskTelemetryTest {
             1000 u0_a50 S 51200 2.0 0:01.40 com.whatsapp
         """.trimIndent()
 
-        // Sample 1: first observation sets baseline, returns 0.0%
+        // Sample 1: first observation sets baseline, delta is not yet available
         val res1 = SystemTaskInspector.parsePsLines(sample1, coresCount = 2, nowRealtime = 10000L)
         assertEquals(1, res1.size)
         assertEquals(1000, res1[0].pid)
         assertEquals("u0_a50", res1[0].user)
-        assertEquals(0.0, res1[0].cpuPercent, 0.001)
+        assertNull(res1[0].cpuPercent)
+        assertEquals(ConfidenceLevel.UNAVAILABLE, res1[0].confidence)
         assertEquals(50.0, res1[0].rssMb ?: 0.0, 0.01)
 
         // Sample 2: deltaCpu = 400ms, deltaWall = 1000ms, cores = 2 -> (400 / (1000 * 2)) * 100 = 20.0%
         val res2 = SystemTaskInspector.parsePsLines(sample2, coresCount = 2, nowRealtime = 11000L)
         assertEquals(1, res2.size)
         assertEquals(1000, res2[0].pid)
-        assertEquals(20.0, res2[0].cpuPercent, 0.01)
+        assertEquals(20.0, res2[0].cpuPercent ?: -1.0, 0.01)
+        assertEquals(ConfidenceLevel.HIGH, res2[0].confidence)
     }
 
     @Test
-    fun `parsePsLines supports lowercase headers and different column formats`() {
+    fun `parsePsLines reports exact zero percent for inactive process without historical residual`() {
+        SystemTaskInspector.processCpuHistory.clear()
+
+        val sample1 = """
+            PID USER S RSS %MEM TIME ARGS
+            1000 u0_a50 S 51200 2.0 0:01.00 com.whatsapp
+        """.trimIndent()
+
+        val sample2 = """
+            PID USER S RSS %MEM TIME ARGS
+            1000 u0_a50 S 51200 2.0 0:01.00 com.whatsapp
+        """.trimIndent()
+
+        // Baseline
+        SystemTaskInspector.parsePsLines(sample1, coresCount = 4, nowRealtime = 10000L)
+
+        // Second sample with no additional CPU ticks (sleeping in background)
+        val res2 = SystemTaskInspector.parsePsLines(sample2, coresCount = 4, nowRealtime = 12000L)
+        assertEquals(1, res2.size)
+        assertEquals(0.0, res2[0].cpuPercent ?: -1.0, 0.001)
+        assertEquals(ConfidenceLevel.HIGH, res2[0].confidence)
+    }
+
+    @Test
+    fun `parsePsLines prioritizes proc stat utime and stime with CLK_TCK conversion`() {
+        SystemTaskInspector.processCpuHistory.clear()
+
+        val psText = """
+            PID USER S RSS %MEM TIME ARGS
+            3000 u0_a70 S 40000 1.5 0:05.00 com.example.service
+        """.trimIndent()
+
+        val statMap1 = mapOf(
+            3000 to SystemTaskInspector.ProcStatInfo(
+                pid = 3000,
+                comm = "service",
+                state = "S",
+                utimeTicks = 100L,
+                stimeTicks = 50L,
+                starttimeTicks = 50000L,
+            )
+        )
+
+        val statMap2 = mapOf(
+            3000 to SystemTaskInspector.ProcStatInfo(
+                pid = 3000,
+                comm = "service",
+                state = "S",
+                utimeTicks = 150L,
+                stimeTicks = 80L,
+                starttimeTicks = 50000L,
+            )
+        )
+
+        // Baseline with clkTck = 100L (100 Hz -> 150 ticks = 1500ms)
+        val res1 = SystemTaskInspector.parsePsLines(psText, procStatMap = statMap1, coresCount = 4, nowRealtime = 20000L, clkTck = 100L)
+        assertNull(res1[0].cpuPercent)
+        assertEquals(ConfidenceLevel.UNAVAILABLE, res1[0].confidence)
+
+        // Sample 2: deltaTicks = (230 - 150) = 80 ticks = 800ms. deltaWall = 1000ms. cores = 4 -> (800 / 4000) * 100 = 20.0%
+        val res2 = SystemTaskInspector.parsePsLines(psText, procStatMap = statMap2, coresCount = 4, nowRealtime = 21000L, clkTck = 100L)
+        assertEquals(20.0, res2[0].cpuPercent ?: -1.0, 0.01)
+        assertEquals(ConfidenceLevel.HIGH, res2[0].confidence)
+    }
+
+    @Test
+    fun `parsePsLines avoids historical fallback and marks cpu unavailable when only raw percent cpu is present`() {
         SystemTaskInspector.processCpuHistory.clear()
 
         val sample = """
@@ -234,17 +304,83 @@ class SystemTaskTelemetryTest {
             2000 u0_a60 16.0 1.5 /system/bin/surfaceflinger
         """.trimIndent()
 
-        // When TIME column is not present, directly falls back to %CPU normalized by cores
+        // When TIME column is not present and procStat is absent, never fall back to lifetime %CPU
         val res = SystemTaskInspector.parsePsLines(sample, coresCount = 4, nowRealtime = 15000L)
         assertEquals(1, res.size)
         assertEquals(2000, res[0].pid)
-        assertEquals("u0_a60", res[0].user)
-        assertEquals(4.0, res[0].cpuPercent, 0.01) // 16.0% / 4 cores = 4.0%
+        assertNull(res[0].cpuPercent)
+        assertEquals(ConfidenceLevel.UNAVAILABLE, res[0].confidence)
         assertEquals(1.5, res[0].memPercent, 0.01)
     }
 
     @Test
-    fun `parsePsLines resets baseline cleanly when PID is recycled`() {
+    fun `parsePsLines handles short interval below threshold as unavailable to prevent tick jitter explosion`() {
+        SystemTaskInspector.processCpuHistory.clear()
+
+        val sample1 = """
+            PID USER S RSS %MEM TIME ARGS
+            1000 u0_a50 S 51200 2.0 0:01.00 com.whatsapp
+        """.trimIndent()
+
+        val sample2 = """
+            PID USER S RSS %MEM TIME ARGS
+            1000 u0_a50 S 51200 2.0 0:01.05 com.whatsapp
+        """.trimIndent()
+
+        // Baseline at t=10000ms
+        SystemTaskInspector.parsePsLines(sample1, coresCount = 4, nowRealtime = 10000L)
+
+        // Sample 2 at t=10010ms (deltaWall = 10ms < 20ms)
+        val res2 = SystemTaskInspector.parsePsLines(sample2, coresCount = 4, nowRealtime = 10010L)
+        assertNull(res2[0].cpuPercent)
+        assertEquals(ConfidenceLevel.UNAVAILABLE, res2[0].confidence)
+    }
+
+    @Test
+    fun `parsePsLines resets baseline cleanly when PID is recycled with different starttime`() {
+        SystemTaskInspector.processCpuHistory.clear()
+
+        val psText = """
+            PID USER S RSS %MEM TIME ARGS
+            4000 u0_a80 S 10000 1.0 10:00.00 com.browser
+        """.trimIndent()
+
+        val statMapOld = mapOf(
+            4000 to SystemTaskInspector.ProcStatInfo(
+                pid = 4000,
+                comm = "browser",
+                state = "S",
+                utimeTicks = 60000L,
+                stimeTicks = 0L,
+                starttimeTicks = 10000L,
+            )
+        )
+
+        val statMapNew = mapOf(
+            4000 to SystemTaskInspector.ProcStatInfo(
+                pid = 4000,
+                comm = "browser",
+                state = "S",
+                utimeTicks = 50L,
+                stimeTicks = 0L,
+                starttimeTicks = 25000L, // Recycled PID by Android kernel
+            )
+        )
+
+        // Old process baseline
+        SystemTaskInspector.parsePsLines(psText, procStatMap = statMapOld, coresCount = 4, nowRealtime = 50000L)
+
+        // New recycled process with same PID but different starttime
+        val res2 = SystemTaskInspector.parsePsLines(psText, procStatMap = statMapNew, coresCount = 4, nowRealtime = 51000L)
+
+        assertEquals(1, res2.size)
+        // Must NOT inherit previous process ticks (which would result in huge negative jump or spike)
+        assertNull(res2[0].cpuPercent)
+        assertEquals(ConfidenceLevel.UNAVAILABLE, res2[0].confidence)
+    }
+
+    @Test
+    fun `parsePsLines resets baseline cleanly when PID is recycled with negative delta cpu`() {
         SystemTaskInspector.processCpuHistory.clear()
 
         val sample1 = """
@@ -261,7 +397,39 @@ class SystemTaskTelemetryTest {
         val res2 = SystemTaskInspector.parsePsLines(sample2, coresCount = 4, nowRealtime = 51000L)
 
         assertEquals(1, res2.size)
-        assertEquals(0.0, res2[0].cpuPercent, 0.001)
+        assertNull(res2[0].cpuPercent)
+        assertEquals(ConfidenceLevel.UNAVAILABLE, res2[0].confidence)
+    }
+
+    @Test
+    fun `parseProcStats parses multiple lines accurately`() {
+        val sampleStats = """
+            100 (init) S 0 0 0 0 0 0 0 0 0 0 10 20 0 0 20 0 1 0 1000 10000 100
+            200 (system_server) S 1 0 0 0 0 0 0 0 0 0 500 300 0 0 20 0 50 0 2000 20000 500
+        """.trimIndent()
+
+        val map = SystemTaskInspector.parseProcStats(sampleStats)
+        assertEquals(2, map.size)
+        assertEquals(10L, map[100]?.utimeTicks)
+        assertEquals(20L, map[100]?.stimeTicks)
+        assertEquals(30L, map[100]?.totalCpuTicks)
+        assertEquals(1000L, map[100]?.starttimeTicks)
+
+        assertEquals(500L, map[200]?.utimeTicks)
+        assertEquals(300L, map[200]?.stimeTicks)
+        assertEquals(800L, map[200]?.totalCpuTicks)
+        assertEquals(2000L, map[200]?.starttimeTicks)
+    }
+
+    @Test
+    fun `calculatePowerImpact handles null and normal cpu percent safely`() {
+        val (impactNull, mwNull) = SystemTaskInspector.calculatePowerImpact(null, isForeground = true, isSystem = false)
+        assertEquals(PowerImpactLevel.MINIMAL, impactNull)
+        assertEquals(0.0, mwNull, 0.001)
+
+        val (impactHigh, mwHigh) = SystemTaskInspector.calculatePowerImpact(15.0, isForeground = true, isSystem = false)
+        assertEquals(PowerImpactLevel.HIGH, impactHigh)
+        assertEquals((15.0 / 100.0) * 2800.0, mwHigh, 0.001)
     }
 
     @Test

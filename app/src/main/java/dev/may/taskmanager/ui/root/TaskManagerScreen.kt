@@ -141,6 +141,7 @@ import dev.may.taskmanager.root.RunningTasksSnapshot
 import dev.may.taskmanager.root.SystemPerformanceSnapshot
 import dev.may.taskmanager.root.SystemTaskInspector
 import dev.may.taskmanager.root.TaskProcessItem
+import dev.may.taskmanager.telemetry.ConfidenceLevel
 import dev.may.taskmanager.ui.common.AppIcon
 import dev.may.taskmanager.ui.theme.LocalActiveThemeId
 import dev.may.taskmanager.ui.theme.LocalGlassThemeActive
@@ -818,10 +819,11 @@ private fun ProcessesScreen(
                         processName = app.packageName,
                         appName = app.label,
                         user = "u0",
-                        cpuPercent = 0.0,
+                        cpuPercent = null,
                         ramMb = 0.0,
                         isForeground = false,
                         appInfo = app,
+                        confidence = ConfidenceLevel.UNAVAILABLE,
                     )
                 }
                 InstalledAppSearchCard(
@@ -1107,12 +1109,17 @@ private fun ProcessRowCard(
             Column(horizontalAlignment = Alignment.End) {
                 // CPU Metric
                 val cpuColor = when {
+                    item.cpuPercent == null -> colorScheme.onSurface.copy(alpha = 0.45f)
                     item.cpuPercent > 20.0 -> Color(0xFFEF4444) // Red
                     item.cpuPercent > 5.0 -> Color(0xFFF59E0B) // Amber
                     else -> colorScheme.onSurface.copy(alpha = 0.75f)
                 }
                 Text(
-                    text = "${String.format(Locale.US, "%.1f", item.cpuPercent)}% CPU",
+                    text = if (item.cpuPercent != null) {
+                        stringResource(R.string.task_process_cpu_format, item.cpuPercent)
+                    } else {
+                        stringResource(R.string.task_process_cpu_unavailable)
+                    },
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = cpuColor,

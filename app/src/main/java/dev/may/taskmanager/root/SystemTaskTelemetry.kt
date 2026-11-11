@@ -17,6 +17,8 @@ import android.os.Build
 import android.os.Environment
 import android.os.StatFs
 import android.os.SystemClock
+import android.system.Os
+import android.system.OsConstants
 import dev.may.taskmanager.data.AppInfo
 import dev.may.taskmanager.telemetry.ConfidenceLevel
 import kotlinx.coroutines.Dispatchers
@@ -80,7 +82,7 @@ data class TaskProcessItem(
     val processName: String,
     val appName: String,
     val user: String,
-    val cpuPercent: Double,
+    val cpuPercent: Double? = null,
     val ramMb: Double,
     val isForeground: Boolean,
     val isSystemProcess: Boolean = false,
@@ -110,8 +112,8 @@ object SystemTaskInspector {
     private data class NetSample(val rx: Long, val tx: Long, val timestamp: Long)
     private val lastNetSample = AtomicReference<NetSample?>(null)
 
-    data class ProcessKey(val pid: Int, val command: String)
-    internal data class ProcCpuSnapshot(val cpuTimeMs: Long, val timestampMs: Long)
+    data class ProcessKey(val pid: Int, val starttime: Long = 0L, val command: String = "")
+    internal data class ProcCpuSnapshot(val cpuTimeMs: Long, val timestampMs: Long, val starttime: Long = 0L)
     internal val processCpuHistory = ConcurrentHashMap<ProcessKey, ProcCpuSnapshot>()
 
     /**
@@ -230,6 +232,33 @@ object SystemTaskInspector {
         val stime = tokens[12].toLongOrNull() ?: 0L
         val starttime = tokens[19].toLongOrNull() ?: 0L
         return ProcStatInfo(pid, comm, state, utime, stime, starttime)
+    }
+
+    /**
+     * Resolves Linux kernel clock ticks per second (CLK_TCK), usually 100 Hz.
+     */
+    fun resolveClkTck(): Long {
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                Os.sysconf(OsConstants._SC_CLK_TCK)
+            } else 100L
+        }.getOrNull()?.takeIf { it > 0L } ?: 100L
+    }
+
+    /**
+     * Parses batch /proc/[0-9]*/stat text output into a map indexed by PID.
+     */
+    fun parseProcStats(statContent: String): Map<Int, ProcStatInfo> {
+        val map = HashMap<Int, ProcStatInfo>()
+        statContent.lineSequence().forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.isNotEmpty()) {
+                parseProcStat(trimmed)?.let { info ->
+                    map[info.pid] = info
+                }
+            }
+        }
+        return map
     }
 
     /**
@@ -392,13 +421,13 @@ object SystemTaskInspector {
                     processName = proc.processName,
                     appName = label,
                     user = "app",
-                    cpuPercent = 0.0,
+                    cpuPercent = null,
                     ramMb = pssMb,
                     isForeground = isFg,
                     isSystemProcess = false,
                     appInfo = matchedApp,
                     pssMb = pssMb,
-                    confidence = ConfidenceLevel.MEDIUM,
+                    confidence = ConfidenceLevel.UNAVAILABLE,
                 )
                 if (isFg) fgList.add(item) else bgList.add(item)
             }
@@ -420,6 +449,8 @@ object SystemTaskInspector {
             dumpsys window 2>/dev/null | grep -E "mCurrentFocus|mFocusedApp"
             dumpsys activity activities 2>/dev/null | grep -E "topResumedActivity|mResumedActivity|visible=true"
             dumpsys activity recents 2>/dev/null | grep -E "Recent #0"
+            echo "===PROC_STAT==="
+            cat /proc/[0-9]*/stat 2>/dev/null
             echo "===PS==="
             ps -A -o pid,user,s,rss,%mem,time,args 2>/dev/null || ps -o pid,user,s,rss,%mem,time,args 2>/dev/null || ps -A -o PID,USER,S,RSS,%MEM,TIME,ARGS 2>/dev/null || ps -o PID,USER,S,RSS,%MEM,TIME,ARGS 2>/dev/null || ps -A -o pid,user,%cpu,%mem,args 2>/dev/null || ps -o pid,user,%cpu,%mem,args 2>/dev/null || ps -A -o PID,USER,%CPU,%MEM,ARGS 2>/dev/null || ps -o PID,USER,%CPU,%MEM,ARGS 2>/dev/null || ps -A -o PID,USER,S,RSS,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,S,RSS,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -A 2>/dev/null || ps 2>/dev/null
         """.trimIndent()
@@ -428,9 +459,12 @@ object SystemTaskInspector {
         val sections = parseSections(output)
 
         val activitiesText = sections["ACTIVITIES"] ?: ""
+        val procStatText = sections["PROC_STAT"] ?: ""
         val psText = sections["PS"] ?: ""
 
         val foregroundPackages = extractForegroundPackages(activitiesText)
+        val procStatMap = parseProcStats(procStatText)
+        val clkTck = resolveClkTck()
 
         // Determine CPU cores count to normalize raw Irix-mode CPU percentage (where 100% = 1 core)
         // to Solaris / Windows Task Manager total-system scale (where 100% = all cores fully utilized).
@@ -439,7 +473,13 @@ object SystemTaskInspector {
         val nowRealtime = SystemClock.elapsedRealtime()
 
         // Parse processes with instantaneous delta CPU sampling (preventing cumulative lifetime %CPU decay)
-        val rawList = parsePsLines(psText, coresCount = coresCount, nowRealtime = nowRealtime)
+        val rawList = parsePsLines(
+            psText = psText,
+            procStatMap = procStatMap,
+            coresCount = coresCount,
+            nowRealtime = nowRealtime,
+            clkTck = clkTck,
+        )
 
         // Get total system RAM to convert %MEM into MB
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
@@ -486,6 +526,7 @@ object SystemTaskInspector {
                     powerImpact = impact,
                     estimatedPowerMw = powerMw,
                     rssMb = proc.rssMb,
+                    confidence = proc.confidence,
                 )
                 if (isFg) {
                     foregroundList.add(item)
@@ -538,6 +579,7 @@ object SystemTaskInspector {
                         powerImpact = impact,
                         estimatedPowerMw = powerMw,
                         rssMb = proc.rssMb,
+                        confidence = proc.confidence,
                     )
 
                     if (isFg) {
@@ -564,6 +606,7 @@ object SystemTaskInspector {
                             powerImpact = impact,
                             estimatedPowerMw = powerMw,
                             rssMb = proc.rssMb,
+                            confidence = proc.confidence,
                         )
                     )
                 }
@@ -571,9 +614,9 @@ object SystemTaskInspector {
         }
 
         // Sort each category by CPU descending, then by RAM descending
-        val sortedFg = foregroundList.sortedWith(compareByDescending<TaskProcessItem> { it.cpuPercent }.thenByDescending { it.ramMb })
-        val sortedBg = backgroundList.sortedWith(compareByDescending<TaskProcessItem> { it.cpuPercent }.thenByDescending { it.ramMb })
-        val sortedSys = systemList.sortedWith(compareByDescending<TaskProcessItem> { it.cpuPercent }.thenByDescending { it.ramMb })
+        val sortedFg = foregroundList.sortedWith(compareByDescending<TaskProcessItem> { it.cpuPercent ?: -1.0 }.thenByDescending { it.ramMb })
+        val sortedBg = backgroundList.sortedWith(compareByDescending<TaskProcessItem> { it.cpuPercent ?: -1.0 }.thenByDescending { it.ramMb })
+        val sortedSys = systemList.sortedWith(compareByDescending<TaskProcessItem> { it.cpuPercent ?: -1.0 }.thenByDescending { it.ramMb })
 
         RunningTasksSnapshot(
             foregroundApps = sortedFg,
@@ -588,21 +631,25 @@ object SystemTaskInspector {
     internal data class RawProc(
         val pid: Int,
         val user: String,
-        val cpuPercent: Double,
+        val cpuPercent: Double?,
         val memPercent: Double,
         val args: String,
         val rssMb: Double? = null,
         val elapsedStr: String = "",
+        val confidence: ConfidenceLevel = ConfidenceLevel.HIGH,
     )
 
     internal fun parsePsLines(
         psText: String,
+        procStatMap: Map<Int, ProcStatInfo> = emptyMap(),
         coresCount: Int = 1,
         nowRealtime: Long = SystemClock.elapsedRealtime(),
+        clkTck: Long = resolveClkTck(),
     ): List<RawProc> {
         val rawList = mutableListOf<RawProc>()
         val currentKeys = mutableSetOf<ProcessKey>()
         val effectiveCores = coresCount.coerceAtLeast(1)
+        val effectiveClkTck = clkTck.coerceAtLeast(1L)
 
         var pidIdx = 0
         var userIdx = 1
@@ -645,7 +692,6 @@ object SystemTaskInspector {
             val rssKb = if (rssIdx >= 0 && rssIdx < tokens.size) tokens[rssIdx].toDoubleOrNull() ?: 0.0 else 0.0
             val rssMb = if (rssIdx >= 0 && rssKb > 0.0) rssKb / 1024.0 else null
             val memPercent = if (memIdx >= 0 && memIdx < tokens.size) tokens[memIdx].toDoubleOrNull() ?: 0.0 else 0.0
-            val rawCpu = if (cpuIdx >= 0 && cpuIdx < tokens.size) tokens[cpuIdx].replace("%", "").toDoubleOrNull() else null
             val timeStr = if (timeIdx >= 0 && timeIdx < tokens.size) tokens[timeIdx] else null
             val elapsedStr = if (elapsedIdx >= 0 && elapsedIdx < tokens.size) tokens[elapsedIdx] else ""
 
@@ -661,39 +707,70 @@ object SystemTaskInspector {
             }
 
             val cleanCmd = args.substringBefore(" ").substringAfterLast("/").removeSurrounding("[", "]").removeSurrounding("(", ")")
-            val key = ProcessKey(pid, cleanCmd)
-            currentKeys.add(key)
 
-            var cpuPercent = 0.0
-
-            if (timeStr != null && timeStr.contains(":")) {
-                val cpuTimeMs = parseCpuTimeToMs(timeStr)
-                val prev = processCpuHistory[key]
-                processCpuHistory[key] = ProcCpuSnapshot(cpuTimeMs, nowRealtime)
-
-                cpuPercent = if (prev != null) {
-                    val deltaCpuMs = cpuTimeMs - prev.cpuTimeMs
-                    val deltaWallMs = (nowRealtime - prev.timestampMs).coerceAtLeast(1L)
-                    if (deltaCpuMs < 0L || deltaWallMs > 60000L) {
-                        // PID was recycled or snapshot is stale
-                        if (rawCpu != null) (rawCpu / effectiveCores).coerceIn(0.0, 100.0) else 0.0
-                    } else if (deltaCpuMs == 0L) {
-                        0.0
-                    } else {
-                        ((deltaCpuMs.toDouble() / (deltaWallMs * effectiveCores)) * 100.0).coerceIn(0.0, 100.0)
-                    }
-                } else {
-                    if (rawCpu != null) {
-                        (rawCpu / effectiveCores).coerceIn(0.0, 100.0)
-                    } else {
-                        0.0
-                    }
+            val procStat = procStatMap[pid]
+            val (cpuTimeMs, starttime) = when {
+                procStat != null -> {
+                    val ms = (procStat.totalCpuTicks * 1000L) / effectiveClkTck
+                    Pair(ms, procStat.starttimeTicks)
                 }
-            } else if (rawCpu != null) {
-                cpuPercent = (rawCpu / effectiveCores).coerceIn(0.0, 100.0)
+                timeStr != null && timeStr.contains(":") -> {
+                    Pair(parseCpuTimeToMs(timeStr), 0L)
+                }
+                else -> {
+                    Pair(null, 0L)
+                }
             }
 
-            rawList.add(RawProc(pid, user, cpuPercent, memPercent, args, rssMb, elapsedStr))
+            val key = ProcessKey(pid, starttime, cleanCmd)
+            currentKeys.add(key)
+
+            var cpuPercent: Double? = null
+            var confidence = ConfidenceLevel.HIGH
+
+            if (cpuTimeMs != null) {
+                val prev = processCpuHistory[key]
+                processCpuHistory[key] = ProcCpuSnapshot(cpuTimeMs, nowRealtime, starttime)
+
+                if (prev != null) {
+                    val deltaCpuMs = cpuTimeMs - prev.cpuTimeMs
+                    val deltaWallMs = nowRealtime - prev.timestampMs
+
+                    if (deltaCpuMs < 0L || (prev.starttime != 0L && starttime != 0L && prev.starttime != starttime)) {
+                        // PID recycling or negative jump: baseline reset, do not inherit
+                        cpuPercent = null
+                        confidence = ConfidenceLevel.UNAVAILABLE
+                    } else if (deltaWallMs < 20L) {
+                        // Interval too short (< 20ms) for clock tick resolution
+                        cpuPercent = null
+                        confidence = ConfidenceLevel.UNAVAILABLE
+                    } else if (deltaWallMs > 60_000L) {
+                        // Sample is stale (> 60 seconds)
+                        cpuPercent = null
+                        confidence = ConfidenceLevel.UNAVAILABLE
+                    } else if (deltaCpuMs == 0L) {
+                        // Process did not consume any CPU in this window
+                        cpuPercent = 0.0
+                        confidence = ConfidenceLevel.HIGH
+                    } else {
+                        // Process active, normalized across all available cores (Solaris scale, 0-100%)
+                        val calculated = ((deltaCpuMs.toDouble() / (deltaWallMs * effectiveCores)) * 100.0).coerceIn(0.0, 100.0)
+                        cpuPercent = calculated
+                        confidence = ConfidenceLevel.HIGH
+                    }
+                } else {
+                    // First observation: snapshot recorded as baseline, instantaneous delta unavailable yet
+                    cpuPercent = null
+                    confidence = ConfidenceLevel.UNAVAILABLE
+                }
+            } else {
+                // No CPU measurement source available (no /proc/stat and no ps TIME)
+                // Never fall back to ps %CPU cumulative lifetime average
+                cpuPercent = null
+                confidence = ConfidenceLevel.UNAVAILABLE
+            }
+
+            rawList.add(RawProc(pid, user, cpuPercent, memPercent, args, rssMb, elapsedStr, confidence))
         }
 
         // Clean up history for dead/terminated PIDs
@@ -995,28 +1072,29 @@ object SystemTaskInspector {
     }
 
     fun calculatePowerImpact(
-        cpuPercent: Double,
+        cpuPercent: Double?,
         isForeground: Boolean,
         isSystem: Boolean,
     ): Pair<PowerImpactLevel, Double> {
+        val safeCpu = cpuPercent ?: 0.0
         val level = if (isForeground) {
             when {
-                cpuPercent >= 25.0 -> PowerImpactLevel.VERY_HIGH
-                cpuPercent >= 10.0 -> PowerImpactLevel.HIGH
-                cpuPercent >= 3.0 -> PowerImpactLevel.MEDIUM
-                cpuPercent >= 0.5 -> PowerImpactLevel.LOW
+                safeCpu >= 25.0 -> PowerImpactLevel.VERY_HIGH
+                safeCpu >= 10.0 -> PowerImpactLevel.HIGH
+                safeCpu >= 3.0 -> PowerImpactLevel.MEDIUM
+                safeCpu >= 0.5 -> PowerImpactLevel.LOW
                 else -> PowerImpactLevel.MINIMAL
             }
         } else {
             when {
-                cpuPercent >= 8.0 -> PowerImpactLevel.VERY_HIGH
-                cpuPercent >= 3.0 -> PowerImpactLevel.HIGH
-                cpuPercent >= 0.8 -> PowerImpactLevel.MEDIUM
-                cpuPercent >= 0.1 -> PowerImpactLevel.LOW
+                safeCpu >= 8.0 -> PowerImpactLevel.VERY_HIGH
+                safeCpu >= 3.0 -> PowerImpactLevel.HIGH
+                safeCpu >= 0.8 -> PowerImpactLevel.MEDIUM
+                safeCpu >= 0.1 -> PowerImpactLevel.LOW
                 else -> PowerImpactLevel.MINIMAL
             }
         }
-        val estimatedMw = (cpuPercent / 100.0) * 2800.0
+        val estimatedMw = (safeCpu / 100.0) * 2800.0
         return Pair(level, estimatedMw)
     }
 
