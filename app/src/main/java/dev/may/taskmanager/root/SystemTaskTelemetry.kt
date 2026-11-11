@@ -111,7 +111,7 @@ object SystemTaskInspector {
     private val lastNetSample = AtomicReference<NetSample?>(null)
 
     data class ProcessKey(val pid: Int, val command: String)
-    private data class ProcCpuSnapshot(val cpuTimeMs: Long, val timestampMs: Long)
+    internal data class ProcCpuSnapshot(val cpuTimeMs: Long, val timestampMs: Long)
     internal val processCpuHistory = ConcurrentHashMap<ProcessKey, ProcCpuSnapshot>()
 
     /**
@@ -595,7 +595,7 @@ object SystemTaskInspector {
         val elapsedStr: String = "",
     )
 
-    fun parsePsLines(
+    internal fun parsePsLines(
         psText: String,
         coresCount: Int = 1,
         nowRealtime: Long = SystemClock.elapsedRealtime(),
