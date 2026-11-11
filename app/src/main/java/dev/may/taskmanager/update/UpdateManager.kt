@@ -225,11 +225,14 @@ object UpdateManager {
 
             // A normal version (stable) has higher precedence than a pre-release version:
             // e.g. 1.0.26 (stable) > 1.0.26-beta
+            val p1 = preRelease
+            val p2 = other.preRelease
             return when {
-                preRelease == null && other.preRelease == null -> 0
-                preRelease == null && other.preRelease != null -> 1
-                preRelease != null && other.preRelease == null -> -1
-                else -> comparePreRelease(preRelease, other.preRelease)
+                p1 == null && p2 == null -> 0
+                p1 == null && p2 != null -> 1
+                p1 != null && p2 == null -> -1
+                p1 != null && p2 != null -> comparePreRelease(p1, p2)
+                else -> 0
             }
         }
 
