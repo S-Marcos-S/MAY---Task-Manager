@@ -1,6 +1,6 @@
-### MAY Task Manager v1.0.29
-- Novo botao no painel de configuracoes rapidas (Quick Settings Tile) para ativar e salvar gravacao de logs do sistema.
-- Sincronizacao em tempo real do estado do tile (ativo/inativo) com o servico de captura de logcat.
-- Notificacao e finalizacao com exportacao compacta em ZIP contendo telemetria e logs completos.
-- Remocao de textos hardcoded e padronizacao de strings limpas e localizadas para notificacoes de log.
+### MAY Task Manager v1.0.30
+- Correcao de contraste no tema OLED Black garantindo cores claras e legiveis para textos e icones primarios.
+- Protecao de contraste contra papeis de parede e esquemas escuros evitando textos pretos sobre fundos pretos.
+- Ajuste adaptativo de cores de contraste (onPrimary e onPrimaryContainer) para botoes, abas e indicadores.
+- Extracao de textos de interface para recursos de traducao multilingue.
 ---

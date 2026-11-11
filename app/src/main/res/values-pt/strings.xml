@@ -20,6 +20,8 @@
     <string name="action_download_update">Baixar atualização</string>
     <string name="action_check_updates">Buscar atualizações</string>
     <string name="action_inspect_logs">Inspecionar logs</string>
+    <string name="action_hide">Ocultar</string>
+    <string name="action_show">Mostrar</string>
 
     
     <string name="theme_system_dynamic_title">Monet Dinâmico</string>

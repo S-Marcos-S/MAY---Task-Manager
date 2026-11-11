@@ -20,6 +20,8 @@
     <string name="action_download_update">Download Update</string>
     <string name="action_check_updates">Check Updates</string>
     <string name="action_inspect_logs">Inspect Logs</string>
+    <string name="action_hide">Hide</string>
+    <string name="action_show">Show</string>
 
     
     <string name="theme_system_dynamic_title">Dynamic Monet</string>

@@ -462,7 +462,7 @@ private fun CompactDayCard(
                             shape = RoundedCornerShape(6.dp),
                         ) {
                             Text(
-                                text = "HOJE",
+                                text = stringResource(R.string.history_today_badge).uppercase(Locale.getDefault()),
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                                 fontWeight = FontWeight.Bold,
                                 color = colorScheme.onPrimary,

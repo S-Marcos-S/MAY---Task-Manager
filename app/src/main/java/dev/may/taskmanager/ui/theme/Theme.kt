@@ -24,11 +24,14 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 
+private fun Color.luminance(): Float = 0.2126f * red + 0.7152f * green + 0.0722f * blue
+private fun Color.isTooDarkForDarkTheme(): Boolean = luminance() < 0.35f
+
 private val DarkColors = darkColorScheme(
     primary = Color(0xFF7FD1E0),
-    onPrimary = Color(0xFF00363F),
+    onPrimary = Color(0xFF001F25),
     primaryContainer = Color(0xFF004F5B),
-    onPrimaryContainer = Color(0xFF9EEFFE),
+    onPrimaryContainer = Color(0xFFE3E8EC),
     background = Color(0xFF0E1318),
     surface = Color(0xFF1B2733),
     onSurface = Color(0xFFE3E8EC),
@@ -125,25 +128,41 @@ fun MayTheme(
                     surfaceContainerLowest = Color.Black,
                     outline = Color(0xFF333333),
                     outlineVariant = Color(0xFF222222),
-                    primary = wallpaperPrimary ?: Color(0xFF7FD1E0),
-                    primaryContainer = (wallpaperPrimary ?: Color(0xFF7FD1E0)).copy(alpha = 0.22f),
+                    primary = Color(0xFFEDEDED),
+                    onPrimary = Color(0xFF0A0A0A),
+                    primaryContainer = Color(0xFF222222),
+                    onPrimaryContainer = Color(0xFFEDEDED),
+                    onSurface = Color(0xFFEDEDED),
+                    onSurfaceVariant = Color(0xFFB0BCC7),
                 )
             }
             "dark_modern" -> {
-                if (wallpaperPrimary != null) {
-                    DarkColors.copy(
-                        primary = wallpaperPrimary,
-                        primaryContainer = wallpaperPrimary.copy(alpha = 0.35f),
-                    )
-                } else DarkColors
+                val effectivePrimary = if (wallpaperPrimary != null && !wallpaperPrimary.isTooDarkForDarkTheme()) {
+                    wallpaperPrimary
+                } else {
+                    DarkColors.primary
+                }
+                DarkColors.copy(
+                    primary = effectivePrimary,
+                    onPrimary = if (effectivePrimary.luminance() >= 0.45f) Color(0xFF001F25) else Color.White,
+                    primaryContainer = effectivePrimary.copy(alpha = 0.35f),
+                    onPrimaryContainer = Color.White,
+                    onSurface = Color(0xFFE3E8EC),
+                    onSurfaceVariant = Color(0xFFB0BCC7),
+                )
             }
             "light_clean" -> {
-                if (wallpaperPrimary != null) {
-                    LightColors.copy(
-                        primary = wallpaperPrimary,
-                        primaryContainer = wallpaperPrimary.copy(alpha = 0.35f),
-                    )
-                } else LightColors
+                val effectivePrimary = if (wallpaperPrimary != null && wallpaperPrimary.luminance() in 0.15f..0.65f) {
+                    wallpaperPrimary
+                } else {
+                    LightColors.primary
+                }
+                LightColors.copy(
+                    primary = effectivePrimary,
+                    onPrimary = if (effectivePrimary.luminance() >= 0.45f) Color(0xFF001F25) else Color.White,
+                    primaryContainer = effectivePrimary.copy(alpha = 0.35f),
+                    onPrimaryContainer = Color(0xFF001F25),
+                )
             }
             "glass" -> {
                 val base = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -151,13 +170,18 @@ fun MayTheme(
                 } else {
                     if (darkTheme) DarkColors else LightColors
                 }
-                val tinted = if (wallpaperPrimary != null) {
-                    base.copy(
-                        primary = wallpaperPrimary,
-                        primaryContainer = wallpaperPrimary.copy(alpha = 0.35f),
-                        onPrimaryContainer = if (darkTheme) Color.White else Color.Black,
-                    )
-                } else base
+                val candidatePrimary = wallpaperPrimary ?: base.primary
+                val effectivePrimary = if (darkTheme && candidatePrimary.isTooDarkForDarkTheme()) {
+                    DarkColors.primary
+                } else {
+                    candidatePrimary
+                }
+                val tinted = base.copy(
+                    primary = effectivePrimary,
+                    onPrimary = if (effectivePrimary.luminance() >= 0.45f) Color(0xFF001F25) else Color.White,
+                    primaryContainer = effectivePrimary.copy(alpha = 0.35f),
+                    onPrimaryContainer = if (darkTheme) Color.White else Color(0xFF001F25),
+                )
                 tinted.copy(
                     background = if (darkTheme) Color(0x33101520) else Color(0x33F0F4F8),
                     surface = if (darkTheme) Color(0x33101520) else Color(0x33F0F4F8),
@@ -172,23 +196,32 @@ fun MayTheme(
             else -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     val systemColors = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-                    if (wallpaperPrimary != null) {
-                        systemColors.copy(
-                            primary = wallpaperPrimary,
-                            primaryContainer = wallpaperPrimary.copy(alpha = 0.35f),
-                            onPrimaryContainer = if (darkTheme) Color.White else Color.Black,
-                        )
+                    val candidatePrimary = wallpaperPrimary ?: systemColors.primary
+                    val effectivePrimary = if (darkTheme && candidatePrimary.isTooDarkForDarkTheme()) {
+                        DarkColors.primary
                     } else {
-                        systemColors
+                        candidatePrimary
                     }
+                    systemColors.copy(
+                        primary = effectivePrimary,
+                        onPrimary = if (effectivePrimary.luminance() >= 0.45f) Color(0xFF001F25) else Color.White,
+                        primaryContainer = effectivePrimary.copy(alpha = 0.35f),
+                        onPrimaryContainer = if (darkTheme) Color.White else Color(0xFF001F25),
+                    )
                 } else {
                     val fallback = if (darkTheme) DarkColors else LightColors
-                    if (wallpaperPrimary != null) {
-                        fallback.copy(
-                            primary = wallpaperPrimary,
-                            primaryContainer = wallpaperPrimary.copy(alpha = 0.35f),
-                        )
-                    } else fallback
+                    val candidatePrimary = wallpaperPrimary ?: fallback.primary
+                    val effectivePrimary = if (darkTheme && candidatePrimary.isTooDarkForDarkTheme()) {
+                        DarkColors.primary
+                    } else {
+                        candidatePrimary
+                    }
+                    fallback.copy(
+                        primary = effectivePrimary,
+                        onPrimary = if (effectivePrimary.luminance() >= 0.45f) Color(0xFF001F25) else Color.White,
+                        primaryContainer = effectivePrimary.copy(alpha = 0.35f),
+                        onPrimaryContainer = if (darkTheme) Color.White else Color(0xFF001F25),
+                    )
                 }
             }
         }
@@ -207,7 +240,11 @@ fun dynamicSurfaceColor(
     alpha: Float = 0.90f,
     tintFraction: Float = 0.12f,
 ): Color {
+    val isOled = LocalActiveThemeId.current == "oled_black"
     val colorScheme = MaterialTheme.colorScheme
+    if (isOled) {
+        return colorScheme.surfaceVariant.copy(alpha = alpha)
+    }
     return lerp(colorScheme.surfaceContainerHigh, colorScheme.primary, tintFraction).copy(alpha = alpha)
 }
 
@@ -216,6 +253,10 @@ fun dynamicBorderColor(
     alpha: Float = 0.35f,
     tintFraction: Float = 0.40f,
 ): Color {
+    val isOled = LocalActiveThemeId.current == "oled_black"
     val colorScheme = MaterialTheme.colorScheme
+    if (isOled) {
+        return colorScheme.outlineVariant.copy(alpha = alpha)
+    }
     return lerp(colorScheme.outlineVariant, colorScheme.primary, tintFraction).copy(alpha = alpha)
 }

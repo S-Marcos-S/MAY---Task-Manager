@@ -995,7 +995,7 @@ private fun CollapsibleSystemHeader(
         )
         Spacer(Modifier.weight(1f))
         Text(
-            text = if (expanded) "Ocultar" else "Mostrar",
+            text = if (expanded) stringResource(R.string.action_hide) else stringResource(R.string.action_show),
             fontSize = 11.sp,
             color = colorScheme.primary,
             fontWeight = FontWeight.Medium,
