@@ -990,7 +990,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
         // Identifica processos com RSS alto em segundo plano
         if (AppRootInspector.isRootAvailable()) {
-            val psOutput = AppRootInspector.runSuCommand("ps -A -o PID,USER,RSS,ARGS 2>/dev/null || ps -o PID,USER,RSS,ARGS 2>/dev/null").getOrNull() ?: ""
+            val psOutput = AppRootInspector.runSuCommand("ps -A -o PID,USER,RSS,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,RSS,ELAPSED,ARGS 2>/dev/null || ps -A -o PID,USER,RSS,ARGS 2>/dev/null || ps -o PID,USER,RSS,ARGS 2>/dev/null").getOrNull() ?: ""
             psOutput.lineSequence().forEach { line ->
                 val trimmed = line.trim()
                 if (trimmed.isEmpty() || trimmed.startsWith("PID")) return@forEach
@@ -999,12 +999,15 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                     val pid = tokens[0].toIntOrNull() ?: return@forEach
                     val rssKb = tokens[2].toDoubleOrNull() ?: 0.0
                     val ramMb = rssKb / 1024.0
-                    val cmd = tokens.subList(3, tokens.size).joinToString(" ")
+                    val hasElapsed = tokens.size >= 5
+                    val elapsedStr = if (hasElapsed) tokens[3] else ""
+                    val cmdTokens = if (hasElapsed) tokens.subList(4, tokens.size) else tokens.subList(3, tokens.size)
+                    val cmd = cmdTokens.joinToString(" ")
                     val cleanCmd = cmd.substringBefore(" ").substringAfterLast("/").removeSurrounding("[", "]").removeSurrounding("(", ")")
 
                     if (cleanCmd.contains(".") && !cleanCmd.startsWith("/")) {
                         val pkgName = cleanCmd.substringBefore(":")
-                        val identity = ProcessIdentity(pid, cleanCmd)
+                        val identity = ProcessIdentity(pid, cleanCmd, elapsedStr)
                         currentIdentities.add(identity)
 
                         if (visiblePackages.contains(pkgName)) {
@@ -1131,12 +1134,11 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
         val visible = mutableSetOf<String>()
 
-        // 1. Root inspection: real-time window manager focus, visible activities, and current tasks
+        // 1. Root inspection: real-time window manager focus and live visible/resumed activities
         if (AppRootInspector.isRootAvailable()) {
             val cmd = """
                 dumpsys window 2>/dev/null | grep -E "mCurrentFocus|mFocusedApp"
                 dumpsys activity activities 2>/dev/null | grep -E "topResumedActivity|mResumedActivity|visible=true"
-                dumpsys activity recents 2>/dev/null | grep -E "Recent #0"
             """.trimIndent()
             val output = AppRootInspector.runSuCommand(cmd).getOrNull() ?: ""
             val regex = Regex("([a-zA-Z0-9_]+(?:\\.[a-zA-Z0-9_]+)+)")
@@ -1158,7 +1160,6 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
             if (events != null) {
                 val event = UsageEvents.Event()
                 val lastActivityState = mutableMapOf<String, Int>()
-                val hadResumedInWindow = mutableSetOf<String>()
 
                 while (events.hasNextEvent()) {
                     events.getNextEvent(event)
@@ -1166,9 +1167,6 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                     when (event.eventType) {
                         UsageEvents.Event.ACTIVITY_RESUMED -> {
                             lastActivityState[pkg] = UsageEvents.Event.ACTIVITY_RESUMED
-                            if (event.timeStamp >= windowStartMs) {
-                                hadResumedInWindow.add(pkg)
-                            }
                         }
                         UsageEvents.Event.ACTIVITY_PAUSED, UsageEvents.Event.ACTIVITY_STOPPED -> {
                             lastActivityState[pkg] = event.eventType
@@ -1181,7 +1179,6 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                         visible.add(pkg)
                     }
                 }
-                visible.addAll(hadResumedInWindow)
             }
         }
 

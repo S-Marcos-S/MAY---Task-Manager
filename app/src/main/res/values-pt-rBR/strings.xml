@@ -1086,6 +1086,7 @@
     <string name="reset_stats">Redefinir estatísticas</string>
     <string name="stats_reset_success">Estatísticas repostas</string>
     <string name="stats_reset_failed">Falha ao redefinir as estatísticas</string>
+    <string name="stats_reset_advanced_failed">As estatísticas do sistema não puderam ser redefinidas. Apenas a sessão interna foi redefinida.</string>
     <string name="no_data_available">Não há dados disponíveis</string>
     <string name="advanced_stats_required">São necessárias estatísticas avançadas</string>
     <string name="advanced_stats_desc">As estatísticas detalhadas exigem um destes: Shizuku, Root ou permissões concedidas por ADB (permanentes, sem serviço).</string>

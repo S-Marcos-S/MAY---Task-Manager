@@ -1138,6 +1138,7 @@
     <string name="reset_stats">Reset stats</string>
     <string name="stats_reset_success">Stats reset successfully</string>
     <string name="stats_reset_failed">Failed to reset stats</string>
+    <string name="stats_reset_advanced_failed">System battery stats could not be reset. Only internal session was reset.</string>
     <string name="no_data_available">No data available</string>
     <string name="advanced_stats_required">Advanced Stats Required</string>
     <string name="advanced_stats_desc">Detailed stats need one of: Shizuku, Root, or ADB-granted permissions (permanent, no service).</string>

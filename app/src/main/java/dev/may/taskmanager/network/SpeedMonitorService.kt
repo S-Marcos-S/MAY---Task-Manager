@@ -95,17 +95,20 @@ class SpeedMonitorService : Service() {
             previousTxTotals: Map<Int, Long>,
             deltaTimeSec: Double,
             minBytesPerSec: Double,
-            totalDownSpeed: Double = 0.0,
-            totalUpSpeed: Double = 0.0,
+            totalDownSpeed: Double? = null,
+            totalUpSpeed: Double? = null,
             resolveName: (Int) -> String?
         ): List<ActiveAppSpeed> {
             if (deltaTimeSec <= 0.0) return emptyList()
-            val totalDeviceSpeed = totalDownSpeed + totalUpSpeed
 
-            // Regra 4 e 7: Se a velocidade geral do dispositivo for menor que o limiar mínimo,
-            // o dispositivo está ocioso. Estatísticas acumuladas passadas não devem ser
-            // apresentadas como velocidade instantânea atual.
-            if (totalDeviceSpeed > 0.0 && totalDeviceSpeed < minBytesPerSec) {
+            val isMeasurementAvailable = totalDownSpeed != null && totalUpSpeed != null && totalDownSpeed >= 0.0 && totalUpSpeed >= 0.0
+            val totalDeviceSpeed = if (isMeasurementAvailable) totalDownSpeed!! + totalUpSpeed!! else null
+
+            // Regra 4 e 7: Se a velocidade geral medida for menor que o limiar mínimo (incluindo 0.0 B/s),
+            // o dispositivo está comprovadamente ocioso (ausência real de tráfego).
+            // Estatísticas acumuladas passadas e lotes atrasados do NetworkStatsManager são descartados
+            // para não serem apresentados indevidamente como velocidade instantânea atual.
+            if (isMeasurementAvailable && totalDeviceSpeed!! < minBytesPerSec) {
                 return emptyList()
             }
 
@@ -147,9 +150,13 @@ class SpeedMonitorService : Service() {
             val sumRawTotal = sumRawRx + sumRawTx
 
             // Verificação de divergência (atraso de agregação de lote do NetworkStatsManager)
-            val rxDiverges = totalDownSpeed > 0.0 && sumRawRx > (totalDownSpeed * 1.05)
-            val txDiverges = totalUpSpeed > 0.0 && sumRawTx > (totalUpSpeed * 1.05)
-            val totalDiverges = (totalDeviceSpeed > 0.0 && sumRawTotal > (totalDeviceSpeed * 1.05)) || rxDiverges || txDiverges
+            val rxDiverges = isMeasurementAvailable && totalDownSpeed!! > 0.0 && sumRawRx > (totalDownSpeed * 1.05)
+            val txDiverges = isMeasurementAvailable && totalUpSpeed!! > 0.0 && sumRawTx > (totalUpSpeed * 1.05)
+            val totalDiverges = if (isMeasurementAvailable) {
+                (totalDeviceSpeed!! > 0.0 && sumRawTotal > (totalDeviceSpeed * 1.05)) || rxDiverges || txDiverges
+            } else {
+                true
+            }
 
             // Aplicação da Lei da Conservação Física:
             // A soma das velocidades atribuídas aos aplicativos no mesmo intervalo não pode
@@ -159,18 +166,26 @@ class SpeedMonitorService : Service() {
             for (item in rawList) {
                 val name = resolveName(item.uid) ?: continue
 
-                val adjustedRx = if (rxDiverges && sumRawRx > 0.0) {
-                    (item.rxSpeed / sumRawRx) * totalDownSpeed
-                } else if (totalDownSpeed <= 0.0 && totalDeviceSpeed > 0.0) {
-                    0.0
+                val adjustedRx = if (isMeasurementAvailable) {
+                    if (rxDiverges && sumRawRx > 0.0) {
+                        (item.rxSpeed / sumRawRx) * totalDownSpeed!!
+                    } else if (totalDownSpeed!! <= 0.0) {
+                        0.0
+                    } else {
+                        item.rxSpeed
+                    }
                 } else {
                     item.rxSpeed
                 }
 
-                val adjustedTx = if (txDiverges && sumRawTx > 0.0) {
-                    (item.txSpeed / sumRawTx) * totalUpSpeed
-                } else if (totalUpSpeed <= 0.0 && totalDeviceSpeed > 0.0) {
-                    0.0
+                val adjustedTx = if (isMeasurementAvailable) {
+                    if (txDiverges && sumRawTx > 0.0) {
+                        (item.txSpeed / sumRawTx) * totalUpSpeed!!
+                    } else if (totalUpSpeed!! <= 0.0) {
+                        0.0
+                    } else {
+                        item.txSpeed
+                    }
                 } else {
                     item.txSpeed
                 }
@@ -186,7 +201,7 @@ class SpeedMonitorService : Service() {
                             txSpeedBytesSec = adjustedTx,
                             uid = item.uid,
                             nature = TelemetryNature.AGGREGATED_STATISTIC,
-                            confidence = if (totalDiverges) ConfidenceLevel.LOW else ConfidenceLevel.MEDIUM,
+                            confidence = if (totalDiverges || !isMeasurementAvailable) ConfidenceLevel.LOW else ConfidenceLevel.MEDIUM,
                             hasDivergence = totalDiverges,
                         )
                     )
@@ -201,12 +216,14 @@ class SpeedMonitorService : Service() {
             previousTotals: Map<Int, Long>,
             deltaTimeSec: Double,
             minBytesPerSec: Double,
-            totalDeviceSpeed: Double = 0.0,
+            totalDeviceSpeed: Double? = null,
             resolveName: (Int) -> String?
         ): List<ActiveAppSpeed> {
             if (deltaTimeSec <= 0.0) return emptyList()
 
-            if (totalDeviceSpeed > 0.0 && totalDeviceSpeed < minBytesPerSec) {
+            val isMeasurementAvailable = totalDeviceSpeed != null && totalDeviceSpeed >= 0.0
+
+            if (isMeasurementAvailable && totalDeviceSpeed!! < minBytesPerSec) {
                 return emptyList()
             }
 
@@ -236,14 +253,23 @@ class SpeedMonitorService : Service() {
             if (rawActive.isEmpty()) return emptyList()
 
             val sumRaw = rawActive.sumOf { it.speedBytesSec }
-            val hasDivergence = totalDeviceSpeed > 0.0 && sumRaw > (totalDeviceSpeed * 1.05)
+            val hasDivergence = if (isMeasurementAvailable) {
+                totalDeviceSpeed!! > 0.0 && sumRaw > (totalDeviceSpeed * 1.05)
+            } else {
+                true
+            }
 
             // Princípio de conservação física: normaliza proporcionalmente se houver divergência
             val result = rawActive.map { app ->
-                if (hasDivergence && sumRaw > 0.0) {
-                    val scaledSpeed = (app.speedBytesSec / sumRaw) * totalDeviceSpeed
+                if (isMeasurementAvailable && hasDivergence && sumRaw > 0.0) {
+                    val scaledSpeed = (app.speedBytesSec / sumRaw) * totalDeviceSpeed!!
                     app.copy(
                         speedBytesSec = scaledSpeed,
+                        hasDivergence = true,
+                        confidence = ConfidenceLevel.LOW,
+                    )
+                } else if (!isMeasurementAvailable) {
+                    app.copy(
                         hasDivergence = true,
                         confidence = ConfidenceLevel.LOW,
                     )
@@ -604,7 +630,9 @@ class SpeedMonitorService : Service() {
             }
         }
 
-        val activeApps = if (isViewingApps) getActiveAppsSpeed(deltaTime, finalDownSpeed, finalUpSpeed) else emptyList()
+        val measuredDown: Double? = if (!isCollectionError && !isStale && isSupported) downloadSpeed else null
+        val measuredUp: Double? = if (!isCollectionError && !isStale && isSupported) uploadSpeed else null
+        val activeApps = if (isViewingApps) getActiveAppsSpeed(deltaTime, measuredDown, measuredUp) else emptyList()
         val appsSummary = if (isViewingApps) activeApps.joinToString { "${it.appName}:${it.speedBytesSec}:${it.rxSpeedBytesSec}:${it.txSpeedBytesSec}" } else ""
 
         // Only notify if something meaningful changed or if forceUpdate is requested
@@ -687,22 +715,23 @@ class SpeedMonitorService : Service() {
 
     private fun getActiveAppsSpeed(
         deltaTime: Double,
-        totalDownSpeed: Double,
-        totalUpSpeed: Double
+        totalDownSpeed: Double?,
+        totalUpSpeed: Double?
     ): List<ActiveAppSpeed> {
         if (!hasUsageStatsPermission()) {
             tryAutoGrantUsagePermission()
             return emptyList()
         }
 
-        val totalDeviceSpeed = totalDownSpeed + totalUpSpeed
+        val isMeasurementAvailable = totalDownSpeed != null && totalUpSpeed != null && totalDownSpeed >= 0.0 && totalUpSpeed >= 0.0
+        val totalDeviceSpeed = if (isMeasurementAvailable) totalDownSpeed!! + totalUpSpeed!! else null
         val currentTime = System.currentTimeMillis()
         val minBytesPerSec = (settings.minAppUsageKb.coerceAtLeast(1L) * 1024.0)
 
-        // Se a velocidade geral do dispositivo for menor que o limiar mínimo,
+        // Se a velocidade geral do dispositivo for menor que o limiar mínimo (incluindo 0.0 B/s),
         // o dispositivo está ocioso. Limpa imediatamente apps recentes para não apresentar
         // estatísticas acumuladas passadas como se fossem velocidades instantâneas atuais.
-        if (totalDeviceSpeed < minBytesPerSec && recentActiveApps.isNotEmpty()) {
+        if (isMeasurementAvailable && totalDeviceSpeed!! < minBytesPerSec && recentActiveApps.isNotEmpty()) {
             recentActiveApps.clear()
             return emptyList()
         }
@@ -765,10 +794,10 @@ class SpeedMonitorService : Service() {
 
         // Conservação física contínua: se a velocidade global diminuiu, a velocidade do app em cache
         // não pode ultrapassar a velocidade total física atual do dispositivo.
-        val maxAllowed = (totalDeviceSpeed * 1.05).coerceAtLeast(0.0)
+        val maxAllowed = if (isMeasurementAvailable) (totalDeviceSpeed!! * 1.05).coerceAtLeast(0.0) else null
         val activeList = recentActiveApps.values.map { record ->
             val app = record.app
-            if (totalDeviceSpeed > 0.0 && app.speedBytesSec > maxAllowed) {
+            if (maxAllowed != null && totalDeviceSpeed != null && totalDeviceSpeed > 0.0 && app.speedBytesSec > maxAllowed) {
                 val factor = totalDeviceSpeed / app.speedBytesSec
                 app.copy(
                     speedBytesSec = totalDeviceSpeed,

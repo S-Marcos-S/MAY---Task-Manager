@@ -1,10 +1,8 @@
-### MAY Task Manager v1.0.22
-- Separacao estrita de RX (download) e TX (upload) na amostragem de consumo de rede por aplicativo.
-- Normalizacao proporcional por conservacao fisica para compatibilizar lotes atrasados do NetworkStatsManager com o trafego total do dispositivo.
-- Descarte imediato de velocidades acumuladas quando o dispositivo estiver ocioso, eliminando picos fantasmas.
-- Indicacao direcional de trafego (download e upload) na lista de aplicativos ativos da notificacao.
-- Correcao da opcao de resetar estatisticas de bateria ao conectar o carregador com sincronizacao atomica e invalidacao de snapshots obsoletos.
-- Supressao de falsos positivos de CPU e cancelamento de notificacao de anomalia quando o app esta visivel em primeiro plano.
-- Protecao de tempo limite (timeout) com destruicao forcada de processos em comandos de root para evitar travamento de corrotinas.
-- Prevencao de colisoes em reciclagem de PID via chave composta de identidade com tempo de execucao.
+### MAY Task Manager v1.0.23
+- Descarte de lotes atrasados do NetworkStatsManager quando a velocidade real do dispositivo for zero ou abaixo do limiar.
+- Distincao explicita entre ausencia real de trafego e falha temporaria de leitura de rede.
+- Validacao do resultado de reset avancado no BatteryStatsViewModel, evitando falso sucesso e reportando status detalhado.
+- Extensao da identidade de processos (PID e tempo de inicio) ao monitoramento de RAM contra reciclagem de PID.
+- Deteccao aprimorada de aplicativos em primeiro plano sem retencao obsoleta de historico ou tarefas recentes.
+- Correcao de sintaxe e adicao de testes de regressao para rede, bateria e ciclo de vida de processos.
 ---

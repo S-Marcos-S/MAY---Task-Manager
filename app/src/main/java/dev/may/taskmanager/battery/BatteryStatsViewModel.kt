@@ -126,20 +126,49 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    suspend fun resetStats(): Boolean {
+    enum class ResetResult {
+        SUCCESS,
+        SESSION_ONLY_SUCCESS,
+        ADVANCED_FAILED,
+        FAILED
+    }
+
+    suspend fun resetSessionOnly(): Boolean {
         return try {
-            if (_hasAdvanced.value) {
-                collector.resetStats()
-            }
             drainTracker.resetSession()
             DrainNotificationManager.getInstance(context).updateNow()
-            if (_hasAdvanced.value) {
-                collector.refresh()
-            }
             true
         } catch (_: Exception) {
             false
         }
+    }
+
+    suspend fun resetStatsDetailed(): ResetResult {
+        return try {
+            if (_hasAdvanced.value) {
+                val advancedSuccess = collector.resetStats()
+                // Sempre preserva a possibilidade de resetar a sessão interna
+                drainTracker.resetSession()
+                DrainNotificationManager.getInstance(context).updateNow()
+                if (advancedSuccess) {
+                    collector.refresh()
+                    ResetResult.SUCCESS
+                } else {
+                    ResetResult.ADVANCED_FAILED
+                }
+            } else {
+                drainTracker.resetSession()
+                DrainNotificationManager.getInstance(context).updateNow()
+                ResetResult.SESSION_ONLY_SUCCESS
+            }
+        } catch (_: Exception) {
+            ResetResult.FAILED
+        }
+    }
+
+    suspend fun resetStats(): Boolean {
+        val result = resetStatsDetailed()
+        return result == ResetResult.SUCCESS || result == ResetResult.SESSION_ONLY_SUCCESS
     }
 
     fun toggleDrainNotification(enabled: Boolean) {

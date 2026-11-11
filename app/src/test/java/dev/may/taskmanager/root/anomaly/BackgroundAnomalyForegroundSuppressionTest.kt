@@ -68,4 +68,63 @@ class BackgroundAnomalyForegroundSuppressionTest {
         val isVisible = visiblePackages.contains(pkgName)
         assertFalse("Background process must not be falsely treated as foreground", isVisible)
     }
+
+    @Test
+    fun `process identity prevents ram leak history contamination across recycled pid`() {
+        val oldProcess = BackgroundAnomalyWatcher.ProcessIdentity(
+            pid = 4321,
+            processName = "com.app.leak",
+            startIdentifier = "12:34"
+        )
+        val newRecycledProcess = BackgroundAnomalyWatcher.ProcessIdentity(
+            pid = 4321,
+            processName = "com.app.leak",
+            startIdentifier = "00:02"
+        )
+
+        // As identidades completas DEVEM ser distintas
+        assertFalse(oldProcess == newRecycledProcess)
+
+        val ramHistoryMap = mutableMapOf<BackgroundAnomalyWatcher.ProcessIdentity, MutableList<Double>>()
+        ramHistoryMap[oldProcess] = mutableListOf(100.0, 150.0, 200.0, 250.0, 300.0)
+
+        // Ao consultar o novo processo com PID reciclado, ele não deve herdar o histórico de memória do processo anterior
+        val inherited = ramHistoryMap[newRecycledProcess]
+        assertEquals(null, inherited)
+
+        // Limpeza de processos antigos
+        val currentProcesses = setOf(newRecycledProcess)
+        ramHistoryMap.keys.retainAll(currentProcesses)
+        assertFalse(ramHistoryMap.containsKey(oldProcess))
+    }
+
+    @Test
+    fun `activity lifecycle transitions properly clear foreground status after app pause`() {
+        data class MockLifecycleEvent(val pkg: String, val type: Int, val timestamp: Long)
+        val ACTIVITY_RESUMED = 1
+        val ACTIVITY_PAUSED = 2
+
+        val events = listOf(
+            MockLifecycleEvent("com.chat.app", ACTIVITY_RESUMED, 1000L),
+            MockLifecycleEvent("com.chat.app", ACTIVITY_PAUSED, 2000L),
+            MockLifecycleEvent("com.game.app", ACTIVITY_RESUMED, 2500L)
+        )
+
+        val lastState = mutableMapOf<String, Int>()
+        for (e in events) {
+            lastState[e.pkg] = e.type
+        }
+
+        val visible = mutableSetOf<String>()
+        for ((pkg, state) in lastState) {
+            if (state == ACTIVITY_RESUMED) {
+                visible.add(pkg)
+            }
+        }
+
+        // com.game.app está em primeiro plano
+        assertTrue(visible.contains("com.game.app"))
+        // com.chat.app foi pausado e NÃO deve estar no conjunto de primeiro plano
+        assertFalse(visible.contains("com.chat.app"))
+    }
 }

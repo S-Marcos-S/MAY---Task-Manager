@@ -104,5 +104,4 @@ class AnomalyHistoryRepositoryTest {
         val result = runCatching { JSONArray(malformed) }
         assertTrue(result.isFailure)
     }
-    }
 }

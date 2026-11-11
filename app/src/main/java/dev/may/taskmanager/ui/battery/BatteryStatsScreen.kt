@@ -101,6 +101,7 @@ fun BatteryStatsScreen(
     val snackbarHost = remember { SnackbarHostState() }
     val statsResetSuccessMsg = stringResource(R.string.stats_reset_success)
     val statsResetFailedMsg = stringResource(R.string.stats_reset_failed)
+    val statsResetAdvancedFailedMsg = stringResource(R.string.stats_reset_advanced_failed)
 
     val tabs = remember {
         listOf(
@@ -204,11 +205,18 @@ fun BatteryStatsScreen(
                         }
                         IconButton(onClick = {
                             scope.launch {
-                                if (vm.resetStats()) {
-                                    snackbarHost.showSnackbar(statsResetSuccessMsg)
-                                    vm.refresh()
-                                } else {
-                                    snackbarHost.showSnackbar(statsResetFailedMsg)
+                                when (vm.resetStatsDetailed()) {
+                                    BatteryStatsViewModel.ResetResult.SUCCESS,
+                                    BatteryStatsViewModel.ResetResult.SESSION_ONLY_SUCCESS -> {
+                                        snackbarHost.showSnackbar(statsResetSuccessMsg)
+                                        vm.refresh()
+                                    }
+                                    BatteryStatsViewModel.ResetResult.ADVANCED_FAILED -> {
+                                        snackbarHost.showSnackbar(statsResetAdvancedFailedMsg)
+                                    }
+                                    BatteryStatsViewModel.ResetResult.FAILED -> {
+                                        snackbarHost.showSnackbar(statsResetFailedMsg)
+                                    }
                                 }
                             }
                         }) {
@@ -308,11 +316,18 @@ fun BatteryStatsScreen(
                                 onConfigureEnforceDoze = { scope.launch { pagerState.animateScrollToPage(7) } },
                                 onResetStats = {
                                     scope.launch {
-                                        if (vm.resetStats()) {
-                                            snackbarHost.showSnackbar(statsResetSuccessMsg)
-                                            vm.refresh(forceRefresh = true)
-                                        } else {
-                                            snackbarHost.showSnackbar(statsResetFailedMsg)
+                                        when (vm.resetStatsDetailed()) {
+                                            BatteryStatsViewModel.ResetResult.SUCCESS,
+                                            BatteryStatsViewModel.ResetResult.SESSION_ONLY_SUCCESS -> {
+                                                snackbarHost.showSnackbar(statsResetSuccessMsg)
+                                                vm.refresh(forceRefresh = true)
+                                            }
+                                            BatteryStatsViewModel.ResetResult.ADVANCED_FAILED -> {
+                                                snackbarHost.showSnackbar(statsResetAdvancedFailedMsg)
+                                            }
+                                            BatteryStatsViewModel.ResetResult.FAILED -> {
+                                                snackbarHost.showSnackbar(statsResetFailedMsg)
+                                            }
                                         }
                                     }
                                 },

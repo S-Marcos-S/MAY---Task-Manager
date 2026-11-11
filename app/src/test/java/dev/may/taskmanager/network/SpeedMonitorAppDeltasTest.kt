@@ -395,4 +395,84 @@ class SpeedMonitorAppDeltasTest {
         assertEquals(dev.may.taskmanager.telemetry.TelemetryNature.AGGREGATED_STATISTIC, rxSample.nature)
         assertEquals(ConfidenceLevel.LOW, txSample.confidence)
     }
+
+    @Test
+    fun calculateActiveAppsFromDeltas_zeroTotalDeviceSpeedInSingleMapOverload_returnsEmptyList() {
+        val prev = mapOf(10100 to 0L)
+        val cur = mapOf(10100 to 10_000_000L) // 10 MB atrasados
+
+        val result = SpeedMonitorService.calculateActiveAppsFromDeltas(
+            currentTotals = cur,
+            previousTotals = prev,
+            deltaTimeSec = 1.0,
+            minBytesPerSec = 10_000.0,
+            totalDeviceSpeed = 0.0, // Velocidade real comprovada de 0 B/s
+            resolveName = { "StaleDelayedBatch" }
+        )
+
+        // Ausência real de tráfego: lotes atrasados com velocidade total 0 não devem ser exibidos
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun calculateActiveAppsFromDeltas_temporaryReadFailure_distinguishedFromRealZeroTraffic() {
+        // Falha temporária de leitura (totalDownSpeed = null, totalUpSpeed = null)
+        val prevRx = mapOf(10100 to 0L)
+        val curRx = mapOf(10100 to 500_000L)
+        val prevTx = mapOf(10100 to 0L)
+        val curTx = mapOf(10100 to 0L)
+
+        val result = SpeedMonitorService.calculateActiveAppsFromDeltas(
+            currentRxTotals = curRx,
+            previousRxTotals = prevRx,
+            currentTxTotals = curTx,
+            previousTxTotals = prevTx,
+            deltaTimeSec = 1.0,
+            minBytesPerSec = 10_000.0,
+            totalDownSpeed = null, // Falha temporária de leitura
+            totalUpSpeed = null,   // Falha temporária de leitura
+            resolveName = { "AppInReadFailure" }
+        )
+
+        // Deve retornar o app mas explicitamente sinalizado com LOW confidence e hasDivergence = true
+        assertEquals(1, result.size)
+        assertEquals("AppInReadFailure", result[0].appName)
+        assertEquals(500_000.0, result[0].speedBytesSec, 0.01)
+        assertTrue(result[0].hasDivergence)
+        assertEquals(ConfidenceLevel.LOW, result[0].confidence)
+    }
+
+    @Test
+    fun calculateActiveAppsFromDeltas_partialZeroTraffic_downZeroUpActive() {
+        // Dispositivo com 0 B/s de download real e 500 KB/s de upload real
+        val totalDownSpeed = 0.0
+        val totalUpSpeed = 500_000.0
+
+        val prevRx = mapOf(10100 to 0L, 10200 to 0L)
+        val curRx = mapOf(10100 to 2_000_000L, 10200 to 0L) // App A tem lote atrasado de 2 MB de download
+        val prevTx = mapOf(10100 to 0L, 10200 to 0L)
+        val curTx = mapOf(10100 to 0L, 10200 to 500_000L)   // App B enviando a 500 KB/s
+
+        val names = mapOf(10100 to "StaleDownloader", 10200 to "ActiveUploader")
+
+        val result = SpeedMonitorService.calculateActiveAppsFromDeltas(
+            currentRxTotals = curRx,
+            previousRxTotals = prevRx,
+            currentTxTotals = curTx,
+            previousTxTotals = prevTx,
+            deltaTimeSec = 1.0,
+            minBytesPerSec = 10_000.0,
+            totalDownSpeed = totalDownSpeed,
+            totalUpSpeed = totalUpSpeed,
+            resolveName = { names[it] }
+        )
+
+        // StaleDownloader teve 0 B/s de download ajustado (pois download total é 0), ficando abaixo do threshold
+        // ActiveUploader tem 500 KB/s de upload legítimo
+        assertEquals(1, result.size)
+        assertEquals("ActiveUploader", result[0].appName)
+        assertEquals(500_000.0, result[0].speedBytesSec, 0.01)
+        assertEquals(0.0, result[0].rxSpeedBytesSec, 0.01)
+        assertEquals(500_000.0, result[0].txSpeedBytesSec, 0.01)
+    }
 }
