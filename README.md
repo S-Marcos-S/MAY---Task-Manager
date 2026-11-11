@@ -40,16 +40,16 @@
 
 ## Visao Geral
 
-O **MAY Task Manager** (Make Android Yours) é um aplicativo dedicado ao monitoramento, análise cirúrgica e otimização avançada do sistema Android. Construído com tecnologias modernas (Kotlin 2.0+, Jetpack Compose, Coroutines, Shaders AGSL e arquitetura reativa StateFlow), o MAY combina telemetria de nível de sistema operacional com uma interface estritamente minimalista, compacta e responsiva.
+O **MAY Task Manager** (Make Android Yours) é um aplicativo dedicado ao monitoramento, análise e otimização avançada do sistema Android. Tudo que você esperaria de um gerenciador de tarefas de desktop, agora no seu smartphone.
 
-O aplicativo funciona tanto em dispositivos convencionais sem privilégios elevados quanto em aparelhos rooteados (Superuser / su), liberando controles diretos sobre o kernel, memória RAM, processos zumbis, wakelocks, conexões de soquete e limites de desempenho.
+O aplicativo funciona é focado em aparelhos rooteados (Superuser / su), liberando controles diretos sobre o kernel.
 
 ---
 
 ## Telas do Aplicativo
 
 <p align="center">
-  Visão resumida das principais telas do MAY Task Manager. Todas as capturas podem ser abertas em alta definição clicando na imagem correspondente.
+  Visão resumida das principais telas do MAY Task Manager.
 </p>
 
 | **1. Processos** | **2. Desempenho** | **3. Histórico Diário** |
@@ -93,18 +93,13 @@ O aplicativo funciona tanto em dispositivos convencionais sem privilégios eleva
 
 ### 4. Ciclos de Bateria (Cycles)
 - Rastreamento dos ciclos de carga e descarga com cálculo de porcentagem consumida, duração de cada evento e taxa horária de drenagem (%/h).
-- Filtros por tipo de ciclo (descarga, carga ou histórico completo).
 
 ### 5. Monitor de Rede (Network)
 - Estatísticas detalhadas de consumo de dados por interface (Wi-Fi e Dados Móveis).
-- Painel de configuração do serviço de velocidade em tempo real (`SpeedMonitorService`):
-  - Limiar de ativação (B/s, KB/s, MB/s) para evitar notificações desnecessárias quando inativo.
-  - Intervalos de amostragem configuráveis de 1 a 10 segundos.
   - Identificação de pacotes ativos em segundo plano gerando tráfego.
 
 ### 6. Diagnostico de Bateria e Doze (Battery)
 - Análise de consumo detalhada via `dumpsys batterystats`.
-- Lista de wakelocks do kernel e wakelocks parciais de aplicativos.
 - Painel Enforce Doze: força a suspensão profunda imediatamente após o bloqueio de tela.
 
 ### 7. Detector de Anomalias (Background Watcher)
@@ -115,14 +110,7 @@ O aplicativo funciona tanto em dispositivos convencionais sem privilégios eleva
 
 ## Recursos para Superusuario
 
-O MAY Task Manager é totalmente funcional em dispositivos sem root (utilizando APIs padrão do Android, TrafficStats, UsageStats e NetworkStatsManager). Contudo, a presença de Superuser habilita um conjunto avançado de operações de baixo nível:
-
-- Leitura direta de interfaces `/proc`, `/sys/class/thermal` e estatísticas do kernel.
-- Encerramento definitivo e forçado de processos de sistema protegidos.
-- Concessão automática de permissões protegidas de depuração (`DUMP`, `PACKAGE_USAGE_STATS`, `BATTERY_STATS`).
-- Instalação e atualização silenciosa de APKs sem necessidade de interação manual com o instalador do sistema.
-- Execução direta de comandos shell e scripts de diagnóstico pelo terminal interno.
-- Controle direto de estados de energia do kernel e ativação instantânea do modo Doze profundo.
+O MAY Task Manager é funcional em dispositivos sem root (utilizando APIs padrão do Android, TrafficStats, UsageStats e NetworkStatsManager). Contudo, a presença de Superuser habilita um conjunto avançado de operações de baixo nível.
 
 ---
 
@@ -134,13 +122,13 @@ O MAY Task Manager é totalmente funcional em dispositivos sem root (utilizando 
   </a>
 </p>
 
-A tela de configurações do MAY conta com seletor de temas compacto com pontos seletores coloridos e tipografia adaptativa:
+A tela de configurações do MAY conta com seletor de temas com:
 
-- **Liquid Glass:** Efeito de vidro líquido translúcido renderizado através de AGSL (*Android Graphics Shading Language*), integrando refração, aberração cromática e desfoque suave de acordo com o fundo da tela.
+- **Liquid Glass:** Efeito de vidro líquido translúcido.
 - **Monet Dinamico:** Extração inteligente da paleta tonal do wallpaper do usuário através da biblioteca Material You.
-- **OLED Preto Puro:** Fundo `#000000` absoluto com elementos de alto contraste para economia máxima em telas AMOLED.
+- **OLED Escuro:** Fundo `#000000` absoluto com elementos de alto contraste para economia máxima em telas AMOLED.
 - **Modern Dark:** Tons modernos de cinza escuro e superfícies suaves para uso noturno confortável.
-- **Light Clean:** Tema claro com alto contraste, excelente legibilidade e visual limpo sob luz solar direta.
+- **Light Clean:** Tema claro com alto contraste.
 
 ---
 
@@ -148,9 +136,7 @@ A tela de configurações do MAY conta com seletor de temas compacto com pontos 
 
 O MAY Task Manager inclui um mecanismo integrado de entrega contínua através do GitHub Releases:
 
-- **Verificacao na Entrada:** Ao abrir a tela de configurações, o aplicativo consulta a versão mais recente publicada no repositório.
 - **Canal de Versoes Beta:** O usuário pode ativar a opção **Testador de Versões Beta** nas configurações para receber versões preliminares e experimentais antes do lançamento público geral.
-- **Destaque de Releases Estaveis:** As versões de teste utilizam identificação de pré-lançamento (*prerelease: true* e *make_latest: false*), mantendo a versão estável oficial sempre fixada como destaque principal no repositório.
 - **Instalacao Silenciosa:** Em dispositivos com Superuser, o processo de download, validação de integridade e instalação do APK é realizado de maneira totalmente silenciosa e transparente.
 
 ---
@@ -175,11 +161,11 @@ Os arquivos de instalação (APK) oficiais podem ser obtidos na aba de lançamen
 
 ## Compilacao e Otimizacao
 
-O projeto é configurado com compilação automatizada via GitHub Actions com otimizações agressivas de compacidade:
+O projeto é configurado com compilação automatizada via GitHub Actions com otimizações:
 
 - **Compilador:** Kotlin 2.0+ com plugin Compose.
 - **Minificacao:** R8 habilitado com ofuscação, remoção de classes e métodos inacessíveis, além de empacotamento compacto de pacotes.
-- **Shrinking de Recursos:** Remoção automática de recursos não utilizados para gerar um APK de tamanho mínimo e execução veloz.
+- **Shrinking de Recursos:** Remoção automática de recursos não utilizados para gerar um APK de tamanho mínimo.
 
 ---
 
