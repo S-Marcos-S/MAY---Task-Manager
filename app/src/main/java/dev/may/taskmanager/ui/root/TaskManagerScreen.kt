@@ -1142,6 +1142,7 @@ private fun ProcessRowCard(
                     PowerImpactLevel.MEDIUM -> Pair(Color(0xFFF59E0B), stringResource(R.string.power_impact_medium))
                     PowerImpactLevel.LOW -> Pair(Color(0xFF10B981), stringResource(R.string.power_impact_low))
                     PowerImpactLevel.MINIMAL -> Pair(colorScheme.onSurface.copy(alpha = 0.45f), stringResource(R.string.power_impact_minimal))
+                    PowerImpactLevel.UNAVAILABLE, null -> Pair(colorScheme.onSurface.copy(alpha = 0.35f), stringResource(R.string.power_impact_unavailable))
                 }
                 Text(
                     text = impactText,

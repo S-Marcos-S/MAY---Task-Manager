@@ -1482,4 +1482,6 @@
     <!-- Task Process CPU Telemetry -->
     <string name="task_process_cpu_format">%1$.1f%% CPU</string>
     <string name="task_process_cpu_unavailable">--%% CPU</string>
+    <string name="power_impact_unavailable">--</string>
+    <string name="root_inspector_power_impact_unavailable">Impact Unavailable</string>
 </resources>

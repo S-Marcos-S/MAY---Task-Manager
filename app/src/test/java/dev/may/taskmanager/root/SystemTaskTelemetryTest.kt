@@ -422,14 +422,33 @@ class SystemTaskTelemetryTest {
     }
 
     @Test
-    fun `calculatePowerImpact handles null and normal cpu percent safely`() {
-        val (impactNull, mwNull) = SystemTaskInspector.calculatePowerImpact(null, isForeground = true, isSystem = false)
-        assertEquals(PowerImpactLevel.MINIMAL, impactNull)
-        assertEquals(0.0, mwNull, 0.001)
+    fun `calculatePowerImpact cleanly differentiates null cpu zero cpu and active cpu without inventing zero for null`() {
+        // Scenario 1: Telemetry unavailable (cpuPercent = null) -> impact and mw must be null (never converted to 0.0 or MINIMAL)
+        val (impactNullFg, mwNullFg) = SystemTaskInspector.calculatePowerImpact(null, isForeground = true, isSystem = false)
+        assertNull(impactNullFg)
+        assertNull(mwNullFg)
 
-        val (impactHigh, mwHigh) = SystemTaskInspector.calculatePowerImpact(15.0, isForeground = true, isSystem = false)
-        assertEquals(PowerImpactLevel.HIGH, impactHigh)
-        assertEquals((15.0 / 100.0) * 2800.0, mwHigh, 0.001)
+        val (impactNullBg, mwNullBg) = SystemTaskInspector.calculatePowerImpact(null, isForeground = false, isSystem = false)
+        assertNull(impactNullBg)
+        assertNull(mwNullBg)
+
+        // Scenario 2: Valid measured 0.0% CPU (process idle/sleeping) -> MINIMAL impact and 0.0 mW
+        val (impactZeroFg, mwZeroFg) = SystemTaskInspector.calculatePowerImpact(0.0, isForeground = true, isSystem = false)
+        assertEquals(PowerImpactLevel.MINIMAL, impactZeroFg)
+        assertEquals(0.0, mwZeroFg ?: -1.0, 0.001)
+
+        val (impactZeroBg, mwZeroBg) = SystemTaskInspector.calculatePowerImpact(0.0, isForeground = false, isSystem = false)
+        assertEquals(PowerImpactLevel.MINIMAL, impactZeroBg)
+        assertEquals(0.0, mwZeroBg ?: -1.0, 0.001)
+
+        // Scenario 3: Measured active CPU values -> calculate appropriate level and mW
+        val (impactFgHigh, mwFgHigh) = SystemTaskInspector.calculatePowerImpact(15.0, isForeground = true, isSystem = false)
+        assertEquals(PowerImpactLevel.HIGH, impactFgHigh)
+        assertEquals((15.0 / 100.0) * 2800.0, mwFgHigh ?: -1.0, 0.001)
+
+        val (impactBgVeryHigh, mwBgVeryHigh) = SystemTaskInspector.calculatePowerImpact(9.0, isForeground = false, isSystem = false)
+        assertEquals(PowerImpactLevel.VERY_HIGH, impactBgVeryHigh)
+        assertEquals((9.0 / 100.0) * 2800.0, mwBgVeryHigh ?: -1.0, 0.001)
     }
 
     @Test

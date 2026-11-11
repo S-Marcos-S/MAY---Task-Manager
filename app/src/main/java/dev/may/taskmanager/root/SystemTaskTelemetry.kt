@@ -37,7 +37,8 @@ enum class PowerImpactLevel(val labelPt: String, val labelEn: String) {
     LOW("Baixo", "Low"),
     MEDIUM("Médio", "Medium"),
     HIGH("Alto", "High"),
-    VERY_HIGH("Muito Alto", "Very High")
+    VERY_HIGH("Muito Alto", "Very High"),
+    UNAVAILABLE("Indisponível", "Unavailable"),
 }
 
 data class SystemPerformanceSnapshot(
@@ -87,8 +88,8 @@ data class TaskProcessItem(
     val isForeground: Boolean,
     val isSystemProcess: Boolean = false,
     val appInfo: AppInfo? = null,
-    val powerImpact: PowerImpactLevel = PowerImpactLevel.LOW,
-    val estimatedPowerMw: Double = 0.0,
+    val powerImpact: PowerImpactLevel? = null,
+    val estimatedPowerMw: Double? = null,
     val pssMb: Double? = null,
     val rssMb: Double? = null,
     val confidence: ConfidenceLevel = ConfidenceLevel.HIGH,
@@ -1075,26 +1076,28 @@ object SystemTaskInspector {
         cpuPercent: Double?,
         isForeground: Boolean,
         isSystem: Boolean,
-    ): Pair<PowerImpactLevel, Double> {
-        val safeCpu = cpuPercent ?: 0.0
+    ): Pair<PowerImpactLevel?, Double?> {
+        if (cpuPercent == null) {
+            return Pair(null, null)
+        }
         val level = if (isForeground) {
             when {
-                safeCpu >= 25.0 -> PowerImpactLevel.VERY_HIGH
-                safeCpu >= 10.0 -> PowerImpactLevel.HIGH
-                safeCpu >= 3.0 -> PowerImpactLevel.MEDIUM
-                safeCpu >= 0.5 -> PowerImpactLevel.LOW
+                cpuPercent >= 25.0 -> PowerImpactLevel.VERY_HIGH
+                cpuPercent >= 10.0 -> PowerImpactLevel.HIGH
+                cpuPercent >= 3.0 -> PowerImpactLevel.MEDIUM
+                cpuPercent >= 0.5 -> PowerImpactLevel.LOW
                 else -> PowerImpactLevel.MINIMAL
             }
         } else {
             when {
-                safeCpu >= 8.0 -> PowerImpactLevel.VERY_HIGH
-                safeCpu >= 3.0 -> PowerImpactLevel.HIGH
-                safeCpu >= 0.8 -> PowerImpactLevel.MEDIUM
-                safeCpu >= 0.1 -> PowerImpactLevel.LOW
+                cpuPercent >= 8.0 -> PowerImpactLevel.VERY_HIGH
+                cpuPercent >= 3.0 -> PowerImpactLevel.HIGH
+                cpuPercent >= 0.8 -> PowerImpactLevel.MEDIUM
+                cpuPercent >= 0.1 -> PowerImpactLevel.LOW
                 else -> PowerImpactLevel.MINIMAL
             }
         }
-        val estimatedMw = (safeCpu / 100.0) * 2800.0
+        val estimatedMw = (cpuPercent / 100.0) * 2800.0
         return Pair(level, estimatedMw)
     }
 

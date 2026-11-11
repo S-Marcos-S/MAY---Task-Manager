@@ -1917,6 +1917,12 @@ private fun BatteryTabContent(data: AppInspectionData) {
                 colorScheme.onSurface.copy(alpha = 0.6f),
                 "Impacto Mínimo — Ocioso",
             )
+            PowerImpactLevel.UNAVAILABLE -> listOf(
+                colorScheme.onSurface.copy(alpha = 0.04f),
+                colorScheme.outline.copy(alpha = 0.12f),
+                colorScheme.onSurface.copy(alpha = 0.45f),
+                stringResource(R.string.root_inspector_power_impact_unavailable),
+            )
         }
 
         Box(
