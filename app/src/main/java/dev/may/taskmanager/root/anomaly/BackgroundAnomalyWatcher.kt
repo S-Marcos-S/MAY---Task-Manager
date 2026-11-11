@@ -1052,12 +1052,6 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
             processRamHistory.keys.retainAll(currentPids)
         }
     }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     /**
      * Chamado quando o sistema operacional Android envia sinal de corte de memória (onTrimMemory).

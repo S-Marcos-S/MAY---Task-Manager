@@ -432,20 +432,18 @@ class SpeedMonitorService : Service() {
             lastRxBytes = currentTotalRx
             lastTxBytes = currentTotalTx
             lastElapsedRealtimeNanos = nowNanos
-            updateNotification(0.0, 0.0, 0.0, "--", "--", "--", formatBytes(dailyMobileTotal), formatBytes(dailyWifiTotal), emptyList())
-            return
         } else {
             isCollectionError = false
             isStale = false
         }
 
-        val deltaRx = if (!isCollectionError && lastRxBytes > 0L && currentTotalRx >= lastRxBytes) currentTotalRx - lastRxBytes else 0L
-        val deltaTx = if (!isCollectionError && lastTxBytes > 0L && currentTotalTx >= lastTxBytes) currentTotalTx - lastTxBytes else 0L
+        val deltaRx = if (!isCollectionError && !isStale && lastRxBytes > 0L && currentTotalRx >= lastRxBytes) currentTotalRx - lastRxBytes else 0L
+        val deltaTx = if (!isCollectionError && !isStale && lastTxBytes > 0L && currentTotalTx >= lastTxBytes) currentTotalTx - lastTxBytes else 0L
 
-        val downloadSpeed = if (!isCollectionError && isSupported) deltaRx / deltaTime else 0.0
-        val uploadSpeed = if (!isCollectionError && isSupported) deltaTx / deltaTime else 0.0
+        val downloadSpeed = if (!isCollectionError && !isStale && isSupported) deltaRx / deltaTime else 0.0
+        val uploadSpeed = if (!isCollectionError && !isStale && isSupported) deltaTx / deltaTime else 0.0
 
-        if (!isCollectionError && isSupported) {
+        if (!isCollectionError && !isStale && isSupported) {
             lastRxBytes = currentTotalRx
             lastTxBytes = currentTotalTx
             lastElapsedRealtimeNanos = nowNanos
