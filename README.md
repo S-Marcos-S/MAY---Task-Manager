@@ -27,6 +27,7 @@
 
 <p align="center">
   <a href="#visao-geral">Visão Geral</a> •
+  <a href="#telas-do-aplicativo">Telas</a> •
   <a href="#destaques-e-recursos">Destaques</a> •
   <a href="#modulos-do-sistema">Módulos</a> •
   <a href="#recursos-para-superusuario">Superusuário</a> •
@@ -64,32 +65,43 @@ O aplicativo funciona tanto em dispositivos convencionais sem privilégios eleva
 
 ---
 
+## Telas do Aplicativo
+
+<p align="center">
+  Visão resumida das principais telas do MAY Task Manager. Todas as capturas podem ser abertas em alta definição clicando na imagem correspondente.
+</p>
+
+| **1. Processos** | **2. Desempenho** | **3. Histórico Diário** |
+|:---:|:---:|:---:|
+| <a href="docs/screenshots/01_processos.png"><img src="docs/screenshots/01_processos.png" width="240" alt="Processos" /></a> | <a href="docs/screenshots/02_desempenho.png"><img src="docs/screenshots/02_desempenho.png" width="240" alt="Desempenho" /></a> | <a href="docs/screenshots/03_historico.png"><img src="docs/screenshots/03_historico.png" width="240" alt="Histórico Diário" /></a> |
+| Gestão cirúrgica de apps em 1º/2º plano e sistema com CPU e RAM | Frequências por núcleo, governadores e gráficos de CPU/RAM | Linha do tempo, consumo 24h, sono leve/profundo e aberturas |
+
+| **4. Segundo Plano** | **5. Rede & Notificação** | **6. Ciclos de Bateria** |
+|:---:|:---:|:---:|
+| <a href="docs/screenshots/04_segundo_plano.png"><img src="docs/screenshots/04_segundo_plano.png" width="240" alt="Segundo Plano" /></a> | <a href="docs/screenshots/05_rede_config.png"><img src="docs/screenshots/05_rede_config.png" width="240" alt="Rede" /></a> | <a href="docs/screenshots/06_ciclos_bateria.png"><img src="docs/screenshots/06_ciclos_bateria.png" width="240" alt="Ciclos de Bateria" /></a> |
+| Detector de anomalias, consumo em repouso e quebras de sono | Velocidade na barra de status, limites mínimos e amostragem | Curva de velocidade de recarga (Watts), temperatura e histórico |
+
+| **7. Ferramentas** | **8. Configurações** | **9. Diagnóstico de Bateria** |
+|:---:|:---:|:---:|
+| <a href="docs/screenshots/07_ferramentas.png"><img src="docs/screenshots/07_ferramentas.png" width="240" alt="Ferramentas" /></a> | <a href="docs/screenshots/08_configuracoes.png"><img src="docs/screenshots/08_configuracoes.png" width="240" alt="Configurações" /></a> | <a href="docs/screenshots/09_bateria_visao_geral.png"><img src="docs/screenshots/09_bateria_visao_geral.png" width="240" alt="Bateria" /></a> |
+| Gravação de logs com atalho QS, depuração e instalador root | Seleção de temas, atualizador embutido e canal beta | Tempo de tela ligada/apagada, Enforce Doze e qualidade de sinal |
+
+| **10. Tráfego por App** | **11. Estatísticas Root** | **12. Zonas Térmicas** |
+|:---:|:---:|:---:|
+| <a href="docs/screenshots/10_rede_consumo_apps.png"><img src="docs/screenshots/10_rede_consumo_apps.png" width="240" alt="Tráfego por App" /></a> | <a href="docs/screenshots/11_bateria_root_status.png"><img src="docs/screenshots/11_bateria_root_status.png" width="240" alt="Estatísticas Root" /></a> | <a href="docs/screenshots/12_frequencias_termicas.png"><img src="docs/screenshots/12_frequencias_termicas.png" width="240" alt="Zonas Térmicas" /></a> |
+| Ranking dos aplicativos que mais consumiram internet no dia | Capacidade nominal vs real, contagem de ciclos e tensão mV | Distribuição de tempo por estado da CPU e sensores térmicos |
+
+---
+
 ## Modulos do Sistema
 
 ### 1. Processos (Processes)
-
-<p align="center">
-  <a href="docs/screenshots/screen_processes.png">
-    <img src="docs/screenshots/screen_processes.png" width="340" alt="Tela de Processos" />
-  </a>
-</p>
-
 - Listagem segmentada em tempo real: Aplicativos em Primeiro Plano (*Foreground*), Serviços em Segundo Plano (*Background*) e Processos de Sistema (*System*).
 - Busca instantânea por nome ou pacote.
 - Inspeção em um toque com detalhes de PID, UID, uso de memória PSS, tempo de execução e estado de ciclo de vida.
 - Ações rápidas de encerramento, abertura de configurações do sistema e exportação de diagnóstico.
 
 ### 2. Desempenho (Performance)
-
-<p align="center">
-  <a href="docs/screenshots/screen_performance.jpg">
-    <img src="docs/screenshots/screen_performance.jpg" width="340" alt="Tela de Desempenho" />
-  </a>
-</p>
-<p align="center">
-  <em>Tela de Desempenho: telemetria de hardware ao vivo com frequências e limites por núcleo da CPU, governadores do kernel, gráficos de consumo de RAM e sensores térmicos.</em>
-</p>
-
 - Monitor em tempo real de núcleos da CPU (frequências atuais, limites mínimos e máximos por cluster).
 - Gráficos contínuos de CPU, memória RAM, taxa de escrita/leitura em armazenamento e taxas de transferência de rede.
 - Sensores térmicos por zona do hardware (bateria, CPU, modem, placa-mãe).
@@ -99,13 +111,6 @@ O aplicativo funciona tanto em dispositivos convencionais sem privilégios eleva
 - Gráficos de tráfego de dados por hora e registro de quebras de sono profundo causadas por processos em segundo plano.
 
 ### 4. Ciclos de Bateria (Cycles)
-
-<p align="center">
-  <a href="docs/screenshots/screen_battery_cycles.png">
-    <img src="docs/screenshots/screen_battery_cycles.png" width="340" alt="Tela de Ciclos de Bateria" />
-  </a>
-</p>
-
 - Rastreamento dos ciclos de carga e descarga com cálculo de porcentagem consumida, duração de cada evento e taxa horária de drenagem (%/h).
 - Filtros por tipo de ciclo (descarga, carga ou histórico completo).
 
@@ -147,6 +152,9 @@ O MAY Task Manager é totalmente funcional em dispositivos sem root (utilizando 
     <img src="docs/screenshots/themes_dynamic_oled_light.png" width="100%" alt="Temas Dinâmico, Preto OLED e Claro" />
   </a>
 </p>
+<p align="center">
+  <em>Visão Geral dos Temas: Dinâmico (Material You Monet com adaptação ao papel de parede), Preto OLED absoluto (#000000 puro para telas AMOLED) e Claro (Light Clean para alta visibilidade).</em>
+</p>
 
 A tela de configurações do MAY conta com seletor de temas compacto com pontos seletores coloridos e tipografia adaptativa:
 
@@ -155,12 +163,6 @@ A tela de configurações do MAY conta com seletor de temas compacto com pontos 
 - **OLED Preto Puro:** Fundo `#000000` absoluto com elementos de alto contraste para economia máxima em telas AMOLED.
 - **Modern Dark:** Tons modernos de cinza escuro e superfícies suaves para uso noturno confortável.
 - **Light Clean:** Tema claro com alto contraste, excelente legibilidade e visual limpo sob luz solar direta.
-
-<p align="center">
-  <a href="docs/screenshots/theme_liquid_glass.png">
-    <img src="docs/screenshots/theme_liquid_glass.png" width="340" alt="Tema Liquid Glass" />
-  </a>
-</p>
 
 ---
 
