@@ -1434,4 +1434,8 @@
     <string name="diag_cap_ram_desc">Mede RSS, PSS, swap e pressão de memória do sistema</string>
     <string name="diag_cap_battery_title">Telemetria de Bateria e WakeLocks</string>
     <string name="diag_cap_battery_desc">Mede sono profundo, corrente e estatísticas de dump</string>
+    <!-- Detalhes do Inspetor Root -->
+    <string name="root_inspector_package_uid">UID do Pacote:</string>
+    <string name="root_inspector_installed_version">Versão Instalada:</string>
+    <string name="root_inspector_uid_unknown">Desconhecido</string>
 </resources>

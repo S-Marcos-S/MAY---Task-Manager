@@ -1473,4 +1473,9 @@
     <string name="diag_cap_ram_desc">Samples RSS, PSS, swap, and system memory pressure</string>
     <string name="diag_cap_battery_title">Battery &amp; WakeLock Telemetry</string>
     <string name="diag_cap_battery_desc">Samples deep sleep, hardware current, and dump stats</string>
+
+    <!-- Root Inspector Details -->
+    <string name="root_inspector_package_uid">Package UID:</string>
+    <string name="root_inspector_installed_version">Installed Version:</string>
+    <string name="root_inspector_uid_unknown">Unknown</string>
 </resources>

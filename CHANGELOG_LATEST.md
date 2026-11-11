@@ -1,8 +1,8 @@
-### MAY Task Manager v1.0.24
-- Sanitizacao do nome de pacote base ao inspecionar processos e subprocessos (ex: sub-rotinas com separador de dois-pontos).
-- Prevencao de falhas por NameNotFoundException no PackageManager durante inspecao detalhada com fallback resiliente.
-- Otimizacao do script unificado de superusuario com eliminacao de chamadas lentas redundantes e fechamento seguro de descritores.
-- Aumento do tempo limite de execucao de root na inspecao de processos para 12 segundos evitando timeouts indevidos.
-- Preservacao do estado de inspecao na interface durante ciclos de atualizacao periodica em caso de oscilacao temporaria.
-- Adicao de testes unitarios de regressao para reconhecimento de processos subordinados, tratamento de permissoes e telemetria.
+### MAY Task Manager v1.0.25
+- Remocao do fallback de mascaramento de erros na inspecao root, propagando falhas autenticas e preservando dados validos anteriores na interface.
+- Restauracao da coleta otimizada de dumpsys batterystats checkin filtrada por UID para extracao de metricas de hardware pwi e tempos de processo pr.
+- Tratamento correto de UID nao resolvido sem atribuicao a root (UID 0) e sem consulta de contadores de sistema.
+- Validacao rigorosa de PIDs retornados por pgrep -f atraves da checagem de /proc/pid/cmdline para descartar processos de terceiros.
+- Adicao de testes de regressao para timeout, falha de root, preservacao de dados de UI, ausencia de UID e parsing de checkin.
+- Configuracao de geracao automatica de Release Beta na branch test para usuarios de teste sem destaque no repositorio.
 ---

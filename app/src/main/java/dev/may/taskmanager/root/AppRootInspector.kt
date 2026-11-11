@@ -102,6 +102,7 @@ data class AppInspectionData(
     val permissions: List<AppPermissionItem>,
     val batteryData: AppBatteryInspectionData? = null,
     val timestamp: Long = System.currentTimeMillis(),
+    val isPartialData: Boolean = false,
 )
 
 object AppRootInspector {
@@ -160,14 +161,17 @@ object AppRootInspector {
                 }
             } else 0L
 
-            val uid = appInfo?.uid ?: runCatching {
+            val resolvedUid: Int? = appInfo?.uid ?: runCatching {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
                     pm.getPackageUid(basePackageName, 0)
                 } else {
                     @Suppress("DEPRECATION")
                     pm.getApplicationInfo(basePackageName, 0).uid
                 }
-            }.getOrDefault(0)
+            }.getOrNull()
+
+            val effectiveUid = if (resolvedUid != null && resolvedUid > 0) resolvedUid else null
+            val targetUidForData = effectiveUid ?: -1
 
             val dlManagerUid: Int? = if (basePackageName == "com.android.vending") {
                 runCatching {
@@ -215,9 +219,9 @@ object AppRootInspector {
 
             val dlmConnFilter = if (dlManagerUid != null) " -e \"$dlManagerUid\"" else ""
 
-            val uidPidsScript = if (uid >= 10000) {
+            val uidPidsScript = if (effectiveUid != null && effectiveUid >= 10000) {
                 """
-                for p in ${'$'}(pgrep -u $uid 2>/dev/null); do
+                for p in ${'$'}(pgrep -u $effectiveUid 2>/dev/null); do
                     cmd=${'$'}(cat /proc/${'$'}p/cmdline 2>/dev/null | tr '\0' ' ')
                     case "${'$'}cmd" in
                         $basePackageName|$basePackageName\ *|$basePackageName:*|" $basePackageName"*)
@@ -228,22 +232,36 @@ object AppRootInspector {
                 """.trimIndent()
             } else {
                 """
-                pgrep -f "$basePackageName" 2>/dev/null
+                for p in ${'$'}(pgrep -f "$basePackageName" 2>/dev/null); do
+                    [ -d "/proc/${'$'}p" ] || continue
+                    cmd=${'$'}(cat /proc/${'$'}p/cmdline 2>/dev/null | tr '\0' ' ')
+                    case "${'$'}cmd" in
+                        $basePackageName|$basePackageName\ *|$basePackageName:*|" $basePackageName"*)
+                            echo "${'$'}p"
+                            ;;
+                    esac
+                done
                 """.trimIndent()
             }
 
-            val uidNetScript = if (uid > 0) {
+            val uidNetScript = if (effectiveUid != null && effectiveUid > 0) {
                 """
                 echo "===NET_BPF==="
-                dumpsys netstats 2>/dev/null | grep -E '^ *$uid '
+                dumpsys netstats 2>/dev/null | grep -E '^ *$effectiveUid '
                 echo "===NET_STATS==="
-                dumpsys netstats detail 2>/dev/null | grep -A 2 "uid=$uid" || dumpsys netstats 2>/dev/null | grep -A 2 "uid=$uid"
-                cat /proc/net/xt_qtaguid/stats 2>/dev/null | grep " $uid "
+                dumpsys netstats detail 2>/dev/null | grep -A 2 "uid=$effectiveUid" || dumpsys netstats 2>/dev/null | grep -A 2 "uid=$effectiveUid"
+                cat /proc/net/xt_qtaguid/stats 2>/dev/null | grep " $effectiveUid "
                 echo "===UID_STAT==="
-                cat /proc/uid_stat/$uid/tcp_rcv 2>/dev/null
+                cat /proc/uid_stat/$effectiveUid/tcp_rcv 2>/dev/null
                 echo "---TX---"
-                cat /proc/uid_stat/$uid/tcp_snd 2>/dev/null
+                cat /proc/uid_stat/$effectiveUid/tcp_snd 2>/dev/null
                 """.trimIndent()
+            } else ""
+
+            val uidConnFilter = if (effectiveUid != null && effectiveUid > 0) " -e \"$effectiveUid\"" else ""
+
+            val batteryCheckinScript = if (effectiveUid != null && effectiveUid >= 10000) {
+                "dumpsys batterystats --checkin 2>/dev/null | grep -E \"^[0-9]+,$effectiveUid,\"; "
             } else ""
 
             // High-performance unified shell inspection script without toybox-incompatible regexes (\b, \s, \d)
@@ -272,17 +290,18 @@ object AppRootInspector {
                 $uidNetScript
                 $dlmNetStatsScript
                 echo "===CONNECTIONS==="
-                ss -t -u -p -n -e -i 2>/dev/null | grep -e "$basePackageName" -e "$uid"$dlmConnFilter -A 1 || ss -tupn 2>/dev/null | grep -e "$basePackageName" -e "$uid"$dlmConnFilter || netstat -tlpn 2>/dev/null | grep -e "$basePackageName" -e "$uid"$dlmConnFilter
+                ss -t -u -p -n -e -i 2>/dev/null | grep -e "$basePackageName"$uidConnFilter$dlmConnFilter -A 1 || ss -tupn 2>/dev/null | grep -e "$basePackageName"$uidConnFilter$dlmConnFilter || netstat -tlpn 2>/dev/null | grep -e "$basePackageName"$uidConnFilter$dlmConnFilter
                 echo "===ACTIVITIES==="
                 dumpsys window 2>/dev/null | grep -E "mCurrentFocus|mFocusedApp"
                 dumpsys activity activities 2>/dev/null | grep -E "topResumedActivity|mResumedActivity"
                 echo "===SERVICES==="
                 dumpsys activity services $basePackageName 2>/dev/null | grep -E "ServiceRecord|app=ProcessRecord"
                 echo "===BATTERYSTATS==="
+                $batteryCheckinScript
                 dumpsys batterystats --charged $basePackageName 2>/dev/null || dumpsys batterystats $basePackageName 2>/dev/null
             """.trimIndent()
 
-            val rawOutput = runSuCommand(shellScript, timeoutMs = 12000L).getOrDefault("")
+            val rawOutput = runSuCommand(shellScript, timeoutMs = 12000L).getOrThrow()
 
             // Parse sections
             val sections = parseSections(rawOutput)
@@ -296,10 +315,10 @@ object AppRootInspector {
             val coresCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
 
             val topText = sections["TOP"] ?: ""
-            val topProcesses = parseTopOutput(topText, basePackageName, extraPackageName, targetUid = uid, coresCount = coresCount)
+            val topProcesses = parseTopOutput(topText, basePackageName, extraPackageName, targetUid = effectiveUid, coresCount = coresCount)
 
             val psText = sections["PS"] ?: ""
-            val psProcesses = parsePsOutput(psText, basePackageName, extraPackageName, targetUid = uid, coresCount = coresCount)
+            val psProcesses = parsePsOutput(psText, basePackageName, extraPackageName, targetUid = effectiveUid, coresCount = coresCount)
 
             val processes = mutableListOf<ProcessDetail>()
             topProcesses.forEach { processes.add(it) }
@@ -317,7 +336,7 @@ object AppRootInspector {
                         ProcessDetail(
                             pid = pid,
                             name = basePackageName,
-                            user = if (uid > 0) "u0_a${uid % 100000}" else "root",
+                            user = if (effectiveUid != null && effectiveUid >= 10000) "u0_a${effectiveUid % 100000}" else if (effectiveUid != null) "app_$effectiveUid" else "unknown",
                             cpuPercent = 0.0,
                             memPercent = 0.0,
                         )
@@ -364,16 +383,28 @@ object AppRootInspector {
             val sevenDaysAgoSec = sevenDaysAgoMs / 1000
 
             val bpfText = sections["NET_BPF"] ?: ""
-            val (bpfRx, bpfTx) = parseBpfUidStats(bpfText, uid)
+            val (bpfRx, bpfTx) = if (effectiveUid != null && effectiveUid > 0) {
+                parseBpfUidStats(bpfText, effectiveUid)
+            } else Pair(0L, 0L)
 
             val netStatsText = sections["NET_STATS"] ?: ""
-            val nsBreakdown = parseNetstatsOutput(netStatsText, uid, todayStartSec, sevenDaysAgoSec)
-            val (qtagRx, qtagTx) = parseQtaguidStats(netStatsText, uid)
-            val tsRx = runCatching { TrafficStats.getUidRxBytes(uid) }.getOrDefault(-1L)
-            val tsTx = runCatching { TrafficStats.getUidTxBytes(uid) }.getOrDefault(-1L)
+            val nsBreakdown = if (effectiveUid != null && effectiveUid > 0) {
+                parseNetstatsOutput(netStatsText, effectiveUid, todayStartSec, sevenDaysAgoSec)
+            } else NetBreakdown()
+            val (qtagRx, qtagTx) = if (effectiveUid != null && effectiveUid > 0) {
+                parseQtaguidStats(netStatsText, effectiveUid)
+            } else Pair(0L, 0L)
+            val tsRx = if (effectiveUid != null && effectiveUid > 0) {
+                runCatching { TrafficStats.getUidRxBytes(effectiveUid) }.getOrDefault(-1L)
+            } else -1L
+            val tsTx = if (effectiveUid != null && effectiveUid > 0) {
+                runCatching { TrafficStats.getUidTxBytes(effectiveUid) }.getOrDefault(-1L)
+            } else -1L
 
             val uidStatText = sections["UID_STAT"] ?: ""
-            val (uidStatRx, uidStatTx) = uidStatStatFallback(uidStatText)
+            val (uidStatRx, uidStatTx) = if (effectiveUid != null && effectiveUid > 0) {
+                uidStatStatFallback(uidStatText)
+            } else Pair(0L, 0L)
 
             val appRealtimeRx = when {
                 bpfRx > 0L -> bpfRx
@@ -394,8 +425,12 @@ object AppRootInspector {
             val appNetTx = maxOf(if (tsTx > 0L) tsTx else 0L, bpfTx, nsBreakdown.txTotal, qtagTx, uidStatTx)
 
             // Native Android NetworkStatsManager query for exact system accounting
-            val (nsmTodayRx, nsmTodayTx) = getNativeAppUsage(context, uid, todayStartMs, now)
-            val (nsm7DaysRx, nsm7DaysTx) = getNativeAppUsage(context, uid, sevenDaysAgoMs, now)
+            val (nsmTodayRx, nsmTodayTx) = if (effectiveUid != null && effectiveUid > 0) {
+                getNativeAppUsage(context, effectiveUid, todayStartMs, now)
+            } else Pair(0L, 0L)
+            val (nsm7DaysRx, nsm7DaysTx) = if (effectiveUid != null && effectiveUid > 0) {
+                getNativeAppUsage(context, effectiveUid, sevenDaysAgoMs, now)
+            } else Pair(0L, 0L)
 
             var appRxToday = maxOf(nsBreakdown.rxToday, nsmTodayRx)
             var appTxToday = maxOf(nsBreakdown.txToday, nsmTodayTx)
@@ -523,14 +558,14 @@ object AppRootInspector {
 
             // 8. Battery & Power Telemetry
             val batteryText = sections["BATTERYSTATS"] ?: ""
-            val batteryData = parseBatteryStats(batteryText, uid)
+            val batteryData = parseBatteryStats(batteryText, effectiveUid ?: -1)
 
             AppInspectionData(
                 packageName = basePackageName,
                 appName = appName,
                 versionName = versionName,
                 versionCode = versionCode,
-                uid = uid,
+                uid = targetUidForData,
                 status = status,
                 processes = processes,
                 totalCpuPercent = totalCpu,
@@ -551,37 +586,10 @@ object AppRootInspector {
                 activeServices = activeServices,
                 permissions = permissions,
                 batteryData = batteryData,
+                isPartialData = (effectiveUid == null || packageInfo == null),
             )
-        }.recoverCatching { err ->
-            Log.e("AppRootInspector", "Resilient fallback for app inspection: $packageName", err)
-            val basePkg = packageName.substringBefore(":")
-            AppInspectionData(
-                packageName = basePkg,
-                appName = basePkg,
-                versionName = "1.0",
-                versionCode = 0L,
-                uid = 0,
-                status = AppProcessStatus.STOPPED,
-                processes = emptyList(),
-                totalCpuPercent = 0.0,
-                ramTotalMb = 0.0,
-                ramDalvikMb = 0.0,
-                ramNativeMb = 0.0,
-                ramGraphicsMb = 0.0,
-                rxBytes = 0L,
-                txBytes = 0L,
-                rxBytesToday = 0L,
-                txBytesToday = 0L,
-                rxBytes7Days = 0L,
-                txBytes7Days = 0L,
-                rxSpeedBps = 0L,
-                txSpeedBps = 0L,
-                activeConnections = emptyList(),
-                topActivity = null,
-                activeServices = emptyList(),
-                permissions = emptyList(),
-                batteryData = AppBatteryInspectionData(),
-            )
+        }.onFailure { err ->
+            Log.e("AppRootInspector", "Failed to inspect app: $packageName", err)
         }
     }
 
@@ -762,19 +770,21 @@ object AppRootInspector {
         var totalCpuSec = 0L
 
         val uidAppIndex = if (uid >= 10000) uid % 100000 - 10000 else uid
-        val validUidPrefixes = setOf(
-            "$uid",
-            "u0a$uidAppIndex",
-            "u0_a$uidAppIndex",
-            "u0a${uid % 100000}",
-            "u0_a${uid % 100000}"
-        )
+        val validUidPrefixes = if (uid > 0) {
+            setOf(
+                "$uid",
+                "u0a$uidAppIndex",
+                "u0_a$uidAppIndex",
+                "u0a${uid % 100000}",
+                "u0_a${uid % 100000}"
+            )
+        } else emptySet()
 
         rawText.lineSequence().forEach { line ->
             val trimmed = line.trim()
 
             // 1. Checkin line strictly for target UID: 9,<uid>,l,pwi,uid,<mah>,...
-            if (trimmed.contains(",pwi,") && (trimmed.startsWith("9,$uid,") || trimmed.contains(",$uid,"))) {
+            if (uid > 0 && trimmed.contains(",pwi,")) {
                 val parts = trimmed.split(",")
                 val pwiUid = parts.getOrNull(1)?.toIntOrNull()
                 val pwiType = parts.getOrNull(4)
@@ -783,11 +793,17 @@ object AppRootInspector {
                     if (mah > 0.0) totalMah = mah
                     val checkinCpu = parts.getOrNull(8)?.toDoubleOrNull() ?: 0.0
                     if (checkinCpu > 0.0) cpuMah = checkinCpu
+                    val checkinWl = parts.getOrNull(9)?.toDoubleOrNull() ?: 0.0
+                    if (checkinWl > 0.0) wakelockMah = checkinWl
+                    val checkinRadio = parts.getOrNull(10)?.toDoubleOrNull() ?: 0.0
+                    if (checkinRadio > 0.0) radioMah = checkinRadio
+                    val checkinWifi = parts.getOrNull(11)?.toDoubleOrNull() ?: 0.0
+                    if (checkinWifi > 0.0) wifiMah = checkinWifi
                 }
             }
 
             // 2. Dump line strictly matching this UID: "Uid u0a124: 14.2 ( cpu=12.4 wake=1.2 ... )"
-            if (trimmed.startsWith("Uid ", ignoreCase = true)) {
+            if (uid > 0 && trimmed.startsWith("Uid ", ignoreCase = true)) {
                 val uidPart = trimmed.substringAfter("Uid ").substringBefore(":").trim().lowercase(Locale.ROOT)
                 val isTargetUid = validUidPrefixes.any { it.equals(uidPart, ignoreCase = true) }
                 if (isTargetUid) {
@@ -817,7 +833,7 @@ object AppRootInspector {
             }
 
             // 3. Checkin process line strictly for target UID: 9,<uid>,l,pr,<process>,<userMs>,<sysMs>,<fgMs>,<starts>
-            if (trimmed.contains(",pr,") && (trimmed.startsWith("9,$uid,") || trimmed.contains(",$uid,"))) {
+            if (uid > 0 && trimmed.contains(",pr,")) {
                 val parts = trimmed.split(",")
                 val prUid = parts.getOrNull(1)?.toIntOrNull()
                 if (prUid == uid) {
@@ -989,7 +1005,10 @@ object AppRootInspector {
         val firstToken = tokens.firstOrNull()?.substringAfterLast("/") ?: return false
 
         // Discard shell interpreters, system binaries, grep, and diagnostic command lines
-        val ignoredCommands = setOf("grep", "su", "sh", "bash", "toybox", "top", "ps", "pidof", "pgrep", "dumpsys", "cat", "echo", "tr", "kill")
+        val ignoredCommands = setOf(
+            "grep", "su", "sh", "bash", "toybox", "top", "ps", "pidof", "pgrep",
+            "dumpsys", "cat", "echo", "tr", "kill", "logcat"
+        )
         if (ignoredCommands.contains(firstToken.lowercase(Locale.ROOT))) {
             return false
         }
@@ -1026,7 +1045,7 @@ object AppRootInspector {
                 val pid = tokens[0].toIntOrNull()
                 val user = tokens.getOrNull(1) ?: "unknown"
 
-                if (targetUid != null && targetUid >= 10000 && (user == "root" || user == "0")) {
+                if ((targetUid == null || targetUid >= 10000) && (user == "root" || user == "0")) {
                     return@forEach
                 }
 
@@ -1083,7 +1102,7 @@ object AppRootInspector {
                 if (pid != null) {
                     val user = tokens.getOrNull(1) ?: "unknown"
 
-                    if (targetUid != null && targetUid >= 10000 && (user == "root" || user == "0")) {
+                    if ((targetUid == null || targetUid >= 10000) && (user == "root" || user == "0")) {
                         return@forEach
                     }
 

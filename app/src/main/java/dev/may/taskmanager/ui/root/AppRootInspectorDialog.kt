@@ -349,7 +349,12 @@ fun AppRootInspectorDialog(
             val result = AppRootInspector.inspectApp(context, app.packageName)
             result.fold(
                 onSuccess = { data -> inspectionData = data },
-                onFailure = { /* retain existing data on transient error */ }
+                onFailure = { err ->
+                    // Retain existing data on transient error
+                    if (showIndicator) {
+                        onShowFeedback(err.message ?: context.getString(R.string.root_inspector_root_failed), true)
+                    }
+                }
             )
             isLoading = false
             isRefreshing = false
@@ -1395,12 +1400,12 @@ private fun MemoryTabContent(data: AppInspectionData) {
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = "UID do Pacote:",
+                text = stringResource(R.string.root_inspector_package_uid),
                 color = colorScheme.onSurface.copy(alpha = 0.65f),
                 fontSize = 11.sp,
             )
             Text(
-                text = "${data.uid} (u0_a${data.uid % 100000})",
+                text = if (data.uid > 0) "${data.uid} (u0_a${data.uid % 100000})" else stringResource(R.string.root_inspector_uid_unknown),
                 color = colorScheme.onSurface,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
@@ -1413,7 +1418,7 @@ private fun MemoryTabContent(data: AppInspectionData) {
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = "Versão Instalada:",
+                text = stringResource(R.string.root_inspector_installed_version),
                 color = colorScheme.onSurface.copy(alpha = 0.65f),
                 fontSize = 11.sp,
             )

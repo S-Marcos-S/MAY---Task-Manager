@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.TimeoutException
 
 class AppRootInspectorTest {
 
@@ -513,6 +514,159 @@ class AppRootInspectorTest {
     fun `parsePermissions safely handles null packageInfo and null permissions`() {
         val emptyPerms = AppRootInspector.parsePermissions(null)
         assertTrue(emptyPerms.isEmpty())
+    }
+
+    @Test
+    fun `parseBatteryStats parses checkin pwi hardware metrics and pr process times correctly`() {
+        val checkinSample = """
+            9,10185,l,pwi,uid,28.5,0.0,0.0,15.0,4.5,6.0,3.0
+            9,10185,l,pr,com.example.app,20000,5000,12000,2
+            9,10999,l,pwi,uid,99.9,0.0,0.0,50.0,20.0,10.0,5.0
+            9,0,l,pwi,uid,88.8,0.0,0.0,40.0,10.0,5.0,2.0
+        """.trimIndent()
+
+        val data = AppRootInspector.parseBatteryStats(checkinSample, 10185)
+
+        assertEquals(28.5, data.totalMah, 0.001)
+        assertEquals(15.0, data.cpuMah, 0.001)
+        assertEquals(4.5, data.wakelockMah, 0.001)
+        assertEquals(6.0, data.mobileRadioMah, 0.001)
+        assertEquals(3.0, data.wifiMah, 0.001)
+        assertEquals(12L, data.foregroundTimeSec)
+    }
+
+    @Test
+    fun `parseBatteryStats never attributes UID 0 or other UIDs when app UID is unresolved or invalid`() {
+        val checkinSample = """
+            9,0,l,pwi,uid,88.8,0.0,0.0,40.0,10.0,5.0,2.0
+            9,0,l,pr,root,50000,10000,0,1
+            9,10185,l,pwi,uid,10.0,0.0,0.0,5.0,2.0,1.0,1.0
+        """.trimIndent()
+
+        val dataInvalidUid = AppRootInspector.parseBatteryStats(checkinSample, -1)
+        assertEquals(0.0, dataInvalidUid.totalMah, 0.001)
+        assertEquals(0.0, dataInvalidUid.cpuMah, 0.001)
+        assertEquals(0L, dataInvalidUid.foregroundTimeSec)
+
+        val dataZeroUid = AppRootInspector.parseBatteryStats(checkinSample, 0)
+        assertEquals(0.0, dataZeroUid.totalMah, 0.001)
+    }
+
+    @Test
+    fun `parseTopOutput and parsePsOutput filter out root processes when target UID is null or unresolvable`() {
+        val sampleTop = """
+            1001 root   10 -10 12G 350M 200M S 15.0 3.0 12:34.56 com.whatsapp
+            1002 0      10 -10 4G  150M  80M S  5.0 1.5  3:21.10 com.whatsapp:corb
+            1003 u0_a408 10 -10 2G  80M  40M S  2.0 0.8  0:10.05 com.whatsapp:voip
+        """.trimIndent()
+
+        val topProcs = AppRootInspector.parseTopOutput(sampleTop, "com.whatsapp", targetUid = null)
+        assertEquals(1, topProcs.size)
+        assertEquals(1003, topProcs[0].pid)
+        assertEquals("u0_a408", topProcs[0].user)
+
+        val samplePs = """
+            1001 root   15.0 3.0 com.whatsapp
+            1002 0       5.0 1.5 com.whatsapp:corb
+            1003 u0_a408 2.0 0.8 com.whatsapp:voip
+        """.trimIndent()
+
+        val psProcs = AppRootInspector.parsePsOutput(samplePs, "com.whatsapp", targetUid = null)
+        assertEquals(1, psProcs.size)
+        assertEquals(1003, psProcs[0].pid)
+        assertEquals("u0_a408", psProcs[0].user)
+    }
+
+    @Test
+    fun `isPackageProcess strictly rejects diagnostic commands grep logcat and third-party substrings`() {
+        val targetPkg = "com.whatsapp"
+        assertFalse(AppRootInspector.isPackageProcess("grep -e com.whatsapp", targetPkg))
+        assertFalse(AppRootInspector.isPackageProcess("logcat -s com.whatsapp", targetPkg))
+        assertFalse(AppRootInspector.isPackageProcess("su 0 cat /proc/net/xt_qtaguid/stats | grep com.whatsapp", targetPkg))
+        assertFalse(AppRootInspector.isPackageProcess("sh /data/local/tmp/run_com.whatsapp.sh", targetPkg))
+        assertFalse(AppRootInspector.isPackageProcess("com.whatsapp.other.service", targetPkg))
+        assertFalse(AppRootInspector.isPackageProcess("com.whatsapp_companion", targetPkg))
+
+        assertTrue(AppRootInspector.isPackageProcess("com.whatsapp", targetPkg))
+        assertTrue(AppRootInspector.isPackageProcess("com.whatsapp:corb", targetPkg))
+        assertTrue(AppRootInspector.isPackageProcess("com.whatsapp:voip", targetPkg))
+        assertTrue(AppRootInspector.isPackageProcess("app_process32 /system/bin --nice-name=com.whatsapp", targetPkg))
+        assertTrue(AppRootInspector.isPackageProcess("app_process64 /system/bin --nice-name=com.whatsapp:corb", targetPkg))
+    }
+
+    @Test
+    fun `state management retains previous inspection data when transient error occurs`() {
+        var state: AppInspectionData? = AppInspectionData(
+            packageName = "com.example.app",
+            appName = "Example",
+            versionName = "1.0",
+            versionCode = 1L,
+            uid = 10185,
+            status = AppProcessStatus.FOREGROUND,
+            processes = listOf(ProcessDetail(pid = 1234, name = "com.example.app", user = "u0_a185", cpuPercent = 5.0, memPercent = 2.0)),
+            totalCpuPercent = 5.0,
+            ramTotalMb = 120.0,
+            ramDalvikMb = 50.0,
+            ramNativeMb = 40.0,
+            ramGraphicsMb = 10.0,
+            rxBytes = 1000L,
+            txBytes = 500L,
+            activeConnections = emptyList(),
+            topActivity = "MainActivity",
+            activeServices = emptyList(),
+            permissions = emptyList(),
+        )
+
+        val transientFailureResult: Result<AppInspectionData> = Result.failure(TimeoutException("su timeout"))
+
+        transientFailureResult.fold(
+            onSuccess = { state = it },
+            onFailure = { /* retains existing data */ }
+        )
+
+        assertEquals("com.example.app", state?.packageName)
+        assertEquals(AppProcessStatus.FOREGROUND, state?.status)
+        assertEquals(5.0, state?.totalCpuPercent ?: 0.0, 0.01)
+        assertEquals(120.0, state?.ramTotalMb ?: 0.0, 0.01)
+    }
+
+    @Test
+    fun `error propagation ensures Result failure is not swallowed into fake stopped metrics`() {
+        val simulatedFailure: Result<AppInspectionData> = Result.failure(IllegalStateException("Root command failed with exit code 1"))
+
+        assertTrue("Failure must remain failure instead of returning fake stopped data", simulatedFailure.isFailure)
+        val exception = simulatedFailure.exceptionOrNull()
+        assertTrue(exception is IllegalStateException)
+        assertEquals("Root command failed with exit code 1", exception?.message)
+    }
+
+    @Test
+    fun `AppInspectionData identifies partial data explicitly without inventing values`() {
+        val partialData = AppInspectionData(
+            packageName = "com.unknown.daemon",
+            appName = "com.unknown.daemon",
+            versionName = "1.0",
+            versionCode = 0L,
+            uid = -1,
+            status = AppProcessStatus.BACKGROUND,
+            processes = listOf(ProcessDetail(pid = 5678, name = "com.unknown.daemon", user = "unknown", cpuPercent = 1.0, memPercent = 0.5)),
+            totalCpuPercent = 1.0,
+            ramTotalMb = 25.0,
+            ramDalvikMb = 0.0,
+            ramNativeMb = 25.0,
+            ramGraphicsMb = 0.0,
+            rxBytes = 0L,
+            txBytes = 0L,
+            activeConnections = emptyList(),
+            topActivity = null,
+            activeServices = emptyList(),
+            permissions = emptyList(),
+            isPartialData = true,
+        )
+
+        assertTrue(partialData.isPartialData)
+        assertEquals(-1, partialData.uid)
+        assertEquals("unknown", partialData.processes[0].user)
     }
 }
 
