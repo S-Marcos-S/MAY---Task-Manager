@@ -33,6 +33,7 @@
   <a href="#temas-e-liquid-glass">Temas</a> •
   <a href="#sistema-de-atualizacoes-e-canal-beta">Atualizações & Beta</a> •
   <a href="#download">Download</a> •
+  <a href="#creditos">Créditos</a> •
   <a href="#licenca">Licença</a>
 </p>
 
@@ -166,6 +167,12 @@ O projeto é configurado com compilação automatizada via GitHub Actions com ot
 - **Compilador:** Kotlin 2.0+ com plugin Compose.
 - **Minificacao:** R8 habilitado com ofuscação, remoção de classes e métodos inacessíveis, além de empacotamento compacto de pacotes.
 - **Shrinking de Recursos:** Remoção automática de recursos não utilizados para gerar um APK de tamanho mínimo.
+
+---
+
+## Creditos
+
+- **[BatStats](https://github.com/mlm-games/BatStats)**: Inspiracao para o modulo de diagnostico e metricas de bateria.
 
 ---
 
