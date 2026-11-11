@@ -234,6 +234,10 @@
     <string name="log_notif_saved_text">Log salvo: %1$s</string>
     <string name="log_notif_action_save">Salvar</string>
     <string name="log_notif_action_discard">Descartar</string>
+    <string name="log_notif_action_pause">Pausar</string>
+    <string name="log_notif_action_resume">Retomar</string>
+    <string name="log_notif_status_paused">Pausado • %1$d linhas capturadas</string>
+    <string name="log_notif_status_recording">Gravando • %1$d linhas capturadas</string>
     <string name="log_notif_action_share">Compartilhar</string>
     <string name="log_notif_action_view">Ver</string>
     <string name="log_notif_action_delete">Excluir</string>
@@ -1425,6 +1429,12 @@
     <string name="tile_dev_mode">Modo Desenv.</string>
     <string name="tile_usb_debug">Depuração USB</string>
     <string name="tile_wifi_debug">Depuração WiFi</string>
+    <string name="tile_system_log">Logs do Sistema</string>
+    <string name="tile_system_log_recording">Gravando</string>
+    <string name="tile_system_log_idle">Inativo</string>
+    <string name="toast_system_log_recording_started">Gravação de logs do sistema iniciada</string>
+    <string name="toast_system_log_recording_stopped">Salvando logs do sistema…</string>
+    <string name="tools_log_recording_qs_hint">Atalho também disponível no painel de configurações rápidas (QS)</string>
     <string name="toast_permission_write_secure_settings">Permissão WRITE_SECURE_SETTINGS ou Root necessária</string>
     <string name="toast_wifi_debug_requires_android_11">Depuração WiFi requer Android 11+</string>
     <string name="tools_dev_tiles_title">Opções de Desenvolvedor</string>

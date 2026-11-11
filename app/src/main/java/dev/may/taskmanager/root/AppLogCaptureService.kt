@@ -27,6 +27,7 @@ import dev.may.taskmanager.root.log.LogRecordingsManager
 import dev.may.taskmanager.root.log.RecordingState
 import dev.may.taskmanager.root.log.TerminalEngine
 import dev.may.taskmanager.root.log.TerminalType
+import dev.may.taskmanager.tiles.SystemLogTileService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -153,6 +154,11 @@ class AppLogCaptureService : Service() {
             return _capturingPackages.value.isNotEmpty() || _capturingPackage.value != null
         }
 
+        fun isRecordingSessionActive(context: Context): Boolean {
+            val sessionState = getRecordingsManager(context).session.value.state
+            return sessionState != RecordingState.IDLE
+        }
+
         const val EXTRA_MIN_LEVEL = "extra_min_level"
         const val EXTRA_FAILURE_ONLY = "extra_failure_only"
 
@@ -224,6 +230,7 @@ class AppLogCaptureService : Service() {
             _capturingAppName.value = null
             _capturingPackages.value = emptySet()
             _capturingAppNames.value = emptyList()
+            SystemLogTileService.requestTileUpdate(context)
             val intent = Intent(context, AppLogCaptureService::class.java).apply {
                 action = ACTION_CANCEL_CAPTURE
             }
@@ -375,6 +382,7 @@ class AppLogCaptureService : Service() {
                 seenPids.clear()
 
                 recordingsManager.startSession(allPkgs, allNames, minLevel, failureOnly)
+                SystemLogTileService.requestTileUpdate(applicationContext)
                 startOngoingNotificationLoop()
                 startStreamingProcess()
             }
@@ -393,6 +401,7 @@ class AppLogCaptureService : Service() {
                 } else if (current == RecordingState.PAUSED) {
                     recordingsManager.resumeSession()
                 }
+                SystemLogTileService.requestTileUpdate(applicationContext)
                 updateOngoingNotification()
             }
             ACTION_CANCEL_CAPTURE -> {
@@ -570,9 +579,9 @@ class AppLogCaptureService : Service() {
         )
 
         val statusText = if (isPaused) {
-            "⏸ Pausado • ${session.linesRecorded} linhas capturadas"
+            getString(R.string.log_notif_status_paused, session.linesRecorded)
         } else {
-            "🔴 Gravando • ${session.linesRecorded} linhas capturadas"
+            getString(R.string.log_notif_status_recording, session.linesRecorded)
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -593,7 +602,7 @@ class AppLogCaptureService : Service() {
             )
             .addAction(
                 if (isPaused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause,
-                if (isPaused) "Retomar" else "Pausar",
+                if (isPaused) getString(R.string.log_notif_action_resume) else getString(R.string.log_notif_action_pause),
                 pauseResumePending,
             )
             .addAction(
@@ -608,7 +617,7 @@ class AppLogCaptureService : Service() {
         if (!isFinalized.compareAndSet(false, true)) return
 
         serviceScope.launch {
-            val name = targetAppName ?: "Sistema"
+            val name = targetAppName ?: getString(R.string.tools_system_logs_label)
             val savedFile = recordingsManager.stopAndSave(asZipWithDeviceInfo = true)
 
             notificationUpdaterJob?.cancel()
@@ -616,6 +625,7 @@ class AppLogCaptureService : Service() {
             _capturingAppName.value = null
             _capturingPackages.value = emptySet()
             _capturingAppNames.value = emptyList()
+            SystemLogTileService.requestTileUpdate(applicationContext)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -743,6 +753,7 @@ class AppLogCaptureService : Service() {
             _capturingAppName.value = null
             _capturingPackages.value = emptySet()
             _capturingAppNames.value = emptyList()
+            SystemLogTileService.requestTileUpdate(applicationContext)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -784,6 +795,7 @@ class AppLogCaptureService : Service() {
         _capturingPackages.value = emptySet()
         _capturingAppNames.value = emptyList()
         _isServiceRunning.value = false
+        SystemLogTileService.requestTileUpdate(applicationContext)
         super.onDestroy()
     }
 }

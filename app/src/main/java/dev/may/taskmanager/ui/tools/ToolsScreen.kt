@@ -251,6 +251,12 @@ fun ToolsScreen(
                         color = colorScheme.onSurfaceVariant
                     )
 
+                    Text(
+                        text = stringResource(R.string.tools_log_recording_qs_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colorScheme.primary.copy(alpha = 0.85f)
+                    )
+
                     HorizontalDivider(
                         color = dynamicBorderColor(alpha = 0.20f),
                         modifier = Modifier.padding(vertical = 2.dp)

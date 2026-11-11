@@ -100,6 +100,7 @@ object DevTilesController {
                 TileService.requestListeningState(context, ComponentName(context, DevModeTileService::class.java))
                 TileService.requestListeningState(context, ComponentName(context, UsbDebugTileService::class.java))
                 TileService.requestListeningState(context, ComponentName(context, WifiDebugTileService::class.java))
+                TileService.requestListeningState(context, ComponentName(context, SystemLogTileService::class.java))
             } catch (_: Exception) {}
         }
     }

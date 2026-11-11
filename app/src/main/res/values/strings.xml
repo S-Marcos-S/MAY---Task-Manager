@@ -234,6 +234,10 @@
     <string name="log_notif_saved_text">Log saved: %1$s</string>
     <string name="log_notif_action_save">Save</string>
     <string name="log_notif_action_discard">Discard</string>
+    <string name="log_notif_action_pause">Pause</string>
+    <string name="log_notif_action_resume">Resume</string>
+    <string name="log_notif_status_paused">Paused • %1$d lines recorded</string>
+    <string name="log_notif_status_recording">Recording • %1$d lines recorded</string>
     <string name="log_notif_action_share">Share</string>
     <string name="log_notif_action_view">View</string>
     <string name="log_notif_action_delete">Delete</string>
@@ -1433,6 +1437,12 @@
     <string name="tile_dev_mode">Dev Mode</string>
     <string name="tile_usb_debug">USB Debugging</string>
     <string name="tile_wifi_debug">Wireless Debugging</string>
+    <string name="tile_system_log">System Logs</string>
+    <string name="tile_system_log_recording">Recording</string>
+    <string name="tile_system_log_idle">Idle</string>
+    <string name="toast_system_log_recording_started">System log recording started</string>
+    <string name="toast_system_log_recording_stopped">Saving system logs…</string>
+    <string name="tools_log_recording_qs_hint">Tile also available in Quick Settings (QS) panel</string>
     <string name="toast_permission_write_secure_settings">WRITE_SECURE_SETTINGS permission or Root required</string>
     <string name="toast_wifi_debug_requires_android_11">Wireless debugging requires Android 11+</string>
     <string name="tools_dev_tiles_title">Developer Quick Toggles</string>
