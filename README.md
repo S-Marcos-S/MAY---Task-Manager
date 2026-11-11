@@ -67,12 +67,32 @@ O aplicativo funciona tanto em dispositivos convencionais sem privilégios eleva
 ## Modulos do Sistema
 
 ### 1. Processos (Processes)
+
+<p align="center">
+  <a href="docs/screenshots/screen_processes.png">
+    <img src="docs/screenshots/screen_processes.png" width="340" alt="Tela de Processos" />
+  </a>
+</p>
+<p align="center">
+  <em>Tela de Processos: inspeção cirúrgica com separação em abas (Primeiro Plano, Segundo Plano e Sistema), busca em tempo real, telemetria precisa de CPU e encerramento forçado de tarefas.</em>
+</p>
+
 - Listagem segmentada em tempo real: Aplicativos em Primeiro Plano (*Foreground*), Serviços em Segundo Plano (*Background*) e Processos de Sistema (*System*).
 - Busca instantânea por nome ou pacote.
 - Inspeção em um toque com detalhes de PID, UID, uso de memória PSS, tempo de execução e estado de ciclo de vida.
 - Ações rápidas de encerramento, abertura de configurações do sistema e exportação de diagnóstico.
 
 ### 2. Desempenho (Performance)
+
+<p align="center">
+  <a href="docs/screenshots/screen_performance.jpg">
+    <img src="docs/screenshots/screen_performance.jpg" width="340" alt="Tela de Desempenho" />
+  </a>
+</p>
+<p align="center">
+  <em>Tela de Desempenho: telemetria de hardware ao vivo com frequências e limites por núcleo da CPU, governadores do kernel, gráficos de consumo de RAM e sensores térmicos.</em>
+</p>
+
 - Monitor em tempo real de núcleos da CPU (frequências atuais, limites mínimos e máximos por cluster).
 - Gráficos contínuos de CPU, memória RAM, taxa de escrita/leitura em armazenamento e taxas de transferência de rede.
 - Sensores térmicos por zona do hardware (bateria, CPU, modem, placa-mãe).
@@ -82,6 +102,16 @@ O aplicativo funciona tanto em dispositivos convencionais sem privilégios eleva
 - Gráficos de tráfego de dados por hora e registro de quebras de sono profundo causadas por processos em segundo plano.
 
 ### 4. Ciclos de Bateria (Cycles)
+
+<p align="center">
+  <a href="docs/screenshots/screen_battery_cycles.png">
+    <img src="docs/screenshots/screen_battery_cycles.png" width="340" alt="Tela de Ciclos de Bateria" />
+  </a>
+</p>
+<p align="center">
+  <em>Tela de Ciclos: histórico contínuo de cargas e descargas, taxa horária de drenagem (%/h), tempo de tela ligada e métricas consolidadas de sono profundo (Deep Sleep).</em>
+</p>
+
 - Rastreamento dos ciclos de carga e descarga com cálculo de porcentagem consumida, duração de cada evento e taxa horária de drenagem (%/h).
 - Filtros por tipo de ciclo (descarga, carga ou histórico completo).
 
@@ -118,6 +148,15 @@ O MAY Task Manager é totalmente funcional em dispositivos sem root (utilizando 
 
 ## Temas e Liquid Glass
 
+<p align="center">
+  <a href="docs/screenshots/themes_dynamic_oled_light.png">
+    <img src="docs/screenshots/themes_dynamic_oled_light.png" width="100%" alt="Temas Dinâmico, Preto OLED e Claro" />
+  </a>
+</p>
+<p align="center">
+  <em>Visão Geral dos Temas: Dinâmico (Material You Monet com adaptação ao papel de parede), Preto OLED absoluto (#000000 puro para telas AMOLED) e Claro (Light Clean para alta visibilidade).</em>
+</p>
+
 A tela de configurações do MAY conta com seletor de temas compacto com pontos seletores coloridos e tipografia adaptativa:
 
 - **Liquid Glass:** Efeito de vidro líquido translúcido renderizado através de AGSL (*Android Graphics Shading Language*), integrando refração, aberração cromática e desfoque suave de acordo com o fundo da tela.
@@ -125,6 +164,15 @@ A tela de configurações do MAY conta com seletor de temas compacto com pontos 
 - **OLED Preto Puro:** Fundo `#000000` absoluto com elementos de alto contraste para economia máxima em telas AMOLED.
 - **Modern Dark:** Tons modernos de cinza escuro e superfícies suaves para uso noturno confortável.
 - **Light Clean:** Tema claro com alto contraste, excelente legibilidade e visual limpo sob luz solar direta.
+
+<p align="center">
+  <a href="docs/screenshots/theme_liquid_glass.png">
+    <img src="docs/screenshots/theme_liquid_glass.png" width="340" alt="Tema Liquid Glass" />
+  </a>
+</p>
+<p align="center">
+  <em>Tema Liquid Glass: renderização translúcida inspirada em vidro líquido, aplicando refração óptica e dispersão cromática adaptativa via shaders em tempo real.</em>
+</p>
 
 ---
 
