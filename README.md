@@ -73,9 +73,6 @@ O aplicativo funciona tanto em dispositivos convencionais sem privilégios eleva
     <img src="docs/screenshots/screen_processes.png" width="340" alt="Tela de Processos" />
   </a>
 </p>
-<p align="center">
-  <em>Tela de Processos: inspeção cirúrgica com separação em abas (Primeiro Plano, Segundo Plano e Sistema), busca em tempo real, telemetria precisa de CPU e encerramento forçado de tarefas.</em>
-</p>
 
 - Listagem segmentada em tempo real: Aplicativos em Primeiro Plano (*Foreground*), Serviços em Segundo Plano (*Background*) e Processos de Sistema (*System*).
 - Busca instantânea por nome ou pacote.
@@ -107,9 +104,6 @@ O aplicativo funciona tanto em dispositivos convencionais sem privilégios eleva
   <a href="docs/screenshots/screen_battery_cycles.png">
     <img src="docs/screenshots/screen_battery_cycles.png" width="340" alt="Tela de Ciclos de Bateria" />
   </a>
-</p>
-<p align="center">
-  <em>Tela de Ciclos: histórico contínuo de cargas e descargas, taxa horária de drenagem (%/h), tempo de tela ligada e métricas consolidadas de sono profundo (Deep Sleep).</em>
 </p>
 
 - Rastreamento dos ciclos de carga e descarga com cálculo de porcentagem consumida, duração de cada evento e taxa horária de drenagem (%/h).
@@ -153,9 +147,6 @@ O MAY Task Manager é totalmente funcional em dispositivos sem root (utilizando 
     <img src="docs/screenshots/themes_dynamic_oled_light.png" width="100%" alt="Temas Dinâmico, Preto OLED e Claro" />
   </a>
 </p>
-<p align="center">
-  <em>Visão Geral dos Temas: Dinâmico (Material You Monet com adaptação ao papel de parede), Preto OLED absoluto (#000000 puro para telas AMOLED) e Claro (Light Clean para alta visibilidade).</em>
-</p>
 
 A tela de configurações do MAY conta com seletor de temas compacto com pontos seletores coloridos e tipografia adaptativa:
 
@@ -169,9 +160,6 @@ A tela de configurações do MAY conta com seletor de temas compacto com pontos 
   <a href="docs/screenshots/theme_liquid_glass.png">
     <img src="docs/screenshots/theme_liquid_glass.png" width="340" alt="Tema Liquid Glass" />
   </a>
-</p>
-<p align="center">
-  <em>Tema Liquid Glass: renderização translúcida inspirada em vidro líquido, aplicando refração óptica e dispersão cromática adaptativa via shaders em tempo real.</em>
 </p>
 
 ---
