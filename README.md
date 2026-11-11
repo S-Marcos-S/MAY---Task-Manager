@@ -145,15 +145,12 @@ O MAY Task Manager é totalmente funcional em dispositivos sem root (utilizando 
 
 ---
 
-## Temas e Liquid Glass
+## Temas
 
 <p align="center">
   <a href="docs/screenshots/themes_dynamic_oled_light.png">
     <img src="docs/screenshots/themes_dynamic_oled_light.png" width="100%" alt="Temas Dinâmico, Preto OLED e Claro" />
   </a>
-</p>
-<p align="center">
-  <em>Visão Geral dos Temas: Dinâmico (Material You Monet com adaptação ao papel de parede), Preto OLED absoluto (#000000 puro para telas AMOLED) e Claro (Light Clean para alta visibilidade).</em>
 </p>
 
 A tela de configurações do MAY conta com seletor de temas compacto com pontos seletores coloridos e tipografia adaptativa:
