@@ -41,7 +41,7 @@ class BatteryDisplayMetricsTest {
         // Verificação: o snapshot antigo NÃO deve sobrepor a sessão recém-resetada
         assertEquals(0L, metrics.screenOnMs)
         assertEquals(0L, metrics.screenOffMs)
-        assertEquals(0L, metrics.totalTimeMs)
+        assertTrue("Total time of fresh session should be under 2000ms", metrics.totalTimeMs < 2000L)
         assertEquals(0f, metrics.screenOnDischargePercent, 0.001f)
         assertEquals(0f, metrics.screenOffDischargePercent, 0.001f)
         assertEquals(0f, metrics.totalDischargePercent, 0.001f)

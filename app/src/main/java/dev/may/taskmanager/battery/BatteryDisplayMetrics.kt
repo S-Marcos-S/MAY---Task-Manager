@@ -57,7 +57,7 @@ data class BatteryDisplayMetrics(
                 effectiveSnapshot != null && effectiveSnapshot.batteryRealtimeMs > effectiveSnapshot.screenOnTimeMs ->
                     (effectiveSnapshot.batteryRealtimeMs - effectiveSnapshot.screenOnTimeMs).coerceAtLeast(0L)
                 drainState.screenOffTimeMs > 0L -> drainState.screenOffTimeMs
-                totalTimeMs > screenOnMs -> (totalTimeMs - screenOnMs).coerceAtLeast(0L)
+                drainState.screenOnTimeMs > 0L && totalTimeMs > screenOnMs -> (totalTimeMs - screenOnMs).coerceAtLeast(0L)
                 else -> 0L
             }
 
