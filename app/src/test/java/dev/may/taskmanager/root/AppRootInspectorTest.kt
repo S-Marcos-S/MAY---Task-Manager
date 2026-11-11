@@ -457,5 +457,62 @@ class AppRootInspectorTest {
         assertEquals(0.5, data.wifiMah, 0.001)
         assertEquals(6.0, data.totalMah, 0.001)
     }
+
+    @Test
+    fun `isPackageProcess recognizes base package and subprocesses accurately`() {
+        val basePkg = "com.whatsapp"
+        assertTrue(AppRootInspector.isPackageProcess("com.whatsapp", basePkg))
+        assertTrue(AppRootInspector.isPackageProcess("com.whatsapp:corb", basePkg))
+        assertTrue(AppRootInspector.isPackageProcess("com.whatsapp:voip", basePkg))
+        assertTrue(AppRootInspector.isPackageProcess("/system/bin/app_process --nice-name=com.whatsapp:corb", basePkg))
+        assertFalse(AppRootInspector.isPackageProcess("com.whatsapp.other", basePkg))
+        assertFalse(AppRootInspector.isPackageProcess("grep com.whatsapp", basePkg))
+    }
+
+    @Test
+    fun `parseTopOutput captures both main and subprocesses with base package name`() {
+        val sampleTop = """
+            10408 u0_a408 10 -10 12G 350M 200M S 15.0 3.0 12:34.56 com.whatsapp
+            10409 u0_a408 10 -10 4G  150M  80M S  5.0 1.5  3:21.10 com.whatsapp:corb
+            10410 u0_a408 10 -10 2G   80M  40M S  0.0 0.8  0:10.05 com.whatsapp:voip
+            99999 u0_a999 10 -10 1G   50M  20M S  2.0 0.5  0:05.00 com.other.app
+        """.trimIndent()
+
+        val procs = AppRootInspector.parseTopOutput(sampleTop, "com.whatsapp")
+
+        assertEquals(3, procs.size)
+        assertEquals(10408, procs[0].pid)
+        assertEquals("com.whatsapp", procs[0].name)
+        assertEquals(15.0, procs[0].cpuPercent, 0.01)
+
+        assertEquals(10409, procs[1].pid)
+        assertEquals("com.whatsapp:corb", procs[1].name)
+        assertEquals(5.0, procs[1].cpuPercent, 0.01)
+
+        assertEquals(10410, procs[2].pid)
+        assertEquals("com.whatsapp:voip", procs[2].name)
+        assertEquals(0.0, procs[2].cpuPercent, 0.01)
+    }
+
+    @Test
+    fun `formatPermission handles null empty and standard permissions safely`() {
+        val (nullLabel, nullDangerous) = AppRootInspector.formatPermission(null)
+        assertEquals("Desconhecido", nullLabel)
+        assertFalse(nullDangerous)
+
+        val (emptyLabel, emptyDangerous) = AppRootInspector.formatPermission("")
+        assertEquals("Desconhecido", emptyLabel)
+        assertFalse(emptyDangerous)
+
+        val (camLabel, camDangerous) = AppRootInspector.formatPermission("android.permission.CAMERA")
+        assertEquals("Câmera", camLabel)
+        assertTrue(camDangerous)
+    }
+
+    @Test
+    fun `parsePermissions safely handles null packageInfo and null permissions`() {
+        val emptyPerms = AppRootInspector.parsePermissions(null)
+        assertTrue(emptyPerms.isEmpty())
+    }
 }
 

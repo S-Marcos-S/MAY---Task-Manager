@@ -332,10 +332,13 @@ fun TaskManagerScreen(
                             showSystemProcesses = showSystemProcesses,
                             onToggleSystemProcesses = { showSystemProcesses = !showSystemProcesses },
                             onInspectApp = { item ->
-                                val targetApp = item.appInfo ?: AppInfo(
-                                    componentName = ComponentName(item.packageName, ""),
-                                    label = item.appName,
-                                )
+                                val basePkg = item.packageName.substringBefore(":")
+                                val targetApp = item.appInfo
+                                    ?: allApps.firstOrNull { it.packageName == basePkg || it.packageName == item.packageName }
+                                    ?: AppInfo(
+                                        componentName = ComponentName(basePkg, ""),
+                                        label = item.appName.ifBlank { basePkg },
+                                    )
                                 inspectingApp = targetApp
                             },
                             onKillProcess = { item ->

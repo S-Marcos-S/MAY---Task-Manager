@@ -1,8 +1,8 @@
-### MAY Task Manager v1.0.23
-- Descarte de lotes atrasados do NetworkStatsManager quando a velocidade real do dispositivo for zero ou abaixo do limiar.
-- Distincao explicita entre ausencia real de trafego e falha temporaria de leitura de rede.
-- Validacao do resultado de reset avancado no BatteryStatsViewModel, evitando falso sucesso e reportando status detalhado.
-- Extensao da identidade de processos (PID e tempo de inicio) ao monitoramento de RAM contra reciclagem de PID.
-- Deteccao aprimorada de aplicativos em primeiro plano sem retencao obsoleta de historico ou tarefas recentes.
-- Correcao de sintaxe e adicao de testes de regressao para rede, bateria e ciclo de vida de processos.
+### MAY Task Manager v1.0.24
+- Sanitizacao do nome de pacote base ao inspecionar processos e subprocessos (ex: sub-rotinas com separador de dois-pontos).
+- Prevencao de falhas por NameNotFoundException no PackageManager durante inspecao detalhada com fallback resiliente.
+- Otimizacao do script unificado de superusuario com eliminacao de chamadas lentas redundantes e fechamento seguro de descritores.
+- Aumento do tempo limite de execucao de root na inspecao de processos para 12 segundos evitando timeouts indevidos.
+- Preservacao do estado de inspecao na interface durante ciclos de atualizacao periodica em caso de oscilacao temporaria.
+- Adicao de testes unitarios de regressao para reconhecimento de processos subordinados, tratamento de permissoes e telemetria.
 ---

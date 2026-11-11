@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package dev.may.taskmanager.ui.root
 
+import android.content.ComponentName
 import android.content.Intent
 import dev.may.taskmanager.MainActivity
 import android.graphics.PixelFormat
@@ -145,6 +146,13 @@ object FloatingAppInspectorOverlayManager {
     ) {
         val appContext = context.applicationContext
 
+        val basePackage = app.packageName.substringBefore(":")
+        val targetApp = if (basePackage != app.packageName) {
+            app.copy(componentName = ComponentName(basePackage, app.componentName.className))
+        } else {
+            app
+        }
+
         if (overlayView != null) {
             updateLayout(appContext, isMinimizedState.value)
             return
@@ -152,7 +160,7 @@ object FloatingAppInspectorOverlayManager {
 
         if (!dev.may.taskmanager.ui.root.FloatingLogOverlayManager.canDrawOverlays(context)) {
             dev.may.taskmanager.ui.root.FloatingLogOverlayManager.requestOverlayPermission(context) {
-                show(context, app, displayName)
+                show(context, targetApp, displayName)
             }
             return
         }
@@ -189,7 +197,7 @@ object FloatingAppInspectorOverlayManager {
             setViewTreeSavedStateRegistryOwner(owner)
             setContent {
                 MayTheme {
-                    AppRootInspectorDialog(app = app, displayName = displayName, onDismissRequest = { dismiss() })
+                    AppRootInspectorDialog(app = targetApp, displayName = displayName, onDismissRequest = { dismiss() })
                 }
             }
         }
@@ -339,7 +347,10 @@ fun AppRootInspectorDialog(
         scope.launch {
             if (showIndicator) isRefreshing = true
             val result = AppRootInspector.inspectApp(context, app.packageName)
-            inspectionData = result.getOrNull()
+            result.fold(
+                onSuccess = { data -> inspectionData = data },
+                onFailure = { /* retain existing data on transient error */ }
+            )
             isLoading = false
             isRefreshing = false
         }
@@ -352,7 +363,10 @@ fun AppRootInspectorDialog(
         }
         while (isActive) {
             val result = AppRootInspector.inspectApp(context, app.packageName)
-            inspectionData = result.getOrNull()
+            result.fold(
+                onSuccess = { data -> inspectionData = data },
+                onFailure = { /* retain existing data on transient error */ }
+            )
             isLoading = false
             delay(2000L)
         }

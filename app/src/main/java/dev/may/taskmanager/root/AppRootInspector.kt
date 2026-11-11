@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.TrafficStats
 import android.os.Build
+import android.util.Log
 import dev.may.taskmanager.update.RootInstaller
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -123,36 +124,52 @@ object AppRootInspector {
      */
     suspend fun inspectApp(context: Context, packageName: String): Result<AppInspectionData> = withContext(Dispatchers.IO) {
         runCatching {
+            val basePackageName = packageName.substringBefore(":")
             val pm = context.packageManager
-            val packageInfo: PackageInfo = runCatching {
+            val packageInfo: PackageInfo? = runCatching {
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                    pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()))
+                    pm.getPackageInfo(basePackageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()))
                 } else {
                     @Suppress("DEPRECATION")
-                    pm.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
+                    pm.getPackageInfo(basePackageName, PackageManager.GET_PERMISSIONS)
                 }
-            }.getOrElse {
+            }.recoverCatching {
                 @Suppress("DEPRECATION")
-                pm.getPackageInfo(packageName, 0)
-            }
+                pm.getPackageInfo(basePackageName, 0)
+            }.recoverCatching {
+                if (basePackageName != packageName) {
+                    @Suppress("DEPRECATION")
+                    pm.getPackageInfo(packageName, 0)
+                } else null
+            }.getOrNull()
 
-            val appInfo = packageInfo.applicationInfo
+            val appInfo = packageInfo?.applicationInfo
             val appName = if (appInfo != null) {
-                runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrDefault(packageName)
+                runCatching { pm.getApplicationLabel(appInfo).toString() }.getOrDefault(basePackageName)
             } else {
-                packageName
+                basePackageName
             }
 
-            val versionName = packageInfo.versionName ?: "1.0"
-            val versionCode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.versionCode.toLong()
-            }
-            val uid = appInfo?.uid ?: 0
+            val versionName = packageInfo?.versionName ?: "1.0"
+            val versionCode = if (packageInfo != null) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    packageInfo.longVersionCode
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageInfo.versionCode.toLong()
+                }
+            } else 0L
 
-            val dlManagerUid: Int? = if (packageName == "com.android.vending") {
+            val uid = appInfo?.uid ?: runCatching {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    pm.getPackageUid(basePackageName, 0)
+                } else {
+                    @Suppress("DEPRECATION")
+                    pm.getApplicationInfo(basePackageName, 0).uid
+                }
+            }.getOrDefault(0)
+
+            val dlManagerUid: Int? = if (basePackageName == "com.android.vending") {
                 runCatching {
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                         pm.getPackageInfo("com.android.providers.downloads", PackageManager.PackageInfoFlags.of(0)).applicationInfo?.uid
@@ -163,10 +180,10 @@ object AppRootInspector {
                 }.getOrNull()
             } else null
 
-            val extraPackageName: String? = if (packageName == "com.android.vending") "com.android.providers.downloads" else null
+            val extraPackageName: String? = if (basePackageName == "com.android.vending") "com.android.providers.downloads" else null
 
-            val topGrep = if (extraPackageName != null) "grep -e \"$packageName\" -e \"$extraPackageName\"" else "grep \"$packageName\""
-            val psGrep = if (extraPackageName != null) "grep -e \"$packageName\" -e \"$extraPackageName\"" else "grep \"$packageName\""
+            val topGrep = if (extraPackageName != null) "grep -e \"$basePackageName\" -e \"$extraPackageName\"" else "grep \"$basePackageName\""
+            val psGrep = if (extraPackageName != null) "grep -e \"$basePackageName\" -e \"$extraPackageName\"" else "grep \"$basePackageName\""
 
             val extraPidsScript = if (extraPackageName != null && dlManagerUid != null) {
                 """
@@ -178,16 +195,6 @@ object AppRootInspector {
                             echo "${'$'}p"
                             ;;
                     esac
-                done
-                """.trimIndent()
-            } else ""
-
-            val extraSmapsScript = if (extraPackageName != null && dlManagerUid != null) {
-                """
-                for p in ${'$'}(pidof $extraPackageName 2>/dev/null; for p2 in ${'$'}(pgrep -u $dlManagerUid 2>/dev/null); do cmd=${'$'}(cat /proc/${'$'}p2/cmdline 2>/dev/null | tr '\0' ' '); case "${'$'}cmd" in $extraPackageName|$extraPackageName\ *|$extraPackageName:*|" $extraPackageName"*) echo "${'$'}p2";; esac; done | sort -u); do
-                    echo "---PID:${'$'}p---"
-                    echo "---IO---"
-                    cat /proc/${'$'}p/io 2>/dev/null
                 done
                 """.trimIndent()
             } else ""
@@ -208,37 +215,25 @@ object AppRootInspector {
 
             val dlmConnFilter = if (dlManagerUid != null) " -e \"$dlManagerUid\"" else ""
 
-            // High-performance unified shell inspection script without toybox-incompatible regexes (\b, \s, \d)
-            val shellScript = """
-                export PATH=/system/bin:/system/xbin:${'$'}PATH
-                appops set dev.may.taskmanager GET_USAGE_STATS allow 2>/dev/null
-                pm grant dev.may.taskmanager android.permission.PACKAGE_USAGE_STATS 2>/dev/null
-                echo "===PIDS==="
-                pidof $packageName 2>/dev/null
+            val uidPidsScript = if (uid >= 10000) {
+                """
                 for p in ${'$'}(pgrep -u $uid 2>/dev/null); do
                     cmd=${'$'}(cat /proc/${'$'}p/cmdline 2>/dev/null | tr '\0' ' ')
                     case "${'$'}cmd" in
-                        $packageName|$packageName\ *|$packageName:*|" $packageName"*)
+                        $basePackageName|$basePackageName\ *|$basePackageName:*|" $basePackageName"*)
                             echo "${'$'}p"
                             ;;
                     esac
                 done
-                $extraPidsScript
-                echo "===TOP==="
-                top -b -n 1 -q -m 500 2>/dev/null | $topGrep
-                echo "===PS==="
-                ps -A -o PID,USER,%CPU,%MEM,ARGS 2>/dev/null | $psGrep
-                echo "===SMAPS==="
-                for p in ${'$'}(pidof $packageName 2>/dev/null; for p2 in ${'$'}(pgrep -u $uid 2>/dev/null); do cmd=${'$'}(cat /proc/${'$'}p2/cmdline 2>/dev/null | tr '\0' ' '); case "${'$'}cmd" in $packageName|$packageName\ *|$packageName:*|" $packageName"*) echo "${'$'}p2";; esac; done | sort -u); do
-                    echo "---PID:${'$'}p---"
-                    cat /proc/${'$'}p/smaps_rollup 2>/dev/null
-                    cat /proc/${'$'}p/status 2>/dev/null | grep -E "^(VmRSS|RssAnon|RssFile):"
-                    echo "---IO---"
-                    cat /proc/${'$'}p/io 2>/dev/null
-                done
-                $extraSmapsScript
-                echo "===MEMINFO==="
-                dumpsys meminfo $packageName 2>/dev/null | grep -E "TOTAL PSS|TOTAL      PSS|TOTAL:|Dalvik Heap|Native Heap|EGL mtrack|GL mtrack|Graphics|TOTAL RSS|Total PSS by process:|[0-9,]+K: *$packageName"
+                """.trimIndent()
+            } else {
+                """
+                pgrep -f "$basePackageName" 2>/dev/null
+                """.trimIndent()
+            }
+
+            val uidNetScript = if (uid > 0) {
+                """
                 echo "===NET_BPF==="
                 dumpsys netstats 2>/dev/null | grep -E '^ *$uid '
                 echo "===NET_STATS==="
@@ -248,20 +243,46 @@ object AppRootInspector {
                 cat /proc/uid_stat/$uid/tcp_rcv 2>/dev/null
                 echo "---TX---"
                 cat /proc/uid_stat/$uid/tcp_snd 2>/dev/null
+                """.trimIndent()
+            } else ""
+
+            // High-performance unified shell inspection script without toybox-incompatible regexes (\b, \s, \d)
+            val shellScript = """
+                export PATH=/system/bin:/system/xbin:${'$'}PATH
+                echo "===PIDS==="
+                pidof $basePackageName 2>/dev/null
+                $uidPidsScript
+                $extraPidsScript
+                echo "===TOP==="
+                top -b -n 1 -q 2>/dev/null | $topGrep
+                echo "===PS==="
+                ps -A -o PID,USER,%CPU,%MEM,ARGS 2>/dev/null | $psGrep
+                echo "===SMAPS==="
+                ALL_TARGET_PIDS=${'$'}(pidof $basePackageName 2>/dev/null; $uidPidsScript; $extraPidsScript)
+                for p in ${'$'}(echo "${'$'}ALL_TARGET_PIDS" | tr ' ' '\n' | sort -u); do
+                    [ -d "/proc/${'$'}p" ] || continue
+                    echo "---PID:${'$'}p---"
+                    cat /proc/${'$'}p/smaps_rollup 2>/dev/null
+                    cat /proc/${'$'}p/status 2>/dev/null | grep -E "^(VmRSS|RssAnon|RssFile):"
+                    echo "---IO---"
+                    cat /proc/${'$'}p/io 2>/dev/null
+                done
+                echo "===MEMINFO==="
+                dumpsys meminfo $basePackageName 2>/dev/null | grep -E "TOTAL PSS|TOTAL      PSS|TOTAL:|Dalvik Heap|Native Heap|EGL mtrack|GL mtrack|Graphics|TOTAL RSS|Total PSS by process:|[0-9,]+K: *$basePackageName"
+                $uidNetScript
                 $dlmNetStatsScript
                 echo "===CONNECTIONS==="
-                ss -t -u -p -n -e -i 2>/dev/null | grep -e "$packageName" -e "$uid"$dlmConnFilter -A 1 || ss -tupn 2>/dev/null | grep -e "$packageName" -e "$uid"$dlmConnFilter || netstat -tlpn 2>/dev/null | grep -e "$packageName" -e "$uid"$dlmConnFilter
+                ss -t -u -p -n -e -i 2>/dev/null | grep -e "$basePackageName" -e "$uid"$dlmConnFilter -A 1 || ss -tupn 2>/dev/null | grep -e "$basePackageName" -e "$uid"$dlmConnFilter || netstat -tlpn 2>/dev/null | grep -e "$basePackageName" -e "$uid"$dlmConnFilter
                 echo "===ACTIVITIES==="
                 dumpsys window 2>/dev/null | grep -E "mCurrentFocus|mFocusedApp"
                 dumpsys activity activities 2>/dev/null | grep -E "topResumedActivity|mResumedActivity"
                 echo "===SERVICES==="
-                dumpsys activity services $packageName 2>/dev/null | grep -E "ServiceRecord|app=ProcessRecord"
+                dumpsys activity services $basePackageName 2>/dev/null | grep -E "ServiceRecord|app=ProcessRecord"
                 echo "===BATTERYSTATS==="
-                dumpsys batterystats --charged $packageName 2>/dev/null || dumpsys batterystats $packageName 2>/dev/null
-                dumpsys batterystats --checkin 2>/dev/null | grep -E "^[0-9]+,$uid,"
+                dumpsys batterystats --charged $basePackageName 2>/dev/null || dumpsys batterystats $basePackageName 2>/dev/null
             """.trimIndent()
 
-            val rawOutput = runSuCommand(shellScript).getOrDefault("")
+            val rawOutput = runSuCommand(shellScript, timeoutMs = 12000L).getOrDefault("")
 
             // Parse sections
             val sections = parseSections(rawOutput)
@@ -275,10 +296,10 @@ object AppRootInspector {
             val coresCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
 
             val topText = sections["TOP"] ?: ""
-            val topProcesses = parseTopOutput(topText, packageName, extraPackageName, targetUid = uid, coresCount = coresCount)
+            val topProcesses = parseTopOutput(topText, basePackageName, extraPackageName, targetUid = uid, coresCount = coresCount)
 
             val psText = sections["PS"] ?: ""
-            val psProcesses = parsePsOutput(psText, packageName, extraPackageName, targetUid = uid, coresCount = coresCount)
+            val psProcesses = parsePsOutput(psText, basePackageName, extraPackageName, targetUid = uid, coresCount = coresCount)
 
             val processes = mutableListOf<ProcessDetail>()
             topProcesses.forEach { processes.add(it) }
@@ -295,8 +316,8 @@ object AppRootInspector {
                     processes.add(
                         ProcessDetail(
                             pid = pid,
-                            name = packageName,
-                            user = "u0_a${uid % 100000}",
+                            name = basePackageName,
+                            user = if (uid > 0) "u0_a${uid % 100000}" else "root",
                             cpuPercent = 0.0,
                             memPercent = 0.0,
                         )
@@ -308,7 +329,7 @@ object AppRootInspector {
 
             // 2. Activities & Execution Status (Strict Focus Validation)
             val activitiesText = sections["ACTIVITIES"] ?: ""
-            val isForeground = isAppInForeground(activitiesText, packageName)
+            val isForeground = isAppInForeground(activitiesText, basePackageName)
 
             val status = when {
                 processes.isEmpty() && rawPids.isEmpty() -> AppProcessStatus.STOPPED
@@ -316,7 +337,7 @@ object AppRootInspector {
                 else -> AppProcessStatus.BACKGROUND
             }
 
-            val topActivity = extractTopActivity(activitiesText, packageName)
+            val topActivity = extractTopActivity(activitiesText, basePackageName)
 
             // 3. Memory breakdown from smaps_rollup & dumpsys meminfo
             val smapsText = sections["SMAPS"] ?: ""
@@ -495,7 +516,7 @@ object AppRootInspector {
 
             // 6. Active services
             val servicesText = sections["SERVICES"] ?: ""
-            val activeServices = extractServices(servicesText, packageName)
+            val activeServices = extractServices(servicesText, basePackageName)
 
             // 7. Permissions
             val permissions = parsePermissions(packageInfo)
@@ -505,7 +526,7 @@ object AppRootInspector {
             val batteryData = parseBatteryStats(batteryText, uid)
 
             AppInspectionData(
-                packageName = packageName,
+                packageName = basePackageName,
                 appName = appName,
                 versionName = versionName,
                 versionCode = versionCode,
@@ -531,6 +552,36 @@ object AppRootInspector {
                 permissions = permissions,
                 batteryData = batteryData,
             )
+        }.recoverCatching { err ->
+            Log.e("AppRootInspector", "Resilient fallback for app inspection: $packageName", err)
+            val basePkg = packageName.substringBefore(":")
+            AppInspectionData(
+                packageName = basePkg,
+                appName = basePkg,
+                versionName = "1.0",
+                versionCode = 0L,
+                uid = 0,
+                status = AppProcessStatus.STOPPED,
+                processes = emptyList(),
+                totalCpuPercent = 0.0,
+                ramTotalMb = 0.0,
+                ramDalvikMb = 0.0,
+                ramNativeMb = 0.0,
+                ramGraphicsMb = 0.0,
+                rxBytes = 0L,
+                txBytes = 0L,
+                rxBytesToday = 0L,
+                txBytesToday = 0L,
+                rxBytes7Days = 0L,
+                txBytes7Days = 0L,
+                rxSpeedBps = 0L,
+                txSpeedBps = 0L,
+                activeConnections = emptyList(),
+                topActivity = null,
+                activeServices = emptyList(),
+                permissions = emptyList(),
+                batteryData = AppBatteryInspectionData(),
+            )
         }
     }
 
@@ -538,7 +589,8 @@ object AppRootInspector {
      * Executes force-stop on the app via root.
      */
     suspend fun forceStopApp(packageName: String): Boolean = withContext(Dispatchers.IO) {
-        val result = runSuCommand("am force-stop $packageName")
+        val basePkg = packageName.substringBefore(":")
+        val result = runSuCommand("am force-stop $basePkg")
         result.isSuccess
     }
 
@@ -554,7 +606,8 @@ object AppRootInspector {
      * Uninstalls the app via root.
      */
     suspend fun uninstallApp(packageName: String): Boolean = withContext(Dispatchers.IO) {
-        val result = runSuCommand("pm uninstall $packageName")
+        val basePkg = packageName.substringBefore(":")
+        val result = runSuCommand("pm uninstall $basePkg")
         result.isSuccess
     }
 
@@ -562,7 +615,8 @@ object AppRootInspector {
      * Clears internal and external caches for the app via root.
      */
     suspend fun clearAppCache(packageName: String): Boolean = withContext(Dispatchers.IO) {
-        val cmd = "rm -rf /data/data/$packageName/cache/* /data/data/$packageName/code_cache/* /sdcard/Android/data/$packageName/cache/* 2>/dev/null"
+        val basePkg = packageName.substringBefore(":")
+        val cmd = "rm -rf /data/data/$basePkg/cache/* /data/data/$basePkg/code_cache/* /sdcard/Android/data/$basePkg/cache/* 2>/dev/null"
         val result = runSuCommand(cmd)
         result.isSuccess
     }
@@ -572,7 +626,8 @@ object AppRootInspector {
      */
     fun launchApp(context: Context, packageName: String): Boolean {
         return runCatching {
-            val intent = context.packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            val basePkg = packageName.substringBefore(":")
+            val intent = context.packageManager.getLaunchIntentForPackage(basePkg)?.apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             if (intent != null) {
@@ -589,9 +644,10 @@ object AppRootInspector {
      * and demoting to the restricted standby bucket.
      */
     suspend fun restrictBackgroundUsage(packageName: String, context: Context? = null): Boolean = withContext(Dispatchers.IO) {
+        val basePkg = packageName.substringBefore(":")
         val targetUid = context?.let { ctx ->
             runCatching {
-                ctx.packageManager.getPackageUid(packageName, 0)
+                ctx.packageManager.getPackageUid(basePkg, 0)
             }.getOrNull()
         }
         val uidCommands = if (targetUid != null) {
@@ -603,24 +659,24 @@ object AppRootInspector {
 
         val command = buildString {
             // 1. Remove from Doze/DeviceIdle whitelist (crucial when app is set to "Irrestrita")
-            append("dumpsys deviceidle whitelist -$packageName 2>/dev/null; ")
-            append("cmd deviceidle whitelist -$packageName 2>/dev/null; ")
-            append("cmd deviceidle except-idle-whitelist -$packageName 2>/dev/null; ")
+            append("dumpsys deviceidle whitelist -$basePkg 2>/dev/null; ")
+            append("cmd deviceidle whitelist -$basePkg 2>/dev/null; ")
+            append("cmd deviceidle except-idle-whitelist -$basePkg 2>/dev/null; ")
             // 2. Set AppOps by package name
-            append("cmd appops set $packageName RUN_IN_BACKGROUND ignore 2>/dev/null; ")
-            append("cmd appops set $packageName RUN_ANY_IN_BACKGROUND ignore 2>/dev/null; ")
-            append("cmd appops set --uid $packageName RUN_IN_BACKGROUND ignore 2>/dev/null; ")
-            append("cmd appops set --uid $packageName RUN_ANY_IN_BACKGROUND ignore 2>/dev/null; ")
-            append("appops set $packageName RUN_IN_BACKGROUND ignore 2>/dev/null; ")
-            append("appops set $packageName RUN_ANY_IN_BACKGROUND ignore 2>/dev/null; ")
+            append("cmd appops set $basePkg RUN_IN_BACKGROUND ignore 2>/dev/null; ")
+            append("cmd appops set $basePkg RUN_ANY_IN_BACKGROUND ignore 2>/dev/null; ")
+            append("cmd appops set --uid $basePkg RUN_IN_BACKGROUND ignore 2>/dev/null; ")
+            append("cmd appops set --uid $basePkg RUN_ANY_IN_BACKGROUND ignore 2>/dev/null; ")
+            append("appops set $basePkg RUN_IN_BACKGROUND ignore 2>/dev/null; ")
+            append("appops set $basePkg RUN_ANY_IN_BACKGROUND ignore 2>/dev/null; ")
             // 3. Set UID AppOps if resolved
             append(uidCommands)
             // 4. Android 13+ (API 33+) background restriction level
-            append("cmd activity set-bg-restriction-level $packageName restricted 2>/dev/null; ")
+            append("cmd activity set-bg-restriction-level $basePkg restricted 2>/dev/null; ")
             // 5. Standby bucket restriction
-            append("cmd activity set-standby-bucket $packageName restricted 2>/dev/null || am set-standby-bucket $packageName restricted 2>/dev/null; ")
+            append("cmd activity set-standby-bucket $basePkg restricted 2>/dev/null || am set-standby-bucket $basePkg restricted 2>/dev/null; ")
             // 6. Force app inactive
-            append("am set-inactive $packageName true 2>/dev/null; ")
+            append("am set-inactive $basePkg true 2>/dev/null; ")
             append("echo 'OK'")
         }
 
@@ -636,6 +692,7 @@ object AppRootInspector {
             val process = ProcessBuilder("su", "-c", command)
                 .redirectErrorStream(true)
                 .start()
+            runCatching { process.outputStream.close() }
             val outputDeferred = async(Dispatchers.IO) {
                 process.inputStream.bufferedReader().use { it.readText() }
             }
@@ -1411,12 +1468,13 @@ object AppRootInspector {
         return connections.take(15) // Limit to top 15 connections
     }
 
-    private fun parsePermissions(packageInfo: PackageInfo): List<AppPermissionItem> {
+    fun parsePermissions(packageInfo: PackageInfo?): List<AppPermissionItem> {
+        if (packageInfo == null) return emptyList()
         val requested = packageInfo.requestedPermissions ?: return emptyList()
         val flags = packageInfo.requestedPermissionsFlags ?: IntArray(requested.size)
 
         return requested.indices.mapNotNull { i ->
-            val permName = requested[i]
+            val permName = requested[i] ?: return@mapNotNull null
             val isGranted = if (flags.size > i) {
                 (flags[i] and PackageInfo.REQUESTED_PERMISSION_GRANTED) != 0
             } else false
@@ -1433,7 +1491,8 @@ object AppRootInspector {
         }.sortedWith(compareByDescending<AppPermissionItem> { it.isGranted }.thenByDescending { it.isDangerous })
     }
 
-    private fun formatPermission(perm: String): Pair<String, Boolean> {
+    fun formatPermission(perm: String?): Pair<String, Boolean> {
+        if (perm.isNullOrBlank()) return "Desconhecido" to false
         return when {
             perm.endsWith(".CAMERA") -> "Câmera" to true
             perm.endsWith(".RECORD_AUDIO") -> "Microfone" to true
