@@ -246,7 +246,7 @@ object SystemTaskInspector {
     }
 
     /**
-     * Parses batch /proc/[0-9]*/stat text output into a map indexed by PID.
+     * Parses batch proc stat text output into a map indexed by PID.
      */
     fun parseProcStats(statContent: String): Map<Int, ProcStatInfo> {
         val map = HashMap<Int, ProcStatInfo>()
