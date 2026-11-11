@@ -396,7 +396,8 @@ class SpeedMonitorService : Service() {
                 appsViewStartTime = System.currentTimeMillis()
                 lastAppsSummary = ""
                 recentActiveApps.clear()
-                lastUidCumulativeTotals.clear()
+                lastUidRxTotals.clear()
+                lastUidTxTotals.clear()
                 lastAppStatsQueryTime = 0L
                 takeAppsBaselineSnapshot()
                 updateStats(forceUpdate = true)
@@ -410,7 +411,8 @@ class SpeedMonitorService : Service() {
                 isAppsLoading = false
                 lastAppsSummary = ""
                 recentActiveApps.clear()
-                lastUidCumulativeTotals.clear()
+                lastUidRxTotals.clear()
+                lastUidTxTotals.clear()
                 lastAppStatsQueryTime = 0L
                 updateStats(forceUpdate = true)
                 return START_STICKY
@@ -422,7 +424,8 @@ class SpeedMonitorService : Service() {
                     isAppsLoading = true
                     appsViewStartTime = System.currentTimeMillis()
                     recentActiveApps.clear()
-                    lastUidCumulativeTotals.clear()
+                    lastUidRxTotals.clear()
+                    lastUidTxTotals.clear()
                     lastAppStatsQueryTime = 0L
                     takeAppsBaselineSnapshot()
                     handler.postDelayed({
@@ -431,7 +434,8 @@ class SpeedMonitorService : Service() {
                 } else {
                     isAppsLoading = false
                     recentActiveApps.clear()
-                    lastUidCumulativeTotals.clear()
+                    lastUidRxTotals.clear()
+                    lastUidTxTotals.clear()
                     lastAppStatsQueryTime = 0L
                 }
                 updateStats(forceUpdate = true)
@@ -478,7 +482,8 @@ class SpeedMonitorService : Service() {
         } catch (_: Exception) {}
         handler.removeCallbacks(updateRunnable)
         recentActiveApps.clear()
-        lastUidCumulativeTotals.clear()
+        lastUidRxTotals.clear()
+        lastUidTxTotals.clear()
         appNameCache.clear()
         super.onDestroy()
     }
