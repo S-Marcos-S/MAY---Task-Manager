@@ -43,7 +43,7 @@
 
 O **MAY Task Manager** (Make Android Yours) é um aplicativo dedicado ao monitoramento, análise e otimização avançada do sistema Android. Tudo que você esperaria de um gerenciador de tarefas de desktop, agora no seu smartphone.
 
-O aplicativo funciona é focado em aparelhos rooteados (Superuser / su), liberando controles diretos sobre o kernel.
+O aplicativo é focado em aparelhos rooteados (Superuser / su), liberando controles diretos sobre o kernel.
 
 ---
 
