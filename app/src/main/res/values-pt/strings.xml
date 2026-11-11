@@ -1257,6 +1257,13 @@
     <string name="net_speed_action_grant_permission">Permissão</string>
     <string name="net_speed_interval_title">Intervalo de atualização</string>
     <string name="net_speed_interval_desc">Frequência de atualização em tempo real (maior intervalo = menos bateria)</string>
+    <string name="net_speed_status">Status: %1$s</string>
+    <string name="net_speed_last_sample">Atualizado: %1$s</string>
+    <string name="net_speed_app_divergence">• %1$s: %2$s (agregado)</string>
+
+    <!-- Anomalias de repouso do dispositivo -->
+    <string name="anomaly_device_deep_sleep_title">Sono Profundo do Dispositivo</string>
+    <string name="anomaly_device_deep_sleep_desc">O aparelho permaneceu ativo por %1$s de %2$s com a tela desligada. Atribuição a app específico inconclusiva.</string>
 
     
     <string name="battery_auto_reset_title">Redefinição Automática (Auto Reset)</string>
@@ -1412,4 +1419,32 @@
     <string name="tools_wifi_debug_title">Depuração WiFi</string>
     <string name="tools_wifi_debug_desc">Depuração ADB via rede Wi-Fi</string>
     <string name="tools_wifi_debug_ip_port">IP: %1$s • Porta: %2$s</string>
+
+    <!-- Telemetria e Confiabilidade -->
+    <string name="telemetry_confidence_high">Alta</string>
+    <string name="telemetry_confidence_medium">Média</string>
+    <string name="telemetry_confidence_low">Baixa</string>
+    <string name="telemetry_confidence_unavailable">Indisponível</string>
+    <string name="telemetry_nature_direct">Direta</string>
+    <string name="telemetry_nature_aggregated">Agregada</string>
+    <string name="telemetry_nature_estimate">Estimativa</string>
+    <string name="telemetry_nature_unavailable">Indisponível</string>
+    <string name="telemetry_attribution_inconclusive">Inconclusiva</string>
+    <string name="telemetry_status_active">Ativo</string>
+    <string name="telemetry_status_stale">Dados desatualizados</string>
+    <string name="telemetry_status_paused">Pausado</string>
+    <string name="telemetry_status_error">Falha de leitura</string>
+    <string name="telemetry_notif_source">Fonte</string>
+    <string name="telemetry_notif_confidence">Confiança</string>
+    <string name="telemetry_notif_nature">Método</string>
+
+    <!-- Diagnóstico e Capacidades do Dispositivo -->
+    <string name="diag_cap_network_title">Telemetria de Tráfego de Rede</string>
+    <string name="diag_cap_network_desc">Monitora velocidade global e uso por aplicativo</string>
+    <string name="diag_cap_cpu_title">Telemetria de CPU por Processo</string>
+    <string name="diag_cap_cpu_desc">Mede uso instantâneo de CPU por processo individual</string>
+    <string name="diag_cap_ram_title">Telemetria de Memória RAM</string>
+    <string name="diag_cap_ram_desc">Mede RSS, PSS, swap e pressão de memória do sistema</string>
+    <string name="diag_cap_battery_title">Telemetria de Bateria e WakeLocks</string>
+    <string name="diag_cap_battery_desc">Mede sono profundo, corrente e estatísticas de dump</string>
 </resources>

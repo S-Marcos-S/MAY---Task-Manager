@@ -23,6 +23,8 @@ import android.os.SystemClock
 import dev.may.taskmanager.data.AppInfo
 import dev.may.taskmanager.root.AppRootInspector
 import dev.may.taskmanager.root.SystemTaskInspector
+import dev.may.taskmanager.telemetry.ConfidenceLevel
+import dev.may.taskmanager.telemetry.TelemetryNature
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,6 +35,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
@@ -79,6 +83,12 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
     private val _isMonitoring = MutableStateFlow(false)
     val isMonitoring: StateFlow<Boolean> = _isMonitoring.asStateFlow()
 
+    private val _watcherState = MutableStateFlow(AnomalyWatcherState.INACTIVE)
+    val watcherState: StateFlow<AnomalyWatcherState> = _watcherState.asStateFlow()
+
+    private val captureMutex = Mutex()
+    private var isSnapshotReady = false
+
     private val isRunning = AtomicBoolean(false)
     private var screenOnLoopJob: Job? = null
     private var screenReceiverRegistered = false
@@ -102,6 +112,9 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
     // Rastreamento de CPU para confirmação de anomalia persistente (evita falso-positivo de picos de 1s)
     private val cpuHighAppConsecutiveCycles = ConcurrentHashMap<String, Int>()
+
+    // Rastreamento temporal de RAM para diferenciação entre pico isolado, consumo estável e vazamento (leak)
+    private val ramGrowthHistory = ConcurrentHashMap<String, MutableList<Pair<Long, Double>>>()
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, intent: Intent) {
@@ -228,6 +241,8 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         screenOffTimeRealtime = SystemClock.elapsedRealtime()
         screenOffUptime = SystemClock.uptimeMillis()
         screenOffWallTime = System.currentTimeMillis()
+        isSnapshotReady = false
+        _watcherState.value = AnomalyWatcherState.PREPARING_CAPTURE
 
         // Regra de Ouro: suspende qualquer loop de polling ativo. O processador DEVE dormir 100%.
         screenOnLoopJob?.cancel()
@@ -248,8 +263,16 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         // Se a tela ficou desligada por mais de 5 segundos, analisa a fotografia diferencial
         if (screenOffTimeRealtime > 0L && durationOffMs >= 5_000L) {
             scope.launch(Dispatchers.IO) {
-                evaluateScreenOffDifferential(durationOffMs)
-                evaluateDeepSleepDisruption(durationOffMs, awakeOffMs)
+                _watcherState.value = AnomalyWatcherState.EVALUATION_IN_PROGRESS
+                captureMutex.withLock {
+                    if (isSnapshotReady) {
+                        evaluateScreenOffDifferential(durationOffMs)
+                        evaluateDeepSleepDisruption(durationOffMs, awakeOffMs)
+                        _watcherState.value = AnomalyWatcherState.EVALUATION_COMPLETED
+                    } else {
+                        _watcherState.value = AnomalyWatcherState.COLLECTION_UNAVAILABLE
+                    }
+                }
             }
         }
 
@@ -258,29 +281,68 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         }
     }
 
+    fun resolveUidInfo(pm: PackageManager, uid: Int): ResolvedUidInfo? {
+        val packages = pm.getPackagesForUid(uid)
+        if (packages.isNullOrEmpty()) {
+            val name = pm.getNameForUid(uid) ?: return null
+            return ResolvedUidInfo(
+                primaryPackage = name,
+                displayName = name,
+                isSharedUid = false,
+                packageCount = 1,
+                allPackages = listOf(name),
+            )
+        }
+        val isShared = packages.size > 1
+        val firstPkg = packages[0]
+        val appLabel = runCatching {
+            val info = pm.getApplicationInfo(firstPkg, 0)
+            pm.getApplicationLabel(info).toString()
+        }.getOrDefault(firstPkg)
+
+        val displayName = if (isShared) {
+            "$appLabel (+${packages.size - 1} apps)"
+        } else {
+            appLabel
+        }
+
+        return ResolvedUidInfo(
+            primaryPackage = firstPkg,
+            displayName = displayName,
+            isSharedUid = isShared,
+            packageCount = packages.size,
+            allPackages = packages.toList(),
+        )
+    }
+
     /**
      * Tira uma fotografia leve de todos os UIDs instalados via TrafficStats no instante em que a tela apaga.
      * Custo de CPU: < 1ms (chamadas C in-memory diretas do kernel eBPF/TrafficStats).
      */
     private fun captureScreenOffSnapshot() {
         scope.launch(Dispatchers.IO) {
-            val pm = context.packageManager
-            val installed = runCatching { pm.getInstalledApplications(0) }.getOrDefault(emptyList())
-            val map = mutableMapOf<Int, UidNetSample>()
-            val now = SystemClock.elapsedRealtime()
+            captureMutex.withLock {
+                val pm = context.packageManager
+                val installed = runCatching { pm.getInstalledApplications(0) }.getOrDefault(emptyList())
+                val map = mutableMapOf<Int, UidNetSample>()
+                val now = SystemClock.elapsedRealtime()
 
-            for (app in installed) {
-                val uid = app.uid
-                if (uid >= 10000 && !map.containsKey(uid)) {
-                    val rx = TrafficStats.getUidRxBytes(uid)
-                    val tx = TrafficStats.getUidTxBytes(uid)
-                    if (rx > 0L || tx > 0L) {
-                        map[uid] = UidNetSample(rx, tx, now)
+                for (app in installed) {
+                    val uid = app.uid
+                    if (uid >= 10000 && !map.containsKey(uid)) {
+                        val rx = TrafficStats.getUidRxBytes(uid)
+                        val tx = TrafficStats.getUidTxBytes(uid)
+                        if (rx > 0L || tx > 0L) {
+                            map[uid] = UidNetSample(rx, tx, now)
+                        }
                     }
                 }
+                screenOffNetSnapshots.clear()
+                screenOffNetSnapshots.putAll(map)
+                isSnapshotReady = true
+                _watcherState.value = AnomalyWatcherState.CAPTURE_COMPLETED
+                _watcherState.value = AnomalyWatcherState.SCREEN_OFF
             }
-            screenOffNetSnapshots.clear()
-            screenOffNetSnapshots.putAll(map)
         }
     }
 
@@ -310,7 +372,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
     }
 
     /**
-     * Avalia a variação de dados (Delta Bytes) transmitidos enquanto o usuário esteve ausente com a tela apagada.
+     * Avalia a variacao de dados (Delta Bytes) transmitidos durante a janela estrita de tela apagada.
      */
     private suspend fun evaluateScreenOffDifferential(sleepDurationMs: Long) {
         val cfg = _config.value
@@ -321,29 +383,45 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         val now = System.currentTimeMillis()
 
         val deltaMap = mutableMapOf<Int, Long>()
-        val startWindow = (screenOffWallTime - 3_000L).coerceAtLeast(0L)
-        val endWindow = now + 1_000L
+        val sourceMap = mutableMapOf<Int, String>()
+        val natureMap = mutableMapOf<Int, TelemetryNature>()
+        val confMap = mutableMapOf<Int, ConfidenceLevel>()
+        val isFallbackMap = mutableMapOf<Int, Boolean>()
 
-        // 1. Android Native NetworkStatsManager query (funciona para todos os UIDs no Android 7+)
+        val startWindow = screenOffWallTime
+        val endWindow = now
+
+        // 1. Android Native NetworkStatsManager query (estatistica agregada oficial)
         collectUidUsageForInterval(startWindow, endWindow, deltaMap)
+        for (uid in deltaMap.keys) {
+            sourceMap[uid] = "NetworkStatsManager"
+            natureMap[uid] = TelemetryNature.AGGREGATED_STATISTIC
+            confMap[uid] = ConfidenceLevel.MEDIUM
+            isFallbackMap[uid] = false
+        }
 
-        // 2. Fallback via TrafficStats diff
+        // 2. Fallback via TrafficStats diff apenas para UIDs que nao retornaram dados em NetworkStatsManager
         for ((uid, baseline) in screenOffNetSnapshots) {
-            val curRx = TrafficStats.getUidRxBytes(uid)
-            val curTx = TrafficStats.getUidTxBytes(uid)
-            if (curRx >= baseline.rx && curTx >= baseline.tx) {
-                val d = (curRx - baseline.rx) + (curTx - baseline.tx)
-                val current = deltaMap[uid] ?: 0L
-                if (d > current) {
-                    deltaMap[uid] = d
+            if (!deltaMap.containsKey(uid) || deltaMap[uid] == 0L) {
+                val curRx = TrafficStats.getUidRxBytes(uid)
+                val curTx = TrafficStats.getUidTxBytes(uid)
+                if (curRx >= baseline.rx && curTx >= baseline.tx) {
+                    val d = (curRx - baseline.rx) + (curTx - baseline.tx)
+                    if (d > 0L) {
+                        deltaMap[uid] = d
+                        sourceMap[uid] = "TrafficStats"
+                        natureMap[uid] = TelemetryNature.DIRECT_MEASUREMENT
+                        confMap[uid] = ConfidenceLevel.HIGH
+                        isFallbackMap[uid] = true
+                    }
                 }
             }
         }
 
         for ((uid, deltaTotal) in deltaMap) {
             if (deltaTotal >= thresholdBytes) {
-                val packages = pm.getPackagesForUid(uid) ?: continue
-                val pkgName = packages.firstOrNull() ?: continue
+                val uidInfo = resolveUidInfo(pm, uid) ?: continue
+                val pkgName = uidInfo.primaryPackage
 
                 if (pkgName == context.packageName || cfg.whitelistedPackages.contains(pkgName) || isPackageMuted(pkgName)) {
                     continue
@@ -352,18 +430,13 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                 val lastAlert = lastAlertTimeMap[pkgName] ?: 0L
                 if (now - lastAlert < COOLDOWN_MS) continue
 
-                val appName = runCatching {
-                    val appInfo = pm.getApplicationInfo(pkgName, 0)
-                    pm.getApplicationLabel(appInfo).toString()
-                }.getOrDefault(pkgName)
-
                 val appIcon = runCatching { pm.getApplicationIcon(pkgName) }.getOrNull()
                 val formattedVal = formatBytes(deltaTotal)
                 val durationMin = (sleepDurationMs / 60_000L).coerceAtLeast(1)
 
                 val baseDesc = context.getString(
                     dev.may.taskmanager.R.string.anomaly_desc_net_screen_off,
-                    appName,
+                    uidInfo.displayName,
                     formattedVal,
                     "${durationMin}m",
                 )
@@ -373,21 +446,24 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
                 val fullDesc = buildString {
                     append(baseDesc)
+                    if (uidInfo.isSharedUid) {
+                        append("\n• UID $uid compartilhado (${uidInfo.packageCount} apps)")
+                    }
                     if (!simpleService.isNullOrBlank()) {
-                        append("\n")
-                        append("• ")
+                        append("\n• ")
                         append(context.getString(dev.may.taskmanager.R.string.anomaly_cause_service_active, simpleService))
                     }
                     if (!cause.isNullOrBlank() && cause != simpleService) {
-                        append("\n")
-                        append("• ")
+                        append("\n• ")
                         append(cause)
                     }
                 }
 
+                val finalConfidence = if (uidInfo.isSharedUid) ConfidenceLevel.LOW else (confMap[uid] ?: ConfidenceLevel.MEDIUM)
+
                 val anomaly = AnomalyEvent(
                     packageName = pkgName,
-                    appName = appName,
+                    appName = uidInfo.displayName,
                     type = AnomalyType.NETWORK,
                     valueFormatted = formattedVal,
                     description = fullDesc,
@@ -395,6 +471,21 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                     screenWasOff = true,
                     serviceOrProcess = simpleService,
                     probableCause = cause,
+                    rawValue = deltaTotal.toDouble(),
+                    unit = "B",
+                    uid = uid,
+                    startTime = startWindow,
+                    endTime = endWindow,
+                    durationMs = sleepDurationMs,
+                    confidence = finalConfidence,
+                    nature = natureMap[uid] ?: TelemetryNature.AGGREGATED_STATISTIC,
+                    source = sourceMap[uid] ?: "NetworkStatsManager",
+                    isEstimated = uidInfo.isSharedUid,
+                    isComplete = true,
+                    rootAvailable = AppRootInspector.isRootAvailable(),
+                    collectionMethod = sourceMap[uid] ?: "native",
+                    isFallback = isFallbackMap[uid] ?: false,
+                    reason = if (uidInfo.isSharedUid) "UID compartilhado entre: ${uidInfo.allPackages.joinToString(", ")}" else null,
                 )
 
                 recordAnomaly(anomaly)
@@ -406,15 +497,13 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
     /**
      * Avalia se aplicativos impediram o aparelho de entrar em sono profundo (Deep Sleep)
-     * durante o período em que a tela esteve desligada.
-     * Custo de bateria: ZERO. Executado passivamente no retorno da tela (ACTION_SCREEN_ON),
-     * sem nenhum alarm, wakelock ou polling em segundo plano enquanto a tela estava apagada.
+     * durante o periodo em que a tela esteve desligada.
      */
     private suspend fun evaluateDeepSleepDisruption(sleepDurationMs: Long, awakeOffMs: Long) {
         val cfg = _config.value
         if (!cfg.isEnabled || !cfg.notifyDeepSleep) return
 
-        // Exige pelo menos 10 minutos de tela desligada para caracterizar análise estatística confiável
+        // Exige pelo menos 10 minutos de tela desligada para caracterizar analise estatistica confiavel
         if (sleepDurationMs < 10 * 60 * 1000L) return
 
         val awakeRatio = awakeOffMs.toDouble() / sleepDurationMs.toDouble()
@@ -433,30 +522,37 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
         val pm = context.packageManager
         val now = System.currentTimeMillis()
-        var suspectPackage: String? = null
+        var suspectInfo: ResolvedUidInfo? = null
 
-        // 1. Investigação com Root (se disponível): procura wakelocks parciais ativos
+        // 1. Investigacao com Root: busca wakelocks parciais ativos
         if (AppRootInspector.isRootAvailable()) {
             val powerDumpsys = AppRootInspector.runSuCommand("dumpsys power 2>/dev/null").getOrNull() ?: ""
             if (powerDumpsys.isNotBlank()) {
                 val wlRegex = Regex("PARTIAL_WAKE_LOCK\\s+'[^']*'\\s+.*\\(uid=([0-9]+)")
-                val match = wlRegex.find(powerDumpsys)
-                if (match != null) {
-                    val uid = match.groupValues[1].toIntOrNull()
-                    if (uid != null && uid >= 10000) {
-                        val pkgs = pm.getPackagesForUid(uid)
-                        suspectPackage = pkgs?.firstOrNull { it != context.packageName }
+                val matches = wlRegex.findAll(powerDumpsys).toList()
+                val uidCounts = mutableMapOf<Int, Int>()
+                for (m in matches) {
+                    val uid = m.groupValues[1].toIntOrNull()
+                    if (uid != null && uid >= 10000 && uid != Process.myUid()) {
+                        uidCounts[uid] = (uidCounts[uid] ?: 0) + 1
+                    }
+                }
+                val topUid = uidCounts.maxByOrNull { it.value }?.key
+                if (topUid != null) {
+                    val info = resolveUidInfo(pm, topUid)
+                    if (info != null && info.primaryPackage != context.packageName) {
+                        suspectInfo = info
                     }
                 }
             }
         }
 
-        // 2. Investigação via UsageEvents (Android padrão, sem necessidade de root)
-        if (suspectPackage == null) {
+        // 2. Investigacao via UsageEvents (Android padrao)
+        if (suspectInfo == null) {
             val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             if (usm != null) {
                 runCatching {
-                    val events = usm.queryEvents((screenOffWallTime - 1000L).coerceAtLeast(0L), now)
+                    val events = usm.queryEvents(screenOffWallTime, now)
                     val event = UsageEvents.Event()
                     val packageHits = mutableMapOf<String, Int>()
 
@@ -464,27 +560,36 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                         events.getNextEvent(event)
                         val pkg = event.packageName
                         if (pkg != null && pkg != context.packageName && !cfg.whitelistedPackages.contains(pkg)) {
-                            if (event.eventType == UsageEvents.Event.FOREGROUND_SERVICE_START ||
-                                event.eventType == 1 /* ACTIVITY_RESUMED */) {
+                            if (event.eventType == UsageEvents.Event.FOREGROUND_SERVICE_START) {
                                 packageHits[pkg] = (packageHits[pkg] ?: 0) + 1
                             }
                         }
                     }
-                    suspectPackage = packageHits.maxByOrNull { it.value }?.key
+                    val topPkg = packageHits.maxByOrNull { it.value }?.key
+                    if (topPkg != null) {
+                        val appLabel = runCatching {
+                            val info = pm.getApplicationInfo(topPkg, 0)
+                            pm.getApplicationLabel(info).toString()
+                        }.getOrDefault(topPkg)
+                        suspectInfo = ResolvedUidInfo(
+                            primaryPackage = topPkg,
+                            displayName = appLabel,
+                            isSharedUid = false,
+                            packageCount = 1,
+                            allPackages = listOf(topPkg),
+                        )
+                    }
                 }
             }
         }
 
-        // 3. Cruzamento com consumo de dados capturado no mesmo intervalo com tela apagada
-        if (suspectPackage == null && screenOffNetSnapshots.isNotEmpty()) {
-            val candidateUid = screenOffNetSnapshots.maxByOrNull { it.value.rx + it.value.tx }?.key
-            if (candidateUid != null && candidateUid >= 10000) {
-                val pkgs = pm.getPackagesForUid(candidateUid)
-                suspectPackage = pkgs?.firstOrNull { it != context.packageName }
-            }
-        }
+        val awakeMinutes = (awakeOffMs / 60_000L).coerceAtLeast(1)
+        val offMinutes = (sleepDurationMs / 60_000L).coerceAtLeast(1)
 
-        val targetPkg = suspectPackage ?: return
+        val targetPkg = suspectInfo?.primaryPackage ?: "android.system.sleep"
+        val targetName = suspectInfo?.displayName ?: context.getString(dev.may.taskmanager.R.string.anomaly_device_deep_sleep_title)
+        val isDeviceLevel = (suspectInfo == null)
+
         if (targetPkg == context.packageName || cfg.whitelistedPackages.contains(targetPkg) || isPackageMuted(targetPkg)) {
             return
         }
@@ -492,30 +597,50 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         val lastAlert = lastAlertTimeMap[targetPkg] ?: 0L
         if (now - lastAlert < COOLDOWN_MS) return
 
-        val appName = runCatching {
-            val appInfo = pm.getApplicationInfo(targetPkg, 0)
-            pm.getApplicationLabel(appInfo).toString()
-        }.getOrDefault(targetPkg)
+        val appIcon = if (!isDeviceLevel) runCatching { pm.getApplicationIcon(targetPkg) }.getOrNull() else null
 
-        val appIcon = runCatching { pm.getApplicationIcon(targetPkg) }.getOrNull()
-        val awakeMinutes = (awakeOffMs / 60_000L).coerceAtLeast(1)
-        val offMinutes = (sleepDurationMs / 60_000L).coerceAtLeast(1)
+        val desc = if (!isDeviceLevel) {
+            context.getString(
+                dev.may.taskmanager.R.string.anomaly_desc_deep_sleep,
+                targetName,
+                "${awakeMinutes}m",
+                "${offMinutes}m",
+            )
+        } else {
+            context.getString(
+                dev.may.taskmanager.R.string.anomaly_device_deep_sleep_desc,
+                "${awakeMinutes}m",
+                "${offMinutes}m",
+            )
+        }
 
-        val desc = context.getString(
-            dev.may.taskmanager.R.string.anomaly_desc_deep_sleep,
-            appName,
-            "${awakeMinutes}m",
-            "${offMinutes}m",
-        )
+        val confidence = when {
+            isDeviceLevel -> ConfidenceLevel.LOW
+            suspectInfo?.isSharedUid == true -> ConfidenceLevel.MEDIUM
+            else -> ConfidenceLevel.HIGH
+        }
 
         val anomaly = AnomalyEvent(
             packageName = targetPkg,
-            appName = appName,
+            appName = targetName,
             type = AnomalyType.DEEP_SLEEP,
             valueFormatted = context.getString(dev.may.taskmanager.R.string.anomaly_value_awake_minutes, awakeMinutes.toInt()),
             description = desc,
             timestamp = now,
             screenWasOff = true,
+            rawValue = awakeMinutes.toDouble(),
+            unit = "min",
+            startTime = screenOffWallTime,
+            endTime = now,
+            durationMs = sleepDurationMs,
+            confidence = confidence,
+            nature = if (isDeviceLevel) TelemetryNature.AGGREGATED_STATISTIC else TelemetryNature.DIRECT_MEASUREMENT,
+            source = if (!isDeviceLevel) "dumpsys power/UsageEvents" else "SystemClock.uptimeMillis",
+            isEstimated = isDeviceLevel || suspectInfo?.isSharedUid == true,
+            isComplete = true,
+            rootAvailable = AppRootInspector.isRootAvailable(),
+            collectionMethod = if (AppRootInspector.isRootAvailable()) "root_dumpsys" else "system_framework",
+            reason = if (isDeviceLevel) "Dispositivo permaneceu acordado sem evidencia conclusiva de wakelock de um unico app" else if (suspectInfo?.isSharedUid == true) "UID compartilhado" else null,
         )
 
         recordAnomaly(anomaly)
@@ -577,8 +702,8 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
             for ((uid, dBytes) in onNetMap) {
                 if (dBytes >= netThresholdBytes) {
-                    val packages = pm.getPackagesForUid(uid) ?: continue
-                    val pkgName = packages.firstOrNull() ?: continue
+                    val uidInfo = resolveUidInfo(pm, uid) ?: continue
+                    val pkgName = uidInfo.primaryPackage
 
                     if (pkgName == fgPackage || pkgName == context.packageName || cfg.whitelistedPackages.contains(pkgName) || isPackageMuted(pkgName)) {
                         continue
@@ -586,16 +711,11 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
                     val lastAlert = lastAlertTimeMap[pkgName] ?: 0L
                     if (nowWall - lastAlert >= COOLDOWN_MS) {
-                        val appLabel = runCatching {
-                            val appInfo = pm.getApplicationInfo(pkgName, 0)
-                            pm.getApplicationLabel(appInfo).toString()
-                        }.getOrDefault(pkgName)
-
                         val icon = runCatching { pm.getApplicationIcon(pkgName) }.getOrNull()
                         val formatted = formatBytes(dBytes)
                         val baseDesc = context.getString(
                             dev.may.taskmanager.R.string.anomaly_desc_net_screen_on,
-                            appLabel,
+                            uidInfo.displayName,
                             formatted,
                             "30s",
                         )
@@ -605,21 +725,22 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
                         val fullDesc = buildString {
                             append(baseDesc)
+                            if (uidInfo.isSharedUid) {
+                                append("\n• UID $uid compartilhado (${uidInfo.packageCount} apps)")
+                            }
                             if (!simpleService.isNullOrBlank()) {
-                                append("\n")
-                                append("• ")
+                                append("\n• ")
                                 append(context.getString(dev.may.taskmanager.R.string.anomaly_cause_service_active, simpleService))
                             }
                             if (!cause.isNullOrBlank() && cause != simpleService) {
-                                append("\n")
-                                append("• ")
+                                append("\n• ")
                                 append(cause)
                             }
                         }
 
                         val anomaly = AnomalyEvent(
                             packageName = pkgName,
-                            appName = appLabel,
+                            appName = uidInfo.displayName,
                             type = AnomalyType.NETWORK,
                             valueFormatted = formatted,
                             description = fullDesc,
@@ -627,6 +748,20 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                             screenWasOff = false,
                             serviceOrProcess = simpleService,
                             probableCause = cause,
+                            rawValue = dBytes.toDouble(),
+                            unit = "B",
+                            uid = uid,
+                            startTime = intervalStart,
+                            endTime = intervalEnd,
+                            durationMs = SCREEN_ON_INTERVAL_MS,
+                            confidence = if (uidInfo.isSharedUid) ConfidenceLevel.LOW else ConfidenceLevel.MEDIUM,
+                            nature = TelemetryNature.AGGREGATED_STATISTIC,
+                            source = "NetworkStatsManager/TrafficStats",
+                            isEstimated = uidInfo.isSharedUid,
+                            isComplete = true,
+                            rootAvailable = AppRootInspector.isRootAvailable(),
+                            collectionMethod = "screen_on_monitor",
+                            reason = if (uidInfo.isSharedUid) "UID compartilhado entre: ${uidInfo.allPackages.joinToString(", ")}" else null,
                         )
 
                         recordAnomaly(anomaly)
@@ -704,6 +839,19 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                                         timestamp = nowWall,
                                         screenWasOff = false,
                                         pid = tokens[0].toIntOrNull(),
+                                        rawValue = normalizedCpu,
+                                        unit = "%",
+                                        startTime = nowWall - (cycles * SCREEN_ON_INTERVAL_MS),
+                                        endTime = nowWall,
+                                        durationMs = cycles * SCREEN_ON_INTERVAL_MS,
+                                        confidence = ConfidenceLevel.HIGH,
+                                        nature = TelemetryNature.DIRECT_MEASUREMENT,
+                                        source = "ps/root",
+                                        isEstimated = false,
+                                        isComplete = true,
+                                        rootAvailable = true,
+                                        collectionMethod = "consecutive_samples",
+                                        reason = "Confirmacao continuada por $cycles ciclos consecutivos via CPU do kernel",
                                     )
 
                                     recordAnomaly(anomaly)
@@ -749,6 +897,24 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                     if (cleanCmd.contains(".") && !cleanCmd.startsWith("/") && cleanCmd != fgPackage && cleanCmd != context.packageName) {
                         val pkgName = cleanCmd.substringBefore(":")
                         if (ramMb >= thresholdMb && !cfg.whitelistedPackages.contains(pkgName) && !isPackageMuted(pkgName)) {
+                            // Analise de tendencia temporal
+                            val history = ramGrowthHistory.getOrPut(pkgName) { mutableListOf() }
+                            val now = SystemClock.elapsedRealtime()
+                            history.add(Pair(now, ramMb))
+                            history.removeAll { now - it.first > 300_000L }
+
+                            val isContinuousGrowth = history.size >= 3 &&
+                                history[history.size - 1].second > history[history.size - 2].second &&
+                                history[history.size - 2].second > history[history.size - 3].second
+
+                            val cause = if (isContinuousGrowth) {
+                                val deltaMb = (history.last().second - history.first().second).toInt()
+                                val deltaSec = ((now - history.first().first) / 1000L).coerceAtLeast(1L)
+                                "Possivel vazamento: crescimento continuo de +${deltaMb}MB em ${deltaSec}s"
+                            } else {
+                                "Consumo elevado de memoria RSS em segundo plano"
+                            }
+
                             val lastAlert = lastAlertTimeMap[pkgName] ?: 0L
                             if (nowWall - lastAlert >= COOLDOWN_MS) {
                                 val appLabel = runCatching {
@@ -773,6 +939,21 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                                     timestamp = nowWall,
                                     screenWasOff = false,
                                     pid = tokens[0].toIntOrNull(),
+                                    serviceOrProcess = cleanCmd,
+                                    probableCause = cause,
+                                    rawValue = ramMb,
+                                    unit = "MB",
+                                    startTime = if (history.isNotEmpty()) nowWall - (now - history.first().first) else nowWall,
+                                    endTime = nowWall,
+                                    durationMs = if (history.isNotEmpty()) (now - history.first().first) else 0L,
+                                    confidence = ConfidenceLevel.HIGH,
+                                    nature = TelemetryNature.DIRECT_MEASUREMENT,
+                                    source = "ps/ActivityManager",
+                                    isEstimated = false,
+                                    isComplete = true,
+                                    rootAvailable = true,
+                                    collectionMethod = "temporal_trend",
+                                    reason = if (isContinuousGrowth) "Crescimento continuo de RAM em 3 amostras consecutivas sob pressao" else "Uso de RAM alto estavel sem indicio de vazamento",
                                 )
 
                                 recordAnomaly(anomaly)

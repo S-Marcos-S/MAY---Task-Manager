@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package dev.may.taskmanager.root
 
+import dev.may.taskmanager.telemetry.ConfidenceLevel
+import dev.may.taskmanager.telemetry.TelemetryNature
+import dev.may.taskmanager.telemetry.TelemetryValidator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -49,6 +52,35 @@ class SystemTaskTelemetryTest {
     }
 
     @Test
+    fun `RunningTasksSnapshot represents non-root limitation with technical transparency`() {
+        val snapshot = RunningTasksSnapshot(
+            foregroundApps = listOf(
+                TaskProcessItem(
+                    pid = 2001,
+                    packageName = "com.example.app",
+                    processName = "com.example.app",
+                    appName = "Example",
+                    user = "app",
+                    cpuPercent = 0.0,
+                    ramMb = 45.0,
+                    isForeground = true,
+                    pssMb = 45.0,
+                    confidence = ConfidenceLevel.MEDIUM,
+                )
+            ),
+            rootAvailable = false,
+            isTelemetryLimited = true,
+            diagnosticMessage = "SELinux blocks non-root CPU queries",
+        )
+
+        assertFalse(snapshot.rootAvailable)
+        assertTrue(snapshot.isTelemetryLimited)
+        assertEquals(1, snapshot.foregroundApps.size)
+        assertEquals(45.0, snapshot.foregroundApps[0].pssMb ?: 0.0, 0.01)
+        assertEquals(ConfidenceLevel.MEDIUM, snapshot.foregroundApps[0].confidence)
+    }
+
+    @Test
     fun `parseCpuTimeToMs parses various ps time formats accurately`() {
         assertEquals(50L, SystemTaskInspector.parseCpuTimeToMs("0:00.05"))
         assertEquals(1010L, SystemTaskInspector.parseCpuTimeToMs("0:01.01"))
@@ -66,5 +98,43 @@ class SystemTaskTelemetryTest {
         assertEquals(5025000L, SystemTaskInspector.parseElapsedTimeToMs("01:23:45"))
         assertEquals(183845000L, SystemTaskInspector.parseElapsedTimeToMs("2-03:04:05"))
         assertEquals(0L, SystemTaskInspector.parseElapsedTimeToMs(""))
+    }
+
+    @Test
+    fun `telemetryValidator classifies cpu with consecutive hits`() {
+        val sample = TelemetryValidator.classifyProcessCpu(
+            packageName = "com.bad.app",
+            uid = 10055,
+            pid = 4321,
+            deltaCpuMs = 250L,
+            deltaWallMs = 1000L,
+            coresCount = 8,
+            consecutiveHits = 2,
+            rootAvailable = true,
+        )
+
+        // (250 / (1000 * 8)) * 100 = 3.125%
+        assertEquals(3.125, sample.value, 0.001)
+        assertEquals(ConfidenceLevel.HIGH, sample.confidence)
+        assertEquals(TelemetryNature.DIRECT_MEASUREMENT, sample.nature)
+        assertFalse(sample.isEstimated)
+    }
+
+    @Test
+    fun `telemetryValidator reports cpu unavailable honestly when root is absent`() {
+        val sample = TelemetryValidator.classifyProcessCpu(
+            packageName = "com.bad.app",
+            uid = 10055,
+            pid = 4321,
+            deltaCpuMs = 0L,
+            deltaWallMs = 1000L,
+            coresCount = 8,
+            consecutiveHits = 0,
+            rootAvailable = false,
+        )
+
+        assertEquals(ConfidenceLevel.UNAVAILABLE, sample.confidence)
+        assertEquals(TelemetryNature.UNAVAILABLE, sample.nature)
+        assertFalse(sample.isComplete)
     }
 }

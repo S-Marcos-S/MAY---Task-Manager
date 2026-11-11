@@ -14,6 +14,9 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import dev.may.taskmanager.MainActivity
 import dev.may.taskmanager.R
+import dev.may.taskmanager.telemetry.ConfidenceLevel
+import dev.may.taskmanager.telemetry.TelemetryNature
+import java.util.concurrent.ConcurrentHashMap
 
 class BackgroundAnomalyNotificationManager private constructor(private val context: Context) {
 
@@ -25,6 +28,8 @@ class BackgroundAnomalyNotificationManager private constructor(private val conte
         const val EXTRA_PACKAGE_NAME = "extra_package_name"
         const val EXTRA_APP_NAME = "extra_app_name"
         const val EXTRA_NOTIFICATION_ID = "extra_notification_id"
+
+        private const val MIN_NOTIFICATION_INTERVAL_MS = 60_000L
 
         @Volatile
         private var instance: BackgroundAnomalyNotificationManager? = null
@@ -39,6 +44,7 @@ class BackgroundAnomalyNotificationManager private constructor(private val conte
     }
 
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    private val recentAlertTimestamps = ConcurrentHashMap<String, Long>()
 
     init {
         createNotificationChannel()
@@ -61,6 +67,14 @@ class BackgroundAnomalyNotificationManager private constructor(private val conte
     }
 
     fun postAnomalyNotification(anomaly: AnomalyEvent, appIcon: Drawable? = null) {
+        val dedupKey = "${anomaly.packageName}_${anomaly.type.name}"
+        val now = System.currentTimeMillis()
+        val lastNotified = recentAlertTimestamps[dedupKey] ?: 0L
+        if (now - lastNotified < MIN_NOTIFICATION_INTERVAL_MS) {
+            return
+        }
+        recentAlertTimestamps[dedupKey] = now
+
         val notificationId = 7000 + (anomaly.packageName.hashCode() and 0x7FFF)
 
         // PendingIntent: Inspecionar (Abre a MainActivity e dispara abertura no Gerenciador de Tarefas)
@@ -119,11 +133,28 @@ class BackgroundAnomalyNotificationManager private constructor(private val conte
             anomaly.description
         }
 
+        val technicalDescription = buildString {
+            append(anomaly.description)
+            append("\n\n")
+            append("• ${context.getString(R.string.telemetry_notif_source)}: ${anomaly.source}")
+            append("  |  ${context.getString(R.string.telemetry_notif_confidence)}: ${anomaly.confidence.getLabel(context)}")
+            append("\n• ${context.getString(R.string.telemetry_notif_nature)}: ${anomaly.nature.getLabel(context)}")
+            if (anomaly.uid != null) {
+                append("  |  UID: ${anomaly.uid}")
+            }
+            if (anomaly.isEstimated) {
+                append(" (${context.getString(R.string.telemetry_nature_estimate).lowercase()})")
+            }
+            if (!anomaly.reason.isNullOrBlank()) {
+                append("\n• ${anomaly.reason}")
+            }
+        }
+
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(summaryLine)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(anomaly.description))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(technicalDescription))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setGroup("dev.may.taskmanager.group.ANOMALY")

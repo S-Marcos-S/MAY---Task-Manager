@@ -18,6 +18,7 @@ import android.os.Environment
 import android.os.StatFs
 import android.os.SystemClock
 import dev.may.taskmanager.data.AppInfo
+import dev.may.taskmanager.telemetry.ConfidenceLevel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -86,6 +87,9 @@ data class TaskProcessItem(
     val appInfo: AppInfo? = null,
     val powerImpact: PowerImpactLevel = PowerImpactLevel.LOW,
     val estimatedPowerMw: Double = 0.0,
+    val pssMb: Double? = null,
+    val rssMb: Double? = null,
+    val confidence: ConfidenceLevel = ConfidenceLevel.HIGH,
 )
 
 data class RunningTasksSnapshot(
@@ -93,6 +97,9 @@ data class RunningTasksSnapshot(
     val backgroundApps: List<TaskProcessItem> = emptyList(),
     val systemProcesses: List<TaskProcessItem> = emptyList(),
     val timestamp: Long = System.currentTimeMillis(),
+    val rootAvailable: Boolean = true,
+    val isTelemetryLimited: Boolean = false,
+    val diagnosticMessage: String? = null,
 )
 
 object SystemTaskInspector {
@@ -309,6 +316,54 @@ object SystemTaskInspector {
     ): RunningTasksSnapshot = withContext(Dispatchers.IO) {
         val appsByPackage = installedApps.associateBy { it.packageName }
         val pm = context.packageManager
+
+        val isRoot = AppRootInspector.isRootAvailable()
+        if (!isRoot) {
+            // Estrategia sem Root: consulta honesta via ActivityManager e PSS sem invencao de CPU
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            val runningProcs = am?.runningAppProcesses ?: emptyList()
+            val fgList = mutableListOf<TaskProcessItem>()
+            val bgList = mutableListOf<TaskProcessItem>()
+
+            for (proc in runningProcs) {
+                val pkg = proc.pkgList?.firstOrNull() ?: proc.processName.substringBefore(":")
+                val matchedApp = appsByPackage[pkg]
+                val label = matchedApp?.label ?: runCatching {
+                    val info = pm.getApplicationInfo(pkg, 0)
+                    pm.getApplicationLabel(info).toString()
+                }.getOrDefault(pkg)
+
+                val isFg = proc.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+                val memInfo = runCatching { am?.getProcessMemoryInfo(intArrayOf(proc.pid)) }.getOrNull()
+                val pssMb = memInfo?.firstOrNull()?.totalPss?.let { it / 1024.0 } ?: 0.0
+
+                val item = TaskProcessItem(
+                    pid = proc.pid,
+                    packageName = pkg,
+                    processName = proc.processName,
+                    appName = label,
+                    user = "app",
+                    cpuPercent = 0.0,
+                    ramMb = pssMb,
+                    isForeground = isFg,
+                    isSystemProcess = false,
+                    appInfo = matchedApp,
+                    pssMb = pssMb,
+                    confidence = ConfidenceLevel.MEDIUM,
+                )
+                if (isFg) fgList.add(item) else bgList.add(item)
+            }
+
+            return@withContext RunningTasksSnapshot(
+                foregroundApps = fgList,
+                backgroundApps = bgList,
+                systemProcesses = emptyList(),
+                timestamp = System.currentTimeMillis(),
+                rootAvailable = false,
+                isTelemetryLimited = true,
+                diagnosticMessage = "Dispositivo sem Root: exibindo processos acessiveis com memoria PSS; telemetria individual de CPU indisponivel sem acesso Root (SELinux).",
+            )
+        }
 
         // Shell script to query top/ps and current focused/resumed activity via root
         val shellScript = """
@@ -532,6 +587,8 @@ object SystemTaskInspector {
             backgroundApps = sortedBg,
             systemProcesses = sortedSys,
             timestamp = System.currentTimeMillis(),
+            rootAvailable = true,
+            isTelemetryLimited = false,
         )
     }
 

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package dev.may.taskmanager.network
 
+import dev.may.taskmanager.telemetry.ConfidenceLevel
+import dev.may.taskmanager.telemetry.TelemetryValidator
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -120,11 +123,11 @@ class SpeedMonitorAppDeltasTest {
     }
 
     @Test
-    fun calculateActiveAppsFromDeltas_capsSingleAppToTotalDeviceSpeed() {
+    fun calculateActiveAppsFromDeltas_preservesRealSpeedAndFlagsDivergenceWithoutArtificialDownscaling() {
         val previous = mapOf(10100 to 0L)
         val current = mapOf(10100 to 3_000_000L) // Delta = 3 MB/s in 1s
 
-        val totalDeviceSpeed = 1_000_000.0 // Total device speed is 1 MB/s
+        val totalDeviceSpeed = 1_000_000.0 // Global instantaneous is 1 MB/s (divergence due to bucket delay)
 
         val result = SpeedMonitorService.calculateActiveAppsFromDeltas(
             currentTotals = current,
@@ -137,42 +140,16 @@ class SpeedMonitorAppDeltasTest {
 
         assertEquals(1, result.size)
         assertEquals("YouTube", result[0].appName)
-        // Must be capped to totalDeviceSpeed (1 MB/s), NOT 3 MB/s!
-        assertEquals(1_000_000.0, result[0].speedBytesSec, 0.001)
+        // Regra fundamental: NUNCA apresentar estimativa ou diminuicao artificial
+        // como se fosse medicao comprovada. A medicao real delta (3 MB/s) e preservada
+        // e a divergencia estatistica e explicitamente sinalizada com confianca LOW.
+        assertEquals(3_000_000.0, result[0].speedBytesSec, 0.001)
+        assertTrue(result[0].hasDivergence)
+        assertEquals(ConfidenceLevel.LOW, result[0].confidence)
     }
 
     @Test
-    fun calculateActiveAppsFromDeltas_proportionallyNormalizesMultipleAppsWhenExceedingTotalSpeed() {
-        val previous = mapOf(
-            10100 to 0L,
-            10200 to 0L
-        )
-        val current = mapOf(
-            10100 to 2_000_000L, // Raw 2 MB/s
-            10200 to 1_000_000L  // Raw 1 MB/s
-        ) // Raw sum = 3 MB/s
-
-        val totalDeviceSpeed = 1_200_000.0 // Actual total speed = 1.2 MB/s
-
-        val result = SpeedMonitorService.calculateActiveAppsFromDeltas(
-            currentTotals = current,
-            previousTotals = previous,
-            deltaTimeSec = 1.0,
-            minBytesPerSec = 10_000.0,
-            totalDeviceSpeed = totalDeviceSpeed,
-            resolveName = { if (it == 10100) "App1" else "App2" }
-        )
-
-        assertEquals(2, result.size)
-        assertEquals("App1", result[0].appName)
-        assertEquals(800_000.0, result[0].speedBytesSec, 0.001) // 2/3 of 1.2 MB/s = 800 KB/s
-
-        assertEquals("App2", result[1].appName)
-        assertEquals(400_000.0, result[1].speedBytesSec, 0.001) // 1/3 of 1.2 MB/s = 400 KB/s
-    }
-
-    @Test
-    fun calculateActiveAppsFromDeltas_keepsOriginalSpeedWhenBelowTotalSpeed() {
+    fun calculateActiveAppsFromDeltas_keepsOriginalSpeedAndMediumConfidenceWhenWithinTotalSpeed() {
         val previous = mapOf(10100 to 0L)
         val current = mapOf(10100 to 500_000L) // 500 KB/s
 
@@ -190,5 +167,51 @@ class SpeedMonitorAppDeltasTest {
         assertEquals(1, result.size)
         assertEquals("App", result[0].appName)
         assertEquals(500_000.0, result[0].speedBytesSec, 0.001)
+        assertFalse(result[0].hasDivergence)
+        assertEquals(ConfidenceLevel.MEDIUM, result[0].confidence)
+    }
+
+    @Test
+    fun telemetryValidator_evaluatesCounterDifferencesAndResets() {
+        assertEquals(TelemetryValidator.CounterState.VALID, TelemetryValidator.evaluateCounter(1500L, 1000L))
+        assertEquals(TelemetryValidator.CounterState.RESET_OR_REBOOT, TelemetryValidator.evaluateCounter(500L, 1000L))
+        assertEquals(TelemetryValidator.CounterState.NEGATIVE_OR_UNSUPPORTED, TelemetryValidator.evaluateCounter(-1L, 1000L))
+        assertEquals(TelemetryValidator.CounterState.NEGATIVE_OR_UNSUPPORTED, TelemetryValidator.evaluateCounter(1000L, -1L))
+        assertEquals(TelemetryValidator.CounterState.SAME_SAMPLE, TelemetryValidator.evaluateCounter(1000L, 1000L))
+    }
+
+    @Test
+    fun telemetryValidator_computesMonotonicGlobalSpeedAccurately() {
+        val (rxSample, txSample) = TelemetryValidator.computeGlobalNetworkSpeed(
+            currentRx = 2_000_000L,
+            currentTx = 1_500_000L,
+            prevRx = 1_000_000L,
+            prevTx = 1_000_000L,
+            deltaNanos = 1_000_000_000L, // 1 segundo
+            isSupported = true,
+            rootAvailable = false,
+        )
+
+        assertEquals(1_000_000.0, rxSample.value, 0.01)
+        assertEquals(500_000.0, txSample.value, 0.01)
+        assertEquals(ConfidenceLevel.HIGH, rxSample.confidence)
+        assertEquals(ConfidenceLevel.HIGH, txSample.confidence)
+        assertFalse(rxSample.isEstimated)
+    }
+
+    @Test
+    fun telemetryValidator_handlesCounterResetTransparently() {
+        val (rxSample, _) = TelemetryValidator.computeGlobalNetworkSpeed(
+            currentRx = 100L, // Menor que anterior -> reinicializacao
+            currentTx = 100L,
+            prevRx = 50_000L,
+            prevTx = 50_000L,
+            deltaNanos = 1_000_000_000L,
+            isSupported = true,
+            rootAvailable = false,
+        )
+
+        assertEquals(ConfidenceLevel.LOW, rxSample.confidence)
+        assertTrue(rxSample.isEstimated)
     }
 }

@@ -1265,6 +1265,13 @@
     <string name="net_speed_action_grant_permission">Permission</string>
     <string name="net_speed_interval_title">Update interval</string>
     <string name="net_speed_interval_desc">Frequency of real-time speed updates (longer interval = less battery usage)</string>
+    <string name="net_speed_status">Status: %1$s</string>
+    <string name="net_speed_last_sample">Updated: %1$s</string>
+    <string name="net_speed_app_divergence">• %1$s: %2$s (aggregated)</string>
+
+    <!-- Deep sleep device-level strings -->
+    <string name="anomaly_device_deep_sleep_title">Device Deep Sleep</string>
+    <string name="anomaly_device_deep_sleep_desc">Device remained awake for %1$s out of %2$s with screen off. App attribution is inconclusive.</string>
 
     
     <string name="battery_auto_reset_title">Auto Reset</string>
@@ -1420,4 +1427,32 @@
     <string name="tools_wifi_debug_title">Wireless Debugging</string>
     <string name="tools_wifi_debug_desc">ADB debugging over Wi-Fi network</string>
     <string name="tools_wifi_debug_ip_port">IP: %1$s • Port: %2$s</string>
+
+    <!-- Telemetry Confidence & Nature -->
+    <string name="telemetry_confidence_high">High</string>
+    <string name="telemetry_confidence_medium">Medium</string>
+    <string name="telemetry_confidence_low">Low</string>
+    <string name="telemetry_confidence_unavailable">Unavailable</string>
+    <string name="telemetry_nature_direct">Direct</string>
+    <string name="telemetry_nature_aggregated">Aggregated</string>
+    <string name="telemetry_nature_estimate">Estimate</string>
+    <string name="telemetry_nature_unavailable">Unavailable</string>
+    <string name="telemetry_attribution_inconclusive">Inconclusive</string>
+    <string name="telemetry_status_active">Active</string>
+    <string name="telemetry_status_stale">Stale data</string>
+    <string name="telemetry_status_paused">Paused</string>
+    <string name="telemetry_status_error">Collection error</string>
+    <string name="telemetry_notif_source">Source</string>
+    <string name="telemetry_notif_confidence">Confidence</string>
+    <string name="telemetry_notif_nature">Method</string>
+
+    <!-- Diagnostics and Device Capabilities -->
+    <string name="diag_cap_network_title">Network Traffic Telemetry</string>
+    <string name="diag_cap_network_desc">Monitors device and per-app bandwidth usage</string>
+    <string name="diag_cap_cpu_title">Per-Process CPU Telemetry</string>
+    <string name="diag_cap_cpu_desc">Samples instantaneous CPU usage per process</string>
+    <string name="diag_cap_ram_title">RAM Memory Telemetry</string>
+    <string name="diag_cap_ram_desc">Samples RSS, PSS, swap, and system memory pressure</string>
+    <string name="diag_cap_battery_title">Battery &amp; WakeLock Telemetry</string>
+    <string name="diag_cap_battery_desc">Samples deep sleep, hardware current, and dump stats</string>
 </resources>

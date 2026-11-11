@@ -3,6 +3,8 @@ package dev.may.taskmanager.root.anomaly
 
 import android.content.Context
 import dev.may.taskmanager.root.AppRootInspector
+import dev.may.taskmanager.telemetry.ConfidenceLevel
+import dev.may.taskmanager.telemetry.TelemetryNature
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -139,7 +141,12 @@ class AnomalyHistoryRepository private constructor(private val context: Context)
                 AnomalyType.DEEP_SLEEP -> data.deepSleepDisruptions++
                 AnomalyType.NETWORK -> {
                     data.backgroundDataFlags++
-                    data.totalEstimatedBytes += parseBytesFromFormatted(event.valueFormatted)
+                    val bytes = if (event.rawValue > 0.0 && (event.unit.isEmpty() || event.unit == "B")) {
+                        event.rawValue.toLong()
+                    } else {
+                        parseBytesFromFormatted(event.valueFormatted)
+                    }
+                    data.totalEstimatedBytes += bytes
                 }
                 AnomalyType.CPU -> data.cpuFlags++
                 AnomalyType.RAM -> data.ramFlags++
@@ -210,6 +217,21 @@ class AnomalyHistoryRepository private constructor(private val context: Context)
                 if (event.pid != null) put("pid", event.pid)
                 if (event.serviceOrProcess != null) put("serviceOrProcess", event.serviceOrProcess)
                 if (event.probableCause != null) put("probableCause", event.probableCause)
+                put("rawValue", event.rawValue)
+                put("unit", event.unit)
+                if (event.uid != null) put("uid", event.uid)
+                put("startTime", event.startTime)
+                put("endTime", event.endTime)
+                put("durationMs", event.durationMs)
+                put("confidence", event.confidence.name)
+                put("nature", event.nature.name)
+                put("source", event.source)
+                put("isEstimated", event.isEstimated)
+                put("isComplete", event.isComplete)
+                put("rootAvailable", event.rootAvailable)
+                put("collectionMethod", event.collectionMethod)
+                put("isFallback", event.isFallback)
+                if (event.reason != null) put("reason", event.reason)
             }
             array.put(obj)
         }
@@ -228,6 +250,17 @@ class AnomalyHistoryRepository private constructor(private val context: Context)
                 val service = if (obj.has("serviceOrProcess")) obj.optString("serviceOrProcess") else null
                 val cause = if (obj.has("probableCause")) obj.optString("probableCause") else null
 
+                val confName = obj.optString("confidence", ConfidenceLevel.HIGH.name)
+                val confidence = runCatching { ConfidenceLevel.valueOf(confName) }.getOrDefault(ConfidenceLevel.HIGH)
+
+                val natureName = obj.optString("nature", TelemetryNature.DIRECT_MEASUREMENT.name)
+                val nature = runCatching { TelemetryNature.valueOf(natureName) }.getOrDefault(TelemetryNature.DIRECT_MEASUREMENT)
+
+                val ts = obj.optLong("timestamp", System.currentTimeMillis())
+                val start = obj.optLong("startTime", ts)
+                val end = obj.optLong("endTime", ts)
+                val duration = obj.optLong("durationMs", (end - start).coerceAtLeast(0L))
+
                 list.add(
                     AnomalyEvent(
                         id = obj.optString("id", UUID.randomUUID().toString()),
@@ -236,11 +269,26 @@ class AnomalyHistoryRepository private constructor(private val context: Context)
                         type = type,
                         valueFormatted = obj.optString("valueFormatted", ""),
                         description = obj.optString("description", ""),
-                        timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                        timestamp = ts,
                         screenWasOff = obj.optBoolean("screenWasOff", false),
                         pid = pid,
                         serviceOrProcess = service,
                         probableCause = cause,
+                        rawValue = obj.optDouble("rawValue", 0.0),
+                        unit = obj.optString("unit", ""),
+                        uid = if (obj.has("uid")) obj.optInt("uid") else null,
+                        startTime = start,
+                        endTime = end,
+                        durationMs = duration,
+                        confidence = confidence,
+                        nature = nature,
+                        source = obj.optString("source", "system"),
+                        isEstimated = obj.optBoolean("isEstimated", false),
+                        isComplete = obj.optBoolean("isComplete", true),
+                        rootAvailable = obj.optBoolean("rootAvailable", false),
+                        collectionMethod = obj.optString("collectionMethod", "native"),
+                        isFallback = obj.optBoolean("isFallback", false),
+                        reason = if (obj.has("reason")) obj.optString("reason") else null,
                     )
                 )
             }

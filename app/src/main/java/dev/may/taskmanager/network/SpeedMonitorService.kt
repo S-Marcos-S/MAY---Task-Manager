@@ -21,18 +21,25 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkRequest
 import android.net.TrafficStats
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.drawable.IconCompat
 import dev.may.taskmanager.MainActivity
 import dev.may.taskmanager.R
+import dev.may.taskmanager.telemetry.ConfidenceLevel
+import dev.may.taskmanager.telemetry.TelemetryNature
 import dev.may.taskmanager.update.RootInstaller
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 class SpeedMonitorService : Service() {
@@ -99,27 +106,36 @@ class SpeedMonitorService : Service() {
                     if (rawSpeed >= minBytesPerSec) {
                         val name = resolveName(uid)
                         if (name != null) {
-                            rawActive.add(ActiveAppSpeed(name, rawSpeed))
+                            rawActive.add(
+                                ActiveAppSpeed(
+                                    appName = name,
+                                    speedBytesSec = rawSpeed,
+                                    uid = uid,
+                                    nature = TelemetryNature.AGGREGATED_STATISTIC,
+                                    confidence = ConfidenceLevel.MEDIUM,
+                                )
+                            )
                         }
                     }
                 }
             }
             if (rawActive.isEmpty()) return emptyList()
 
-            val result = if (totalDeviceSpeed > 0.0) {
-                val sumRaw = rawActive.sumOf { it.speedBytesSec }
-                if (sumRaw > totalDeviceSpeed) {
-                    val factor = totalDeviceSpeed / sumRaw
-                    rawActive.map { app ->
-                        ActiveAppSpeed(app.appName, app.speedBytesSec * factor)
-                    }
+            val sumRaw = rawActive.sumOf { it.speedBytesSec }
+            val hasDivergence = totalDeviceSpeed > 0.0 && sumRaw > (totalDeviceSpeed * 1.05)
+
+            // Princípio fundamental: nunca distorcer ou reescalar artificialmente a velocidade
+            // dos apps por fator global apenas para forçar a soma. Quando houver divergência
+            // decorrente da granularidade/atraso do NetworkStatsManager, registrar explicitamente.
+            val result = rawActive.map { app ->
+                if (hasDivergence) {
+                    app.copy(
+                        hasDivergence = true,
+                        confidence = ConfidenceLevel.LOW,
+                    )
                 } else {
-                    rawActive.map { app ->
-                        ActiveAppSpeed(app.appName, minOf(app.speedBytesSec, totalDeviceSpeed))
-                    }
+                    app
                 }
-            } else {
-                rawActive
             }
 
             return result.filter { it.speedBytesSec >= minBytesPerSec }
@@ -127,7 +143,15 @@ class SpeedMonitorService : Service() {
         }
     }
 
-    data class ActiveAppSpeed(val appName: String, val speedBytesSec: Double)
+    data class ActiveAppSpeed(
+        val appName: String,
+        val speedBytesSec: Double,
+        val uid: Int? = null,
+        val isSharedUid: Boolean = false,
+        val nature: TelemetryNature = TelemetryNature.AGGREGATED_STATISTIC,
+        val confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM,
+        val hasDivergence: Boolean = false,
+    )
     private data class RecentAppRecord(val speedBytesSec: Double, val timestamp: Long)
 
     private val handler = Handler(Looper.getMainLooper())
@@ -135,8 +159,12 @@ class SpeedMonitorService : Service() {
 
     private var lastRxBytes: Long = 0L
     private var lastTxBytes: Long = 0L
-    private var lastTime: Long = 0L
+    private var lastElapsedRealtimeNanos: Long = 0L
+    private var lastValidSampleTimeMillis: Long = 0L
+    private var isCollectionError: Boolean = false
     private var lastStatsUpdateTime: Long = 0L
+    private var connectivityManager: ConnectivityManager? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     // Cached daily stats from NetworkStatsManager
     private var dailyMobileTotal: Long = 0L
@@ -184,6 +212,12 @@ class SpeedMonitorService : Service() {
         }
     }
 
+    private fun resetBaselineCounters() {
+        lastRxBytes = TrafficStats.getTotalRxBytes()
+        lastTxBytes = TrafficStats.getTotalTxBytes()
+        lastElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+    }
+
     override fun onCreate() {
         super.onCreate()
         settings = NetSpeedSettings(this)
@@ -196,9 +230,22 @@ class SpeedMonitorService : Service() {
             startForeground(NOTIFICATION_ID, initialNotif)
         }
 
-        lastRxBytes = TrafficStats.getTotalRxBytes()
-        lastTxBytes = TrafficStats.getTotalTxBytes()
-        lastTime = System.currentTimeMillis()
+        resetBaselineCounters()
+        lastValidSampleTimeMillis = System.currentTimeMillis()
+
+        connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        runCatching {
+            networkCallback = object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    resetBaselineCounters()
+                }
+                override fun onLost(network: Network) {
+                    resetBaselineCounters()
+                }
+            }
+            val request = NetworkRequest.Builder().build()
+            connectivityManager?.registerNetworkCallback(request, networkCallback!!)
+        }
 
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
@@ -291,8 +338,8 @@ class SpeedMonitorService : Service() {
             startForeground(NOTIFICATION_ID, notif)
         }
 
-        lastRxBytes = TrafficStats.getTotalRxBytes()
-        lastTxBytes = TrafficStats.getTotalTxBytes()
+        resetBaselineCounters()
+        lastValidSampleTimeMillis = System.currentTimeMillis()
         lastStatsUpdateTime = 0L // Force update on start
 
         handler.removeCallbacks(updateRunnable)
@@ -305,6 +352,9 @@ class SpeedMonitorService : Service() {
 
     override fun onDestroy() {
         isServiceRunning = false
+        runCatching {
+            networkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
+        }
         try {
             unregisterReceiver(screenReceiver)
         } catch (_: Exception) {}
@@ -340,6 +390,7 @@ class SpeedMonitorService : Service() {
     }
 
     private fun updateStats(forceUpdate: Boolean = false) {
+        val nowNanos = SystemClock.elapsedRealtimeNanos()
         val currentTime = System.currentTimeMillis()
 
         // Update daily totals from system every 30 seconds to save battery
@@ -351,17 +402,40 @@ class SpeedMonitorService : Service() {
         val currentTotalRx = TrafficStats.getTotalRxBytes()
         val currentTotalTx = TrafficStats.getTotalTxBytes()
 
-        val deltaTime = ((currentTime - lastTime) / 1000.0).coerceAtLeast(0.1)
+        val isSupported = currentTotalRx != TrafficStats.UNSUPPORTED.toLong() && currentTotalTx != TrafficStats.UNSUPPORTED.toLong()
 
-        val deltaRx = if (lastRxBytes > 0 && currentTotalRx >= lastRxBytes) currentTotalRx - lastRxBytes else 0L
-        val deltaTx = if (lastTxBytes > 0 && currentTotalTx >= lastTxBytes) currentTotalTx - lastTxBytes else 0L
+        val deltaNanos = if (lastElapsedRealtimeNanos > 0L) nowNanos - lastElapsedRealtimeNanos else 0L
+        val deltaTime = (deltaNanos.toDouble() / 1_000_000_000.0).coerceAtLeast(0.1)
 
-        val downloadSpeed = deltaRx / deltaTime
-        val uploadSpeed = deltaTx / deltaTime
+        val rxState = TelemetryValidator.evaluateCounter(currentTotalRx, lastRxBytes)
+        val txState = TelemetryValidator.evaluateCounter(currentTotalTx, lastTxBytes)
 
-        lastRxBytes = currentTotalRx
-        lastTxBytes = currentTotalTx
-        lastTime = currentTime
+        if (!isSupported || rxState == TelemetryValidator.CounterState.NEGATIVE_OR_UNSUPPORTED || txState == TelemetryValidator.CounterState.NEGATIVE_OR_UNSUPPORTED) {
+            isCollectionError = true
+        } else if (rxState == TelemetryValidator.CounterState.RESET_OR_REBOOT || txState == TelemetryValidator.CounterState.RESET_OR_REBOOT) {
+            // Reinicialização de contadores detectada (reboot ou reinício de driver de rede)
+            isCollectionError = false
+            lastRxBytes = currentTotalRx
+            lastTxBytes = currentTotalTx
+            lastElapsedRealtimeNanos = nowNanos
+            lastValidSampleTimeMillis = currentTime
+            return
+        } else {
+            isCollectionError = false
+        }
+
+        val deltaRx = if (!isCollectionError && lastRxBytes > 0L && currentTotalRx >= lastRxBytes) currentTotalRx - lastRxBytes else 0L
+        val deltaTx = if (!isCollectionError && lastTxBytes > 0L && currentTotalTx >= lastTxBytes) currentTotalTx - lastTxBytes else 0L
+
+        val downloadSpeed = if (!isCollectionError && isSupported) deltaRx / deltaTime else 0.0
+        val uploadSpeed = if (!isCollectionError && isSupported) deltaTx / deltaTime else 0.0
+
+        if (!isCollectionError && isSupported) {
+            lastRxBytes = currentTotalRx
+            lastTxBytes = currentTotalTx
+            lastElapsedRealtimeNanos = nowNanos
+            lastValidSampleTimeMillis = currentTime
+        }
 
         val isDownload = downloadSpeed >= uploadSpeed
         val displaySpeed = if (isDownload) downloadSpeed else uploadSpeed
@@ -535,8 +609,14 @@ class SpeedMonitorService : Service() {
         recentActiveApps.entries.removeAll { (currentTime - it.value.timestamp) > 2500L }
 
         val activeList = recentActiveApps.map { (name, record) ->
-            val speed = if (totalDeviceSpeed > 0.0) minOf(record.speedBytesSec, totalDeviceSpeed) else record.speedBytesSec
-            ActiveAppSpeed(name, speed)
+            val hasDivergence = totalDeviceSpeed > 0.0 && record.speedBytesSec > (totalDeviceSpeed * 1.05)
+            ActiveAppSpeed(
+                appName = name,
+                speedBytesSec = record.speedBytesSec,
+                nature = TelemetryNature.AGGREGATED_STATISTIC,
+                confidence = if (hasDivergence) ConfidenceLevel.LOW else ConfidenceLevel.MEDIUM,
+                hasDivergence = hasDivergence,
+            )
         }.filter { it.speedBytesSec >= minBytesPerSec }
          .sortedByDescending { it.speedBytesSec }
          .take(4)
@@ -580,18 +660,28 @@ class SpeedMonitorService : Service() {
             1000 -> "Sistema Android"
             else -> {
                 val packages = packageManager.getPackagesForUid(uid)
-                val pkg = packages?.firstOrNull() ?: packageManager.getNameForUid(uid) ?: "UID $uid"
-                if (pkg == packageName) return null
-                try {
-                    val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        packageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        packageManager.getApplicationInfo(pkg, 0)
+                if (packages.isNullOrEmpty()) {
+                    packageManager.getNameForUid(uid) ?: "UID $uid"
+                } else if (packages.size > 1) {
+                    val firstApp = runCatching {
+                        val info = packageManager.getApplicationInfo(packages[0], 0)
+                        packageManager.getApplicationLabel(info).toString()
+                    }.getOrDefault(packages[0])
+                    "$firstApp (+${packages.size - 1} apps)"
+                } else {
+                    val pkg = packages[0]
+                    if (pkg == packageName) return null
+                    try {
+                        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            packageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0))
+                        } else {
+                            @Suppress("DEPRECATION")
+                            packageManager.getApplicationInfo(pkg, 0)
+                        }
+                        packageManager.getApplicationLabel(info).toString()
+                    } catch (_: Exception) {
+                        pkg
                     }
-                    packageManager.getApplicationLabel(info).toString()
-                } catch (_: Exception) {
-                    pkg
                 }
             }
         }
@@ -665,26 +755,49 @@ class SpeedMonitorService : Service() {
             builder.setSmallIcon(R.drawable.ic_net_speed)
         }
 
+        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val lastSampleTimeStr = if (lastValidSampleTimeMillis > 0L) {
+            timeFormat.format(Date(lastValidSampleTimeMillis))
+        } else {
+            "--:--:--"
+        }
+        val statusText = when {
+            isCollectionError -> getString(R.string.telemetry_status_error)
+            !isScreenOn -> getString(R.string.telemetry_status_paused)
+            System.currentTimeMillis() - lastValidSampleTimeMillis > 12000L && lastValidSampleTimeMillis > 0L -> getString(R.string.telemetry_status_stale)
+            else -> getString(R.string.telemetry_status_active)
+        }
+
         // Expanded view showing speeds, daily usage, and active apps if toggled
         val bigTextStyle = NotificationCompat.BigTextStyle()
         val bigText = buildString {
+            appendLine(getString(R.string.net_speed_status, statusText))
+            appendLine(getString(R.string.net_speed_last_sample, lastSampleTimeStr))
+
             if (settings.isRealTimeEnabled) {
-                append("${getString(R.string.net_speed_download)}: $downSpeedText  |  ${getString(R.string.net_speed_upload)}: $upSpeedText")
+                if (isCollectionError) {
+                    appendLine("${getString(R.string.net_speed_download)}: --  |  ${getString(R.string.net_speed_upload)}: --")
+                } else {
+                    appendLine("${getString(R.string.net_speed_download)}: $downSpeedText  |  ${getString(R.string.net_speed_upload)}: $upSpeedText")
+                }
             }
             if (settings.isDailyUsageEnabled) {
-                if (isNotEmpty()) append("\n\n")
-                append("${getString(R.string.net_speed_mobile_today)}: $mobileText\n")
-                append("${getString(R.string.net_speed_wifi_today)}: $wifiText")
+                appendLine("${getString(R.string.net_speed_mobile_today)}: $mobileText")
+                appendLine("${getString(R.string.net_speed_wifi_today)}: $wifiText")
             }
 
             if (isViewingApps) {
-                append("\n\n")
+                append("\n")
                 if (!hasUsagePermission) {
                     append(getString(R.string.net_speed_permission_required))
                 } else if (activeApps.isNotEmpty()) {
                     appendLine(getString(R.string.net_speed_active_apps_header, settings.minAppUsageKb))
                     for (app in activeApps) {
-                        appendLine("• ${app.appName}: ${formatSpeed(app.speedBytesSec)}")
+                        if (app.hasDivergence) {
+                            appendLine(getString(R.string.net_speed_app_divergence, app.appName, formatSpeed(app.speedBytesSec)))
+                        } else {
+                            appendLine("• ${app.appName}: ${formatSpeed(app.speedBytesSec)}")
+                        }
                     }
                 } else if (isAppsLoading) {
                     append(getString(R.string.net_speed_calculating_apps))

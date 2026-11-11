@@ -2,6 +2,8 @@
 package dev.may.taskmanager.root.anomaly
 
 import dev.may.taskmanager.R
+import dev.may.taskmanager.telemetry.ConfidenceLevel
+import dev.may.taskmanager.telemetry.TelemetryNature
 import java.util.UUID
 
 enum class AnomalyType(val labelPt: String, val labelEn: String, val iconEmoji: String = "") {
@@ -53,6 +55,22 @@ data class AnomalyEvent(
     val pid: Int? = null,
     val serviceOrProcess: String? = null,
     val probableCause: String? = null,
+    // Campos de rastreabilidade tecnica e confiabilidade
+    val rawValue: Double = 0.0,
+    val unit: String = "",
+    val uid: Int? = null,
+    val startTime: Long = timestamp,
+    val endTime: Long = timestamp,
+    val durationMs: Long = (endTime - startTime).coerceAtLeast(0L),
+    val confidence: ConfidenceLevel = ConfidenceLevel.HIGH,
+    val nature: TelemetryNature = TelemetryNature.DIRECT_MEASUREMENT,
+    val source: String = "system",
+    val isEstimated: Boolean = false,
+    val isComplete: Boolean = true,
+    val rootAvailable: Boolean = false,
+    val collectionMethod: String = "native",
+    val isFallback: Boolean = false,
+    val reason: String? = null,
 )
 
 data class AnomalyWatcherConfig(
@@ -63,4 +81,29 @@ data class AnomalyWatcherConfig(
     val notifyRam: Boolean = true,
     val notifyDeepSleep: Boolean = true,
     val whitelistedPackages: Set<String> = emptySet(),
+)
+
+/**
+ * Estados da maquina de estados de monitoramento em segundo plano.
+ */
+enum class AnomalyWatcherState {
+    INACTIVE,
+    PREPARING_CAPTURE,
+    CAPTURE_COMPLETED,
+    SCREEN_OFF,
+    EVALUATION_IN_PROGRESS,
+    EVALUATION_COMPLETED,
+    COLLECTION_UNAVAILABLE,
+    MONITORING_ERROR
+}
+
+/**
+ * Resolucao confiavel e transparente de pacotes associados a um UID.
+ */
+data class ResolvedUidInfo(
+    val primaryPackage: String,
+    val displayName: String,
+    val isSharedUid: Boolean,
+    val packageCount: Int,
+    val allPackages: List<String>,
 )
