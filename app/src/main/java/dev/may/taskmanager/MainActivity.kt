@@ -39,6 +39,7 @@ import dev.may.taskmanager.ui.root.TaskManagerScreen
 import dev.may.taskmanager.ui.settings.SettingsScreen
 import dev.may.taskmanager.ui.theme.MayTheme
 import dev.may.taskmanager.ui.theme.glass.WallpaperGlassProvider
+import dev.may.taskmanager.update.UpdateManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -75,6 +76,7 @@ class MainActivity : ComponentActivity() {
                         allApps = apps
                     }
                 }
+                UpdateManager.checkForUpdates(this@MainActivity, force = false)
             }
 
             DisposableEffect(activeThemeId) {

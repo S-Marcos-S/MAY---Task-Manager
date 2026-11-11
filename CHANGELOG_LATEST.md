@@ -1,7 +1,5 @@
-### MAY Task Manager v1.0.26
-- Correcao do calculo de CPU dos processos em tempo real estabilizando a chave de rastreamento delta de CPU por PID e comando.
-- Implementacao de parser dinamico baseado em cabecalho do comando ps para compatibilidade universal com variantes toybox e procps.
-- Correcao da execucao do comando top na inspecao de aplicativos removendo a opcao invalida -q e preservando a medicao de CPU retornada por ps.
-- Atualizacao do BackgroundAnomalyWatcher para leitura confiavel de processos em segundo plano sem perda de historico.
-- Adicao de testes unitarios de regressao para calculo delta de CPU, compatibilidade de colunas e protecao contra reciclagem de PID.
+### MAY Task Manager v1.0.27
+- Correcao do comparador de versoes do UpdateManager para suporte completo a SemVer e tags de pre-release (beta).
+- Adicao de checagem automatica de atualizacoes em segundo plano na inicializacao do aplicativo (MainActivity).
+- Adicao de testes unitarios de regressao para comparacao de versoes estaveis e releases beta.
 ---

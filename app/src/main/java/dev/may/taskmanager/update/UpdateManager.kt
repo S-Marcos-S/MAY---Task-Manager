@@ -191,17 +191,63 @@ object UpdateManager {
         null
     }
 
-    private fun isVersionGreater(remote: String, local: String): Boolean {
-        val rParts = remote.split(".").mapNotNull { it.toIntOrNull() }
-        val lParts = local.split(".").mapNotNull { it.toIntOrNull() }
-        val maxLen = maxOf(rParts.size, lParts.size)
-        for (i in 0 until maxLen) {
-            val r = rParts.getOrElse(i) { 0 }
-            val l = lParts.getOrElse(i) { 0 }
-            if (r > l) return true
-            if (r < l) return false
+    internal data class ParsedVersion(
+        val numbers: List<Int>,
+        val preRelease: String?,
+    ) : Comparable<ParsedVersion> {
+
+        companion object {
+            fun parse(versionStr: String): ParsedVersion {
+                val clean = versionStr.trim()
+                    .removePrefix("v")
+                    .removePrefix("V")
+                    .trim()
+
+                val mainPart = clean.substringBefore("-").substringBefore("+")
+                val preReleasePart = if (clean.contains("-")) {
+                    clean.substringAfter("-").substringBefore("+").trim()
+                } else null
+
+                val numbers = mainPart.split(".")
+                    .mapNotNull { it.trim().toIntOrNull() }
+
+                return ParsedVersion(numbers, preReleasePart)
+            }
         }
-        return false
+
+        override fun compareTo(other: ParsedVersion): Int {
+            val maxLen = maxOf(numbers.size, other.numbers.size)
+            for (i in 0 until maxLen) {
+                val a = numbers.getOrElse(i) { 0 }
+                val b = other.numbers.getOrElse(i) { 0 }
+                if (a != b) return a.compareTo(b)
+            }
+
+            // A normal version (stable) has higher precedence than a pre-release version:
+            // e.g. 1.0.26 (stable) > 1.0.26-beta
+            return when {
+                preRelease == null && other.preRelease == null -> 0
+                preRelease == null && other.preRelease != null -> 1
+                preRelease != null && other.preRelease == null -> -1
+                else -> comparePreRelease(preRelease, other.preRelease)
+            }
+        }
+
+        private fun comparePreRelease(a: String, b: String): Int {
+            if (a.equals(b, ignoreCase = true)) return 0
+            val aNum = Regex("\\d+").find(a)?.value?.toIntOrNull()
+            val bNum = Regex("\\d+").find(b)?.value?.toIntOrNull()
+            if (aNum != null && bNum != null && aNum != bNum) {
+                return aNum.compareTo(bNum)
+            }
+            return a.compareTo(b, ignoreCase = true)
+        }
+    }
+
+    internal fun isVersionGreater(remote: String, local: String): Boolean {
+        val r = ParsedVersion.parse(remote)
+        val l = ParsedVersion.parse(local)
+        return r > l
     }
 
     private fun fetchUrl(urlStr: String): String? {
