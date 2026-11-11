@@ -110,9 +110,9 @@ object SystemTaskInspector {
     private data class NetSample(val rx: Long, val tx: Long, val timestamp: Long)
     private val lastNetSample = AtomicReference<NetSample?>(null)
 
-    data class ProcessKey(val pid: Int, val elapsed: String)
+    data class ProcessKey(val pid: Int, val command: String)
     private data class ProcCpuSnapshot(val cpuTimeMs: Long, val timestampMs: Long)
-    private val processCpuHistory = ConcurrentHashMap<ProcessKey, ProcCpuSnapshot>()
+    internal val processCpuHistory = ConcurrentHashMap<ProcessKey, ProcCpuSnapshot>()
 
     /**
      * Parses time strings produced by ps (e.g., "0:01.01", "52:15.18", "01:36:15.22", "1-02:03:04.50")
@@ -421,7 +421,7 @@ object SystemTaskInspector {
             dumpsys activity activities 2>/dev/null | grep -E "topResumedActivity|mResumedActivity|visible=true"
             dumpsys activity recents 2>/dev/null | grep -E "Recent #0"
             echo "===PS==="
-            ps -A -o PID,USER,S,RSS,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,S,RSS,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -A -o PID,USER,S,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,S,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null
+            ps -A -o pid,user,s,rss,%mem,time,args 2>/dev/null || ps -o pid,user,s,rss,%mem,time,args 2>/dev/null || ps -A -o PID,USER,S,RSS,%MEM,TIME,ARGS 2>/dev/null || ps -o PID,USER,S,RSS,%MEM,TIME,ARGS 2>/dev/null || ps -A -o pid,user,%cpu,%mem,args 2>/dev/null || ps -o pid,user,%cpu,%mem,args 2>/dev/null || ps -A -o PID,USER,%CPU,%MEM,ARGS 2>/dev/null || ps -o PID,USER,%CPU,%MEM,ARGS 2>/dev/null || ps -A -o PID,USER,S,RSS,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,S,RSS,%MEM,TIME+,ELAPSED,ARGS 2>/dev/null || ps -A 2>/dev/null || ps 2>/dev/null
         """.trimIndent()
 
         val output = AppRootInspector.runSuCommand(shellScript).getOrDefault("")
@@ -437,109 +437,9 @@ object SystemTaskInspector {
         val coresCount = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
 
         val nowRealtime = SystemClock.elapsedRealtime()
-        val currentKeys = mutableSetOf<ProcessKey>()
 
         // Parse processes with instantaneous delta CPU sampling (preventing cumulative lifetime %CPU decay)
-        val rawList = mutableListOf<RawProc>()
-        psText.lineSequence().forEach { line ->
-            val trimmed = line.trim()
-            if (trimmed.isEmpty() || trimmed.startsWith("PID")) return@forEach
-            val tokens = trimmed.split(Regex("\\s+"))
-            if (tokens.size < 5) return@forEach
-
-            val pid = tokens[0].toIntOrNull() ?: return@forEach
-            val user = tokens[1]
-
-            // Check if format contains RSS: PID,USER,S,RSS,%MEM,TIME+,ELAPSED,ARGS
-            val hasRss = tokens.size >= 8 && tokens[5].contains(":")
-            val isHighPrecision = hasRss || (tokens.size >= 7 && (tokens[4].contains(":") || tokens[2].length == 1))
-
-            var cpuPercent = 0.0
-            var memPercent = 0.0
-            var rssMb: Double? = null
-            var elapsedStr = ""
-            var args = ""
-
-            if (hasRss) {
-                val state = tokens[2]
-                val rssKb = tokens[3].toDoubleOrNull() ?: 0.0
-                rssMb = rssKb / 1024.0
-                memPercent = tokens[4].toDoubleOrNull() ?: 0.0
-                val timeStr = tokens[5]
-                elapsedStr = tokens[6]
-                args = tokens.subList(7, tokens.size).joinToString(" ")
-
-                val cpuTimeMs = parseCpuTimeToMs(timeStr)
-                val key = ProcessKey(pid, elapsedStr)
-                currentKeys.add(key)
-                val prev = processCpuHistory[key]
-                processCpuHistory[key] = ProcCpuSnapshot(cpuTimeMs, nowRealtime)
-
-                cpuPercent = if (prev != null) {
-                    val deltaCpuMs = (cpuTimeMs - prev.cpuTimeMs).coerceAtLeast(0L)
-                    val deltaWallMs = (nowRealtime - prev.timestampMs).coerceAtLeast(1L)
-                    if (deltaCpuMs == 0L) {
-                        0.0
-                    } else {
-                        ((deltaCpuMs.toDouble() / (deltaWallMs * coresCount)) * 100.0).coerceIn(0.0, 100.0)
-                    }
-                } else {
-                    if (state == "S" || state == "I" || state == "Z" || state == "T") {
-                        0.0
-                    } else {
-                        val elapsedMs = parseElapsedTimeToMs(elapsedStr)
-                        if (elapsedMs in 1..4000L) {
-                            ((cpuTimeMs.toDouble() / (elapsedMs * coresCount)) * 100.0).coerceIn(0.0, 100.0)
-                        } else {
-                            0.0
-                        }
-                    }
-                }
-            } else if (isHighPrecision) {
-                val state = tokens[2]
-                memPercent = tokens[3].toDoubleOrNull() ?: 0.0
-                val timeStr = tokens[4]
-                elapsedStr = tokens[5]
-                args = tokens.subList(6, tokens.size).joinToString(" ")
-
-                val cpuTimeMs = parseCpuTimeToMs(timeStr)
-                val key = ProcessKey(pid, elapsedStr)
-                currentKeys.add(key)
-                val prev = processCpuHistory[key]
-                processCpuHistory[key] = ProcCpuSnapshot(cpuTimeMs, nowRealtime)
-
-                cpuPercent = if (prev != null) {
-                    val deltaCpuMs = (cpuTimeMs - prev.cpuTimeMs).coerceAtLeast(0L)
-                    val deltaWallMs = (nowRealtime - prev.timestampMs).coerceAtLeast(1L)
-                    if (deltaCpuMs == 0L) {
-                        0.0
-                    } else {
-                        ((deltaCpuMs.toDouble() / (deltaWallMs * coresCount)) * 100.0).coerceIn(0.0, 100.0)
-                    }
-                } else {
-                    if (state == "S" || state == "I" || state == "Z" || state == "T") {
-                        0.0
-                    } else {
-                        val elapsedMs = parseElapsedTimeToMs(elapsedStr)
-                        if (elapsedMs in 1..4000L) {
-                            ((cpuTimeMs.toDouble() / (elapsedMs * coresCount)) * 100.0).coerceIn(0.0, 100.0)
-                        } else {
-                            0.0
-                        }
-                    }
-                }
-            } else {
-                val rawCpu = tokens[2].toDoubleOrNull() ?: 0.0
-                cpuPercent = (rawCpu / coresCount).coerceIn(0.0, 100.0)
-                memPercent = tokens[3].toDoubleOrNull() ?: 0.0
-                args = tokens.subList(4, tokens.size).joinToString(" ")
-            }
-
-            rawList.add(RawProc(pid, user, cpuPercent, memPercent, args, rssMb, elapsedStr))
-        }
-
-        // Clean up history for dead/terminated PIDs
-        processCpuHistory.keys.retainAll(currentKeys)
+        val rawList = parsePsLines(psText, coresCount = coresCount, nowRealtime = nowRealtime)
 
         // Get total system RAM to convert %MEM into MB
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
@@ -685,7 +585,7 @@ object SystemTaskInspector {
         )
     }
 
-    private data class RawProc(
+    internal data class RawProc(
         val pid: Int,
         val user: String,
         val cpuPercent: Double,
@@ -694,6 +594,113 @@ object SystemTaskInspector {
         val rssMb: Double? = null,
         val elapsedStr: String = "",
     )
+
+    fun parsePsLines(
+        psText: String,
+        coresCount: Int = 1,
+        nowRealtime: Long = SystemClock.elapsedRealtime(),
+    ): List<RawProc> {
+        val rawList = mutableListOf<RawProc>()
+        val currentKeys = mutableSetOf<ProcessKey>()
+        val effectiveCores = coresCount.coerceAtLeast(1)
+
+        var pidIdx = 0
+        var userIdx = 1
+        var stateIdx = -1
+        var rssIdx = -1
+        var memIdx = -1
+        var cpuIdx = -1
+        var timeIdx = -1
+        var elapsedIdx = -1
+        var argsIdx = -1
+        var hasHeader = false
+
+        psText.lineSequence().forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) return@forEach
+
+            // Check if this line is the header
+            if (trimmed.startsWith("PID", ignoreCase = true) && !hasHeader) {
+                val headerTokens = trimmed.split(Regex("\\s+")).map { it.uppercase(Locale.ROOT) }
+                pidIdx = headerTokens.indexOf("PID")
+                userIdx = headerTokens.indexOf("USER")
+                stateIdx = headerTokens.indexOfFirst { it == "S" || it == "STAT" || it == "STATE" }
+                rssIdx = headerTokens.indexOf("RSS")
+                memIdx = headerTokens.indexOf("%MEM")
+                cpuIdx = headerTokens.indexOf("%CPU")
+                timeIdx = headerTokens.indexOfFirst { it == "TIME" || it == "TIME+" }
+                elapsedIdx = headerTokens.indexOf("ELAPSED")
+                argsIdx = headerTokens.indexOfFirst { it == "ARGS" || it == "COMMAND" || it == "CMD" }
+                hasHeader = true
+                return@forEach
+            }
+
+            val tokens = trimmed.split(Regex("\\s+"))
+            if (tokens.size < 4) return@forEach
+
+            val pid = tokens.getOrNull(if (pidIdx >= 0) pidIdx else 0)?.toIntOrNull() ?: return@forEach
+            val user = tokens.getOrNull(if (userIdx >= 0) userIdx else 1) ?: "unknown"
+
+            val state = if (stateIdx >= 0 && stateIdx < tokens.size) tokens[stateIdx] else "S"
+            val rssKb = if (rssIdx >= 0 && rssIdx < tokens.size) tokens[rssIdx].toDoubleOrNull() ?: 0.0 else 0.0
+            val rssMb = if (rssIdx >= 0 && rssKb > 0.0) rssKb / 1024.0 else null
+            val memPercent = if (memIdx >= 0 && memIdx < tokens.size) tokens[memIdx].toDoubleOrNull() ?: 0.0 else 0.0
+            val rawCpu = if (cpuIdx >= 0 && cpuIdx < tokens.size) tokens[cpuIdx].replace("%", "").toDoubleOrNull() else null
+            val timeStr = if (timeIdx >= 0 && timeIdx < tokens.size) tokens[timeIdx] else null
+            val elapsedStr = if (elapsedIdx >= 0 && elapsedIdx < tokens.size) tokens[elapsedIdx] else ""
+
+            val args = if (argsIdx >= 0 && argsIdx < tokens.size) {
+                tokens.subList(argsIdx, tokens.size).joinToString(" ")
+            } else {
+                val maxCol = maxOf(pidIdx, userIdx, stateIdx, rssIdx, memIdx, cpuIdx, timeIdx, elapsedIdx)
+                if (maxCol >= 0 && maxCol + 1 < tokens.size) {
+                    tokens.drop(maxCol + 1).joinToString(" ")
+                } else {
+                    tokens.lastOrNull() ?: ""
+                }
+            }
+
+            val cleanCmd = args.substringBefore(" ").substringAfterLast("/").removeSurrounding("[", "]").removeSurrounding("(", ")")
+            val key = ProcessKey(pid, cleanCmd)
+            currentKeys.add(key)
+
+            var cpuPercent = 0.0
+
+            if (timeStr != null && timeStr.contains(":")) {
+                val cpuTimeMs = parseCpuTimeToMs(timeStr)
+                val prev = processCpuHistory[key]
+                processCpuHistory[key] = ProcCpuSnapshot(cpuTimeMs, nowRealtime)
+
+                cpuPercent = if (prev != null) {
+                    val deltaCpuMs = cpuTimeMs - prev.cpuTimeMs
+                    val deltaWallMs = (nowRealtime - prev.timestampMs).coerceAtLeast(1L)
+                    if (deltaCpuMs < 0L || deltaWallMs > 60000L) {
+                        // PID was recycled or snapshot is stale
+                        if (rawCpu != null) (rawCpu / effectiveCores).coerceIn(0.0, 100.0) else 0.0
+                    } else if (deltaCpuMs == 0L) {
+                        0.0
+                    } else {
+                        ((deltaCpuMs.toDouble() / (deltaWallMs * effectiveCores)) * 100.0).coerceIn(0.0, 100.0)
+                    }
+                } else {
+                    if (rawCpu != null) {
+                        (rawCpu / effectiveCores).coerceIn(0.0, 100.0)
+                    } else {
+                        0.0
+                    }
+                }
+            } else if (rawCpu != null) {
+                cpuPercent = (rawCpu / effectiveCores).coerceIn(0.0, 100.0)
+            }
+
+            rawList.add(RawProc(pid, user, cpuPercent, memPercent, args, rssMb, elapsedStr))
+        }
+
+        // Clean up history for dead/terminated PIDs
+        processCpuHistory.keys.retainAll(currentKeys)
+
+        return rawList
+    }
 
     private suspend fun sampleGlobalCpuUsage(now: Long): Double {
         return try {

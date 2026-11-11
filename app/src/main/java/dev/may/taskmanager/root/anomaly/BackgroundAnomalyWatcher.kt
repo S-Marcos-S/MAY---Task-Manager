@@ -854,7 +854,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
             return
         }
 
-        val psOutput = AppRootInspector.runSuCommand("ps -A -o PID,USER,TIME,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,TIME,ELAPSED,ARGS 2>/dev/null").getOrNull() ?: ""
+        val psOutput = AppRootInspector.runSuCommand("ps -A -o pid,user,time,args 2>/dev/null || ps -o pid,user,time,args 2>/dev/null || ps -A -o PID,USER,TIME,ARGS 2>/dev/null || ps -o PID,USER,TIME,ARGS 2>/dev/null || ps -A -o PID,USER,TIME,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,TIME,ELAPSED,ARGS 2>/dev/null").getOrNull() ?: ""
         if (psOutput.isBlank()) return
 
         val nowMono = SystemClock.elapsedRealtime()
@@ -862,19 +862,20 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
         psOutput.lineSequence().forEach { line ->
             val trimmed = line.trim()
-            if (trimmed.isEmpty() || trimmed.startsWith("PID")) return@forEach
+            if (trimmed.isEmpty() || trimmed.startsWith("PID", ignoreCase = true)) return@forEach
             val tokens = trimmed.split(Regex("\\s+"))
-            if (tokens.size >= 5) {
+            if (tokens.size >= 4) {
                 val pid = tokens[0].toIntOrNull() ?: return@forEach
                 val timeStr = tokens[2]
-                val elapsedStr = tokens[3]
+                val hasElapsed = tokens.size >= 5 && (tokens[3].contains(":") || tokens[3].contains("-")) && !tokens[3].contains(".")
+                val cmdTokens = if (hasElapsed) tokens.subList(4, tokens.size) else tokens.subList(3, tokens.size)
                 val cpuTimeMs = SystemTaskInspector.parseCpuTimeToMs(timeStr)
-                val cmd = tokens.subList(4, tokens.size).joinToString(" ")
+                val cmd = cmdTokens.joinToString(" ")
                 val cleanCmd = cmd.substringBefore(" ").substringAfterLast("/").removeSurrounding("[", "]").removeSurrounding("(", ")")
 
                 if (cleanCmd.contains(".") && !cleanCmd.startsWith("/")) {
                     val pkgName = cleanCmd.substringBefore(":")
-                    val identity = ProcessIdentity(pid, cleanCmd, elapsedStr)
+                    val identity = ProcessIdentity(pid, cleanCmd)
                     currentIdentities.add(identity)
 
                     // Proteção de primeiro plano: se o pacote ou seu processo estiver visível/em primeiro plano
@@ -990,10 +991,10 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
         // Identifica processos com RSS alto em segundo plano
         if (AppRootInspector.isRootAvailable()) {
-            val psOutput = AppRootInspector.runSuCommand("ps -A -o PID,USER,RSS,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,RSS,ELAPSED,ARGS 2>/dev/null || ps -A -o PID,USER,RSS,ARGS 2>/dev/null || ps -o PID,USER,RSS,ARGS 2>/dev/null").getOrNull() ?: ""
+            val psOutput = AppRootInspector.runSuCommand("ps -A -o pid,user,rss,args 2>/dev/null || ps -o pid,user,rss,args 2>/dev/null || ps -A -o PID,USER,RSS,ARGS 2>/dev/null || ps -o PID,USER,RSS,ARGS 2>/dev/null || ps -A -o PID,USER,RSS,ELAPSED,ARGS 2>/dev/null || ps -o PID,USER,RSS,ELAPSED,ARGS 2>/dev/null").getOrNull() ?: ""
             psOutput.lineSequence().forEach { line ->
                 val trimmed = line.trim()
-                if (trimmed.isEmpty() || trimmed.startsWith("PID")) return@forEach
+                if (trimmed.isEmpty() || trimmed.startsWith("PID", ignoreCase = true)) return@forEach
                 val tokens = trimmed.split(Regex("\\s+"))
                 if (tokens.size >= 4) {
                     val pid = tokens[0].toIntOrNull() ?: return@forEach
@@ -1007,7 +1008,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
 
                     if (cleanCmd.contains(".") && !cleanCmd.startsWith("/")) {
                         val pkgName = cleanCmd.substringBefore(":")
-                        val identity = ProcessIdentity(pid, cleanCmd, elapsedStr)
+                        val identity = ProcessIdentity(pid, cleanCmd)
                         currentIdentities.add(identity)
 
                         if (visiblePackages.contains(pkgName)) {

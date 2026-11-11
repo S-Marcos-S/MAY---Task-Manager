@@ -1,8 +1,7 @@
-### MAY Task Manager v1.0.25
-- Remocao do fallback de mascaramento de erros na inspecao root, propagando falhas autenticas e preservando dados validos anteriores na interface.
-- Restauracao da coleta otimizada de dumpsys batterystats checkin filtrada por UID para extracao de metricas de hardware pwi e tempos de processo pr.
-- Tratamento correto de UID nao resolvido sem atribuicao a root (UID 0) e sem consulta de contadores de sistema.
-- Validacao rigorosa de PIDs retornados por pgrep -f atraves da checagem de /proc/pid/cmdline para descartar processos de terceiros.
-- Adicao de testes de regressao para timeout, falha de root, preservacao de dados de UI, ausencia de UID e parsing de checkin.
-- Configuracao de geracao automatica de Release Beta na branch test para usuarios de teste sem destaque no repositorio.
+### MAY Task Manager v1.0.26
+- Correcao do calculo de CPU dos processos em tempo real estabilizando a chave de rastreamento delta de CPU por PID e comando.
+- Implementacao de parser dinamico baseado em cabecalho do comando ps para compatibilidade universal com variantes toybox e procps.
+- Correcao da execucao do comando top na inspecao de aplicativos removendo a opcao invalida -q e preservando a medicao de CPU retornada por ps.
+- Atualizacao do BackgroundAnomalyWatcher para leitura confiavel de processos em segundo plano sem perda de historico.
+- Adicao de testes unitarios de regressao para calculo delta de CPU, compatibilidade de colunas e protecao contra reciclagem de PID.
 ---

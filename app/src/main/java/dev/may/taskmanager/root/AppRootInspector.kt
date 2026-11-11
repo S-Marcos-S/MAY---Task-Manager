@@ -272,9 +272,9 @@ object AppRootInspector {
                 $uidPidsScript
                 $extraPidsScript
                 echo "===TOP==="
-                top -b -n 1 -q 2>/dev/null | $topGrep
+                top -b -n 1 2>/dev/null | $topGrep
                 echo "===PS==="
-                ps -A -o PID,USER,%CPU,%MEM,ARGS 2>/dev/null | $psGrep
+                (ps -A -o pid,user,%cpu,%mem,args 2>/dev/null || ps -A -o PID,USER,%CPU,%MEM,ARGS 2>/dev/null) | $psGrep
                 echo "===SMAPS==="
                 ALL_TARGET_PIDS=${'$'}(pidof $basePackageName 2>/dev/null; $uidPidsScript; $extraPidsScript)
                 for p in ${'$'}(echo "${'$'}ALL_TARGET_PIDS" | tr ' ' '\n' | sort -u); do
@@ -324,8 +324,8 @@ object AppRootInspector {
             topProcesses.forEach { processes.add(it) }
             psProcesses.forEach { psProc ->
                 if (processes.none { it.pid == psProc.pid }) {
-                    // Process present in ps but not active in top (sleeping/idle): instantaneous CPU is 0.0
-                    processes.add(psProc.copy(cpuPercent = 0.0))
+                    // Process present in ps but not in top: preserve ps CPU metric
+                    processes.add(psProc)
                 }
             }
 

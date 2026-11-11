@@ -195,4 +195,96 @@ class SystemTaskTelemetryTest {
         val rssKb = SystemTaskInspector.parseVmRssKb(statusText)
         assertEquals(null, rssKb)
     }
+
+    @Test
+    fun `parsePsLines calculates instantaneous delta cpu across consecutive samples`() {
+        SystemTaskInspector.processCpuHistory.clear()
+
+        val sample1 = """
+            PID USER S RSS %MEM TIME ARGS
+            1000 u0_a50 S 51200 2.0 0:01.00 com.whatsapp
+        """.trimIndent()
+
+        val sample2 = """
+            PID USER S RSS %MEM TIME ARGS
+            1000 u0_a50 S 51200 2.0 0:01.40 com.whatsapp
+        """.trimIndent()
+
+        // Sample 1: first observation sets baseline, returns 0.0%
+        val res1 = SystemTaskInspector.parsePsLines(sample1, coresCount = 2, nowRealtime = 10000L)
+        assertEquals(1, res1.size)
+        assertEquals(1000, res1[0].pid)
+        assertEquals("u0_a50", res1[0].user)
+        assertEquals(0.0, res1[0].cpuPercent, 0.001)
+        assertEquals(50.0, res1[0].rssMb ?: 0.0, 0.01)
+
+        // Sample 2: deltaCpu = 400ms, deltaWall = 1000ms, cores = 2 -> (400 / (1000 * 2)) * 100 = 20.0%
+        val res2 = SystemTaskInspector.parsePsLines(sample2, coresCount = 2, nowRealtime = 11000L)
+        assertEquals(1, res2.size)
+        assertEquals(1000, res2[0].pid)
+        assertEquals(20.0, res2[0].cpuPercent, 0.01)
+    }
+
+    @Test
+    fun `parsePsLines supports lowercase headers and different column formats`() {
+        SystemTaskInspector.processCpuHistory.clear()
+
+        val sample = """
+            pid user %cpu %mem command
+            2000 u0_a60 16.0 1.5 /system/bin/surfaceflinger
+        """.trimIndent()
+
+        // When TIME column is not present, directly falls back to %CPU normalized by cores
+        val res = SystemTaskInspector.parsePsLines(sample, coresCount = 4, nowRealtime = 15000L)
+        assertEquals(1, res.size)
+        assertEquals(2000, res[0].pid)
+        assertEquals("u0_a60", res[0].user)
+        assertEquals(4.0, res[0].cpuPercent, 0.01) // 16.0% / 4 cores = 4.0%
+        assertEquals(1.5, res[0].memPercent, 0.01)
+    }
+
+    @Test
+    fun `parsePsLines resets baseline cleanly when PID is recycled`() {
+        SystemTaskInspector.processCpuHistory.clear()
+
+        val sample1 = """
+            PID USER S RSS %MEM TIME ARGS
+            4000 u0_a80 S 10000 1.0 10:00.00 com.browser
+        """.trimIndent()
+
+        val sample2 = """
+            PID USER S RSS %MEM TIME ARGS
+            4000 u0_a80 S 10000 1.0 0:00.50 com.browser
+        """.trimIndent()
+
+        SystemTaskInspector.parsePsLines(sample1, coresCount = 4, nowRealtime = 50000L)
+        val res2 = SystemTaskInspector.parsePsLines(sample2, coresCount = 4, nowRealtime = 51000L)
+
+        assertEquals(1, res2.size)
+        assertEquals(0.0, res2[0].cpuPercent, 0.001)
+    }
+
+    @Test
+    fun `parsePsLines cleans up dead PIDs from processCpuHistory`() {
+        SystemTaskInspector.processCpuHistory.clear()
+
+        val sample1 = """
+            PID USER S RSS %MEM TIME ARGS
+            5001 u0_a90 S 10000 1.0 0:01.00 com.temp1
+            5002 u0_a91 S 10000 1.0 0:01.00 com.temp2
+        """.trimIndent()
+
+        SystemTaskInspector.parsePsLines(sample1, coresCount = 2, nowRealtime = 10000L)
+        assertEquals(2, SystemTaskInspector.processCpuHistory.size)
+
+        val sample2 = """
+            PID USER S RSS %MEM TIME ARGS
+            5002 u0_a91 S 10000 1.0 0:02.00 com.temp2
+        """.trimIndent()
+
+        SystemTaskInspector.parsePsLines(sample2, coresCount = 2, nowRealtime = 11000L)
+        assertEquals(1, SystemTaskInspector.processCpuHistory.size)
+        assertTrue(SystemTaskInspector.processCpuHistory.keys.any { it.pid == 5002 })
+        assertFalse(SystemTaskInspector.processCpuHistory.keys.any { it.pid == 5001 })
+    }
 }
