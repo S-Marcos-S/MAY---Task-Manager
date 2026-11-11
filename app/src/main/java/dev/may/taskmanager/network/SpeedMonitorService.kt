@@ -36,6 +36,7 @@ import dev.may.taskmanager.MainActivity
 import dev.may.taskmanager.R
 import dev.may.taskmanager.telemetry.ConfidenceLevel
 import dev.may.taskmanager.telemetry.TelemetryNature
+import dev.may.taskmanager.telemetry.TelemetryValidator
 import dev.may.taskmanager.update.RootInstaller
 import java.text.SimpleDateFormat
 import java.util.Calendar
