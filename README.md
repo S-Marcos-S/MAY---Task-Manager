@@ -28,7 +28,6 @@
 <p align="center">
   <a href="#visao-geral">Visão Geral</a> •
   <a href="#telas-do-aplicativo">Telas</a> •
-  <a href="#destaques-e-recursos">Destaques</a> •
   <a href="#modulos-do-sistema">Módulos</a> •
   <a href="#recursos-para-superusuario">Superusuário</a> •
   <a href="#temas-e-liquid-glass">Temas</a> •
@@ -44,24 +43,6 @@
 O **MAY Task Manager** (Make Android Yours) é um aplicativo dedicado ao monitoramento, análise cirúrgica e otimização avançada do sistema Android. Construído com tecnologias modernas (Kotlin 2.0+, Jetpack Compose, Coroutines, Shaders AGSL e arquitetura reativa StateFlow), o MAY combina telemetria de nível de sistema operacional com uma interface estritamente minimalista, compacta e responsiva.
 
 O aplicativo funciona tanto em dispositivos convencionais sem privilégios elevados quanto em aparelhos rooteados (Superuser / su), liberando controles diretos sobre o kernel, memória RAM, processos zumbis, wakelocks, conexões de soquete e limites de desempenho.
-
----
-
-## Destaques e Recursos
-
-- **Interface Minimalista e Compacta:** Todos os painéis, métricas e gráficos foram desenvolvidos para caber com perfeição e sem quebra de linhas na tela, sem textos prolixos ou botões superdimensionados.
-- **Telemetria de Hardware em Tempo Real:** Frequências individuais de todos os núcleos da CPU, governadores do kernel, carga percentual de CPU, uso de RAM, Swap/zRAM, temperatura de sensores térmicos e estimativas energéticas.
-- **Gráficos Interativos:** Histórico com atualização contínua e amostragem visual de carga de processamento, consumo de memória, taxas de transferência de rede e curvas de descarga da bateria.
-- **Inspetor Cirúrgico de Processos:** Análise por processo de memória PSS, RSS, threads ativas, bibliotecas nativas `.so` mapeadas e conexões abertas de rede (TCP/UDP).
-- **Encerramento Forçado e Prioridades:** Finalização imediata de processos rebeldes (`kill -9`, `am force-stop`), limpeza de cache e gerenciamento de permissões restritas.
-- **Monitor de Velocidade de Rede com Notificação Persistente:** Notificação opcional em segundo plano exibindo taxas de download/upload ao vivo, identificação dos aplicativos que mais consomem banda e limites mínimos configuráveis para economia de CPU.
-- **Diagnóstico Profundo de Bateria:** Integração com `dumpsys batterystats`, rastreador de ciclos de carga e descarga, cálculo de tempo de tela ligada e tela desligada, além de análise de sono profundo (*Deep Sleep*).
-- **Controle de Enforce Doze:** Acionamento forçado do modo Doze do Android assim que a tela é desligada, com opção de suspender sensores de movimento para máxima autonomia de bateria.
-- **Terminal Integrado e Visualizador de Logcat:** Acesso a terminal shell interativo com suporte a comandos root, acompanhado de janela de visualização em tempo real de logs do sistema e de falhas (*Crash Manager*) com filtros por pacote, tag e nível de severidade.
-- **Detector Inteligente de Anomalias em Segundo Plano:** Serviço de vigia (*BackgroundAnomalyWatcher*) que detecta picos anômalos de consumo de CPU, vazamentos de memória e despertares excessivos em repouso.
-- **Design System com Liquid Glass e Monet:** Suporte aos temas Material You (Monet Dinâmico), Liquid Glass translúcido com dispersão cromática e refração em tempo real via shaders AGSL, OLED Preto Puro, Modern Dark e Light Clean.
-- **Seletor de Temas Padronizado:** Interface com pontos seletivos animados e nome correspondente, idêntica à ergonomia refinada do projeto.
-- **Atualizador Automático Embutido:** Consulta instantânea à API do GitHub Releases ao entrar na tela de configurações, suporte a instalação silenciosa via Superuser e canal dedicado de testes Beta.
 
 ---
 
