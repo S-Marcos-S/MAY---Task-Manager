@@ -72,8 +72,14 @@ object DeviceCapabilitiesDiagnostics {
 
     fun probeSuCommand(cmd: String): Boolean {
         if (!AppRootInspector.isRootAvailable()) return false
-        val res = AppRootInspector.runSuCommand(cmd).getOrNull()
-        return !res.isNullOrBlank()
+        return runCatching {
+            val process = ProcessBuilder("su", "-c", cmd)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            val exitCode = process.waitFor()
+            exitCode == 0 && output.isNotBlank()
+        }.getOrDefault(false)
     }
 
     fun inspectProcessCpuTelemetry(context: Context): CapabilityReport {
