@@ -5,7 +5,7 @@
 <h1 align="center">MAY - Task Manager</h1>
 
 <p align="center">
-  <strong>Make Android Yours: Gerenciador avançado de tarefas, telemetria de hardware em tempo real, diagnóstico de bateria, monitoramento de rede e controle profundo de processos para Android com suporte a Superuser / Root.</strong>
+  <strong>Make Android Yours: Gerenciador avançado de tarefas, telemetria de hardware em tempo real, diagnóstico de bateria, monitoramento de rede e controle profundo de processos para Android via Superusuário / Root.</strong>
 </p>
 
 <p align="center">
