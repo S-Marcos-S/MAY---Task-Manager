@@ -109,4 +109,68 @@ class BatteryDisplayMetricsTest {
         assertEquals(4.0f, metrics.totalDischargePercent, 0.001f)
         assertEquals(160.0, metrics.totalDrainMah, 0.001)
     }
+
+    @Test
+    fun resolve_guaranteesZeroPercentAndZeroRatesWhenBatteryHasNotDischargedAnyPercentage() {
+        val now = System.currentTimeMillis()
+        val drainState = DrainState(
+            sessionStartTime = now - 30_000L,
+            sessionStartBatteryLevel = 100,
+            batteryLevel = 100,
+            screenOnTimeMs = 20_000L,
+            screenOffTimeMs = 10_000L,
+            screenOnDrainMah = 2.5,
+            screenOffDrainMah = 0.8,
+            batteryCapacityMah = 4000.0,
+        )
+
+        // Mesmo que snapshot de dumpsys contenha valores residuais não zerados
+        val staleSnapshot = BatteryStatsParser.FullSnapshot(
+            capturedAt = now,
+            batteryRealtimeMs = 15_000_000L,
+            batteryUptimeMs = 5_000_000L,
+            screenOnTimeMs = 5_000_000L,
+            screenOnDischargePercent = 12.0f,
+            screenOffDischargePercent = 6.0f,
+            estimatedCapacityMah = 4000,
+        )
+
+        val metrics = BatteryDisplayMetrics.resolve(
+            snapshot = staleSnapshot,
+            drainState = drainState
+        )
+
+        assertEquals(0f, metrics.screenOnDischargePercent, 0.001f)
+        assertEquals(0f, metrics.screenOffDischargePercent, 0.001f)
+        assertEquals(0f, metrics.totalDischargePercent, 0.001f)
+        assertEquals(0.0, metrics.totalDrainMah, 0.001)
+        assertEquals(0.0, metrics.screenOnDrainRatePercent, 0.001)
+        assertEquals(0.0, metrics.screenOffDrainRatePercent, 0.001)
+        assertEquals(0.0, metrics.averageDrainRatePercent, 0.001)
+        assertEquals(0.0, metrics.deepSleepDrainRatePercent, 0.001)
+        assertEquals(0.0, metrics.awakeDrainRatePercent, 0.001)
+    }
+
+    @Test
+    fun resolve_doesNotExplodeRatesWhenMeasurementTimeIsUnderOneMinute() {
+        val now = System.currentTimeMillis()
+        val drainState = DrainState(
+            sessionStartTime = now - 15_000L, // 15 segundos
+            sessionStartBatteryLevel = 100,
+            batteryLevel = 99, // 1% drop em 15s
+            screenOnTimeMs = 15_000L,
+            screenOffTimeMs = 0L,
+            screenOnDrainMah = 40.0,
+            batteryCapacityMah = 4000.0,
+        )
+
+        val metrics = BatteryDisplayMetrics.resolve(
+            snapshot = null,
+            drainState = drainState
+        )
+
+        // Sob 1 minuto (< 60s), não deve inflar a taxa para 240%/h
+        assertEquals(0.0, metrics.screenOnDrainRatePercent, 0.001)
+        assertEquals(0.0, metrics.averageDrainRatePercent, 0.001)
+    }
 }

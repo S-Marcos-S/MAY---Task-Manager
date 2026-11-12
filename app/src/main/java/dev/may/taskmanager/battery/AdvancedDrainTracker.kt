@@ -44,6 +44,7 @@ class AdvancedDrainTracker private constructor(
         private const val KEY_SESSION_START_TIME = "session_start_time"
         private const val KEY_SESSION_START_REALTIME = "session_start_realtime"
         private const val KEY_SESSION_START_UPTIME = "session_start_uptime"
+        private const val KEY_SESSION_START_BATTERY_LEVEL = "session_start_battery_level"
         private const val KEY_LAST_SAVE_TIME = "last_save_time"
         private const val KEY_LAST_SAVE_REALTIME = "last_save_realtime"
         private const val KEY_LAST_SAVE_UPTIME = "last_save_uptime"
@@ -123,8 +124,13 @@ class AdvancedDrainTracker private constructor(
     private var lastScreenChangeRealtime: Long = SystemClock.elapsedRealtime()
     private var sessionStartRealtime: Long = SystemClock.elapsedRealtime()
     private var sessionStartUptime: Long = SystemClock.uptimeMillis()
+    private var sessionStartBatteryLevel: Int? = null
     private var receiverRegistered = false
     private var hasResetForCurrentChargeCycle = false
+    @Volatile
+    private var lastPowerConnectedTimestamp: Long = 0L
+    @Volatile
+    private var lastPowerDisconnectedTimestamp: Long = 0L
     private val detailedCollector = DetailedStatsCollector.getInstance(context)
 
     private fun refreshDetailedStatsAsync() {
@@ -279,6 +285,12 @@ class AdvancedDrainTracker private constructor(
     }
 
     fun onPowerConnected() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastPowerConnectedTimestamp < 1500L) {
+            return
+        }
+        lastPowerConnectedTimestamp = now
+
         val prefs = context.getSharedPreferences("battery_prefs", Context.MODE_PRIVATE)
         val resetOnPlug = prefs.getBoolean("auto_reset_on_plug_connected", false)
         scope.launch {
@@ -295,35 +307,37 @@ class AdvancedDrainTracker private constructor(
                     }
                 }
                 refreshDetailedStatsAsync()
+                DrainNotificationManager.getInstance(context).updateNow()
             }
-            DrainNotificationManager.getInstance(context).updateNow()
         }
     }
 
     fun onPowerDisconnected() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastPowerDisconnectedTimestamp < 1500L) {
+            return
+        }
+        lastPowerDisconnectedTimestamp = now
+
         val prefs = context.getSharedPreferences("battery_prefs", Context.MODE_PRIVATE)
         val autoResetCharging = prefs.getBoolean("auto_reset_charging_enabled", prefs.getBoolean("auto_reset_enabled", true))
-        val target = prefs.getInt("auto_reset_percent", 100).coerceIn(50, 100)
 
         scope.launch {
-            val level = takeSnapshot()?.batteryLevel ?: getBatteryLevel() ?: 0
-            if (autoResetCharging && (level >= target || level >= 100)) {
-                if (!hasResetForCurrentChargeCycle) {
-                    hasResetForCurrentChargeCycle = true
-                    resetSessionSuspending()
-                }
-            }
             hasResetForCurrentChargeCycle = false
-            takeSnapshot()?.let { snapshot ->
-                snapshotMutex.withLock {
-                    processSnapshot(snapshot)
-                    lastSnapshot = snapshot
-                    updateDrainState()
-                    saveSession()
+            if (autoResetCharging) {
+                resetSessionSuspending()
+            } else {
+                takeSnapshot()?.let { snapshot ->
+                    snapshotMutex.withLock {
+                        processSnapshot(snapshot)
+                        lastSnapshot = snapshot
+                        updateDrainState()
+                        saveSession()
+                    }
                 }
+                refreshDetailedStatsAsync()
+                DrainNotificationManager.getInstance(context).updateNow()
             }
-            refreshDetailedStatsAsync()
-            DrainNotificationManager.getInstance(context).updateNow()
         }
     }
 
@@ -399,6 +413,7 @@ class AdvancedDrainTracker private constructor(
                 putLong(KEY_SESSION_START_TIME, sessionStartTime)
                 putLong(KEY_SESSION_START_REALTIME, sessionStartRealtime)
                 putLong(KEY_SESSION_START_UPTIME, sessionStartUptime)
+                sessionStartBatteryLevel?.let { putInt(KEY_SESSION_START_BATTERY_LEVEL, it) } ?: remove(KEY_SESSION_START_BATTERY_LEVEL)
                 putLong(KEY_LAST_SAVE_TIME, now)
                 putLong(KEY_LAST_SAVE_REALTIME, nowRealtime)
                 putLong(KEY_LAST_SAVE_UPTIME, nowUptime)
@@ -484,6 +499,7 @@ class AdvancedDrainTracker private constructor(
             sessionStartTime = prefs.getLong(KEY_SESSION_START_TIME, now)
             sessionStartRealtime = if (isReboot) nowRealtime - (now - sessionStartTime).coerceAtLeast(0L) else prefs.getLong(KEY_SESSION_START_REALTIME, nowRealtime)
             sessionStartUptime = if (isReboot) nowUptime else prefs.getLong(KEY_SESSION_START_UPTIME, nowUptime)
+            sessionStartBatteryLevel = if (prefs.contains(KEY_SESSION_START_BATTERY_LEVEL)) prefs.getInt(KEY_SESSION_START_BATTERY_LEVEL, -1).takeIf { it in 0..100 } else null
 
             var screenOnTime = prefs.getLong(KEY_CUMULATIVE_SCREEN_ON_TIME, 0L)
             var screenOffTime = prefs.getLong(KEY_CUMULATIVE_SCREEN_OFF_TIME, 0L)
@@ -618,6 +634,7 @@ class AdvancedDrainTracker private constructor(
 
     fun clearSavedSession() {
         try {
+            sessionStartBatteryLevel = null
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             prefs.edit().clear().apply()
             Log.i(TAG, "Battery drain tracking session preferences cleared")
@@ -709,6 +726,7 @@ class AdvancedDrainTracker private constructor(
         sessionStartTime = now
         sessionStartRealtime = nowRealtime
         sessionStartUptime = nowUptime
+        sessionStartBatteryLevel = getBatteryLevel()
 
         cumulativeScreenOnTime = 0L
         cumulativeScreenOffTime = 0L
@@ -740,7 +758,8 @@ class AdvancedDrainTracker private constructor(
         _drainState.value = DrainState(
             sessionStartTime = sessionStartTime,
             batteryCapacityMah = estimatedCapacityMah,
-            batteryTemperatureC = getBatteryTemperatureC()
+            batteryTemperatureC = getBatteryTemperatureC(),
+            sessionStartBatteryLevel = sessionStartBatteryLevel
         )
 
         snapshotMutex.withLock {
@@ -1058,7 +1077,8 @@ class AdvancedDrainTracker private constructor(
         val idleTimeMs = (screenOnTimeTotal - activeTimeMs).coerceAtLeast(0L)
 
         fun calculateRate(drainMah: Double, timeMs: Long): Double {
-            return if (timeMs > 0) drainMah / (timeMs / 3600000.0) else 0.0
+            if (timeMs < 60_000L || drainMah <= 0.0) return 0.0
+            return (drainMah / (timeMs / 3600000.0)).coerceIn(0.0, 5000.0)
         }
 
         val screenOnDrainRate = calculateRate(cumulativeScreenOnDrain, screenOnTimeTotal)
@@ -1082,6 +1102,7 @@ class AdvancedDrainTracker private constructor(
             batteryLevel = getBatteryLevel(),
             batteryLevelMah = getCurrentBatteryMah(),
             batteryTemperatureC = getBatteryTemperatureC(),
+            sessionStartBatteryLevel = sessionStartBatteryLevel,
             batteryCapacityMah = estimatedCapacityMah,
             isScreenOn = powerManager.isInteractive,
             isCharging = isNowCharging,

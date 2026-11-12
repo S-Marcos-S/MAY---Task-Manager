@@ -85,8 +85,6 @@ fun BatteryStatsScreen(
     val lastRefresh by vm.lastRefresh.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
     val drainState by vm.drainState.collectAsStateWithLifecycle()
-    val anomalyConfig by vm.anomalyConfig.collectAsStateWithLifecycle()
-    var showAnomalySettingsDialog by remember { mutableStateOf(false) }
     val hasRoot by vm.hasRoot.collectAsStateWithLifecycle()
     val hasAdb by vm.hasAdb.collectAsStateWithLifecycle()
     val hasAdvanced by vm.hasAdvanced.collectAsStateWithLifecycle()
@@ -222,13 +220,6 @@ fun BatteryStatsScreen(
                         }) {
                             Icon(Icons.Outlined.RestartAlt, stringResource(R.string.reset_stats))
                         }
-                        IconButton(onClick = { showAnomalySettingsDialog = true }) {
-                            Icon(
-                                imageVector = if (anomalyConfig.isEnabled) Icons.Filled.NotificationsActive else Icons.Filled.NotificationsNone,
-                                contentDescription = stringResource(R.string.anomaly_dialog_title),
-                                tint = if (anomalyConfig.isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
                     },
                     scrollBehavior = scrollBehavior
                 )
@@ -307,9 +298,6 @@ fun BatteryStatsScreen(
                                 deviceIdle = deviceIdle,
                                 powerManager = powerManager,
                                 drainState = drainState,
-                                anomalyConfig = anomalyConfig,
-                                onToggleAnomalyNotification = { vm.toggleAnomalyNotification(it) },
-                                onOpenAnomalySettings = { showAnomalySettingsDialog = true },
                                 isEnforceDozeEnabled = isEnforceDozeEnabled,
                                 isEnforcingDoze = isEnforcingDoze,
                                 onToggleEnforceDoze = { vm.setEnforceDozeEnabled(it) },
@@ -405,11 +393,6 @@ fun BatteryStatsScreen(
         }
     }
 
-    if (showAnomalySettingsDialog) {
-        dev.may.taskmanager.ui.root.BackgroundAnomalySettingsDialog(
-            onDismissRequest = { showAnomalySettingsDialog = false },
-        )
-    }
 }
 
 private data class StatsTab(val titleRes: Int, val icon: ImageVector)
@@ -675,9 +658,6 @@ private fun OverviewTab(
     deviceIdle: BatteryStatsParser.DeviceIdleInfo?,
     powerManager: BatteryStatsParser.PowerManagerInfo?,
     drainState: DrainState,
-    anomalyConfig: dev.may.taskmanager.root.anomaly.AnomalyWatcherConfig,
-    onToggleAnomalyNotification: (Boolean) -> Unit,
-    onOpenAnomalySettings: () -> Unit,
     isEnforceDozeEnabled: Boolean,
     isEnforcingDoze: Boolean,
     onToggleEnforceDoze: (Boolean) -> Unit,
@@ -696,13 +676,6 @@ private fun OverviewTab(
             )
         }
         item {
-            BackgroundAnomalyCard(
-                config = anomalyConfig,
-                onToggle = onToggleAnomalyNotification,
-                onOpenSettings = onOpenAnomalySettings,
-            )
-        }
-        item {
             EnforceDozeCard(
                 isEnabled = isEnforceDozeEnabled,
                 isEnforcing = isEnforcingDoze,
@@ -714,76 +687,6 @@ private fun OverviewTab(
         item { DozeStatsCard(snapshot?.doze, deviceIdle) }
         item { BluetoothCard(snapshot?.bluetooth) }
         item { CurrentStateCard(deviceIdle, powerManager) }
-    }
-}
-
-@Composable
-private fun BackgroundAnomalyCard(
-    config: dev.may.taskmanager.root.anomaly.AnomalyWatcherConfig,
-    onToggle: (Boolean) -> Unit,
-    onOpenSettings: () -> Unit,
-) {
-    FrostedCard(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.padding(2.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        imageVector = if (config.isEnabled) Icons.Filled.NotificationsActive else Icons.Filled.NotificationsNone,
-                        contentDescription = null,
-                        tint = if (config.isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = stringResource(R.string.battery_anomaly_card_title),
-                        fontSize = 14.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    IconButton(
-                        onClick = onOpenSettings,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            Icons.Outlined.Tune,
-                            contentDescription = stringResource(R.string.battery_anomaly_configure),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Switch(
-                        checked = config.isEnabled,
-                        onCheckedChange = onToggle,
-                        modifier = Modifier.scale(0.80f)
-                    )
-                }
-            }
-
-            Text(
-                text = stringResource(R.string.battery_anomaly_card_desc),
-                fontSize = 11.sp,
-                lineHeight = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }
 
@@ -835,7 +738,7 @@ private fun EnforceDozeCard(
                     ) {
                         Icon(
                             Icons.Outlined.Tune,
-                            contentDescription = stringResource(R.string.battery_anomaly_configure),
+                            contentDescription = stringResource(R.string.action_configure),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
@@ -1058,17 +961,14 @@ private fun DozeStatsCard(doze: BatteryStatsParser.DozeStats?, deviceIdle: Batte
 
 @Composable
 private fun BluetoothCard(bluetooth: BatteryStatsParser.BluetoothStats?) {
+    val stats = bluetooth ?: BatteryStatsParser.BluetoothStats(0L, 0L, 0L, 0.0, 0L)
     StatsCard(titleRes = R.string.bluetooth, icon = Icons.Outlined.Bluetooth) {
-        if (bluetooth == null) {
-            Text(stringResource(R.string.no_bluetooth_data), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            StatRow(R.string.idle_time, formatDuration(bluetooth.idleTimeMs))
-            StatRow(R.string.rx_time, formatDuration(bluetooth.rxTimeMs))
-            StatRow(R.string.tx_time, formatDuration(bluetooth.txTimeMs))
-            StatRow(R.string.power_usage, String.format(Locale.getDefault(), "%.2f mAh", bluetooth.powerMah))
-            if (bluetooth.scanTimeMs > 0) {
-                StatRow(R.string.scan_time, formatDuration(bluetooth.scanTimeMs))
-            }
+        StatRow(R.string.idle_time, formatDuration(stats.idleTimeMs))
+        StatRow(R.string.rx_time, formatDuration(stats.rxTimeMs))
+        StatRow(R.string.tx_time, formatDuration(stats.txTimeMs))
+        StatRow(R.string.power_usage, String.format(Locale.getDefault(), "%.2f mAh", stats.powerMah))
+        if (stats.scanTimeMs > 0) {
+            StatRow(R.string.scan_time, formatDuration(stats.scanTimeMs))
         }
     }
 }

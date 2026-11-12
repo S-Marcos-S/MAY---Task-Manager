@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsNone
@@ -105,6 +106,7 @@ private enum class AnomalyFilter {
     DEEP_SLEEP,
     NETWORK,
     CPU_RAM,
+    LOCATION,
 }
 
 @Composable
@@ -136,6 +138,7 @@ fun BackgroundWatcherScreen(
             AnomalyFilter.DEEP_SLEEP -> flaggedApps.filter { it.deepSleepDisruptions > 0 }
             AnomalyFilter.NETWORK -> flaggedApps.filter { it.backgroundDataFlags > 0 }
             AnomalyFilter.CPU_RAM -> flaggedApps.filter { it.cpuFlags > 0 || it.ramFlags > 0 }
+            AnomalyFilter.LOCATION -> flaggedApps.filter { it.locationFlags > 0 }
         }
     }
 
@@ -229,39 +232,51 @@ fun BackgroundWatcherScreen(
                             }
                         }
 
-                        // Categories row
-                        LazyRow(
+                        // Categories rows (100% responsive, equal width, no horizontal scroll)
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            item {
-                                CompactFilterChip(
-                                    selected = config.notifyNetwork,
-                                    label = stringResource(R.string.background_filter_network),
-                                    onClick = { watcher.updateConfig(config.copy(notifyNetwork = !config.notifyNetwork)) },
-                                )
-                            }
-                            item {
-                                CompactFilterChip(
-                                    selected = config.notifyCpu,
-                                    label = stringResource(R.string.anomaly_opt_cpu),
-                                    onClick = { watcher.updateConfig(config.copy(notifyCpu = !config.notifyCpu)) },
-                                )
-                            }
-                            item {
-                                CompactFilterChip(
-                                    selected = config.notifyRam,
-                                    label = stringResource(R.string.anomaly_opt_ram),
-                                    onClick = { watcher.updateConfig(config.copy(notifyRam = !config.notifyRam)) },
-                                )
-                            }
-                            item {
-                                CompactFilterChip(
-                                    selected = config.notifyDeepSleep,
-                                    label = stringResource(R.string.background_filter_deep_sleep),
-                                    onClick = { watcher.updateConfig(config.copy(notifyDeepSleep = !config.notifyDeepSleep)) },
-                                )
-                            }
+                            CompactFilterChip(
+                                selected = config.notifyNetwork,
+                                label = stringResource(R.string.anomaly_chip_net),
+                                icon = Icons.Filled.Wifi,
+                                onClick = { watcher.updateConfig(config.copy(notifyNetwork = !config.notifyNetwork)) },
+                                modifier = Modifier.weight(1f),
+                            )
+                            CompactFilterChip(
+                                selected = config.notifyCpu,
+                                label = stringResource(R.string.anomaly_chip_cpu),
+                                icon = Icons.Filled.Speed,
+                                onClick = { watcher.updateConfig(config.copy(notifyCpu = !config.notifyCpu)) },
+                                modifier = Modifier.weight(1f),
+                            )
+                            CompactFilterChip(
+                                selected = config.notifyRam,
+                                label = stringResource(R.string.anomaly_chip_ram),
+                                icon = Icons.Filled.Memory,
+                                onClick = { watcher.updateConfig(config.copy(notifyRam = !config.notifyRam)) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            CompactFilterChip(
+                                selected = config.notifyDeepSleep,
+                                label = stringResource(R.string.anomaly_chip_sleep),
+                                icon = Icons.Filled.Bedtime,
+                                onClick = { watcher.updateConfig(config.copy(notifyDeepSleep = !config.notifyDeepSleep)) },
+                                modifier = Modifier.weight(1f),
+                            )
+                            CompactFilterChip(
+                                selected = config.notifyLocation,
+                                label = stringResource(R.string.anomaly_chip_location),
+                                icon = Icons.Filled.LocationOn,
+                                onClick = { watcher.updateConfig(config.copy(notifyLocation = !config.notifyLocation)) },
+                                modifier = Modifier.weight(1f),
+                            )
                         }
                     }
                 }
@@ -348,6 +363,13 @@ fun BackgroundWatcherScreen(
                         selected = selectedFilter == AnomalyFilter.CPU_RAM,
                         label = stringResource(R.string.background_filter_cpu_ram),
                         onClick = { selectedFilter = AnomalyFilter.CPU_RAM },
+                    )
+                }
+                item {
+                    CompactFilterChip(
+                        selected = selectedFilter == AnomalyFilter.LOCATION,
+                        label = stringResource(R.string.background_filter_location),
+                        onClick = { selectedFilter = AnomalyFilter.LOCATION },
                     )
                 }
             }
@@ -503,6 +525,8 @@ private fun CompactFilterChip(
     selected: Boolean,
     label: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     Surface(
@@ -510,16 +534,32 @@ private fun CompactFilterChip(
         color = if (selected) colorScheme.primary else dynamicSurfaceColor(alpha = 0.40f, tintFraction = 0.10f),
         shape = RoundedCornerShape(10.dp),
         border = BorderStroke(1.dp, if (selected) colorScheme.primary else colorScheme.outline.copy(alpha = 0.15f)),
+        modifier = modifier,
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) colorScheme.onPrimary else colorScheme.onSurface,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (selected) colorScheme.onPrimary else colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(13.dp),
+                )
+                Spacer(Modifier.width(3.dp))
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = if (selected) colorScheme.onPrimary else colorScheme.onSurface,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -596,7 +636,7 @@ private fun FlaggedAppCard(
                         )
                         if (lastDateFormatted.isNotBlank()) {
                             Text(
-                                text = "Último: $lastDateFormatted",
+                                text = stringResource(R.string.background_last_flagged_time, lastDateFormatted),
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                 color = colorScheme.outline,
                             )
@@ -640,6 +680,13 @@ private fun FlaggedAppCard(
                         icon = Icons.Filled.Speed,
                         text = stringResource(R.string.background_infraction_cpu, summary.cpuFlags),
                         color = colorScheme.error,
+                    )
+                }
+                if (summary.locationFlags > 0) {
+                    InfractionBadge(
+                        icon = Icons.Filled.LocationOn,
+                        text = stringResource(R.string.background_infraction_location, summary.locationFlags),
+                        color = colorScheme.tertiary,
                     )
                 }
             }

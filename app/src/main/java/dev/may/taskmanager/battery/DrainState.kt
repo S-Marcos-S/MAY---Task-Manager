@@ -13,6 +13,7 @@ data class DrainState(
     val batteryLevel: Int? = null,
     val batteryLevelMah: Double? = null,
     val batteryTemperatureC: Float? = null,
+    val sessionStartBatteryLevel: Int? = null,
 
     // Device state
     val isScreenOn: Boolean = false,

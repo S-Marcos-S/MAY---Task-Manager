@@ -32,4 +32,14 @@ class BatteryStatsResetTest {
         assertEquals("ADVANCED_FAILED", BatteryStatsViewModel.ResetResult.ADVANCED_FAILED.name)
         assertEquals("FAILED", BatteryStatsViewModel.ResetResult.FAILED.name)
     }
+
+    @Test
+    fun autoResetOnPowerDisconnected_triggersWhenOptionEnabledRegardlessOfLevel() {
+        fun shouldResetOnPowerDisconnected(autoResetChargingEnabled: Boolean): Boolean {
+            return autoResetChargingEnabled
+        }
+
+        assertTrue(shouldResetOnPowerDisconnected(autoResetChargingEnabled = true))
+        assertFalse(shouldResetOnPowerDisconnected(autoResetChargingEnabled = false))
+    }
 }

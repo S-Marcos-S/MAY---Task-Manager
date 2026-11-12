@@ -35,9 +35,6 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
     )
     val isDrainNotificationEnabled: StateFlow<Boolean> = _isDrainNotificationEnabled.asStateFlow()
 
-    private val anomalyWatcher = dev.may.taskmanager.root.anomaly.BackgroundAnomalyWatcher.getInstance(context)
-    val anomalyConfig: StateFlow<dev.may.taskmanager.root.anomaly.AnomalyWatcherConfig> = anomalyWatcher.config
-
     private val enforceDozeController = EnforceDozeController.getInstance(context)
     val isEnforceDozeEnabled: StateFlow<Boolean> = enforceDozeController.isEnabled
     val enforceDozeDisableMotion: StateFlow<Boolean> = enforceDozeController.disableMotion
@@ -187,10 +184,6 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
 
     override fun onCleared() {
         super.onCleared()
-    }
-
-    fun toggleAnomalyNotification(enabled: Boolean) {
-        anomalyWatcher.updateConfig(anomalyWatcher.config.value.copy(isEnabled = enabled))
     }
 
     fun resetDrainSession() {

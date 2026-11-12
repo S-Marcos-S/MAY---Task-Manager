@@ -182,6 +182,12 @@
     <string name="anomaly_opt_cpu">Uso de Processador</string>
     <string name="anomaly_opt_ram">Vazamento de RAM</string>
     <string name="anomaly_opt_deep_sleep">Interrupção de Sono Profundo</string>
+    <string name="anomaly_opt_location">Uso de Localização</string>
+    <string name="anomaly_chip_net">Rede</string>
+    <string name="anomaly_chip_cpu">CPU</string>
+    <string name="anomaly_chip_ram">RAM</string>
+    <string name="anomaly_chip_sleep">Sono</string>
+    <string name="anomaly_chip_location">GPS</string>
     <string name="anomaly_recent_alerts">Alertas Recentes</string>
     <string name="anomaly_no_recent_alerts">Nenhuma anomalia detectada recentemente</string>
     <string name="anomaly_action_force_stop">Forçar Parada</string>
@@ -191,11 +197,13 @@
     <string name="anomaly_notif_cpu_title">CPU alta em segundo plano: %1$s</string>
     <string name="anomaly_notif_ram_title">Consumo elevado de RAM: %1$s</string>
     <string name="anomaly_notif_deep_sleep_title">Impedindo sono profundo: %1$s</string>
+    <string name="anomaly_notif_location_title">Uso de localização em segundo plano: %1$s</string>
     <string name="anomaly_desc_net_screen_off">%1$s transferiu %2$s com a tela desligada (%3$s).</string>
     <string name="anomaly_desc_net_screen_on">%1$s transferiu %2$s em segundo plano (%3$s).</string>
     <string name="anomaly_desc_cpu">%1$s consumiu %2$s de CPU em segundo plano.</string>
     <string name="anomaly_desc_ram">%1$s está usando %2$s de RAM em segundo plano.</string>
     <string name="anomaly_desc_deep_sleep">Aparelho acordado por %2$s em %3$s de tela desligada (possível correlação com %1$s).</string>
+    <string name="anomaly_desc_location">%1$s está acessando localização (%2$s) em segundo plano.</string>
     <string name="anomaly_value_awake_minutes">%1$dm acordado</string>
     <string name="anomaly_cause_download">Download em segundo plano</string>
     <string name="anomaly_cause_upload">Upload em segundo plano</string>
@@ -205,6 +213,7 @@
     <string name="anomaly_cause_call">Chamada de voz/vídeo</string>
     <string name="anomaly_cause_service_active">Serviço em 1º plano: %1$s</string>
     <string name="anomaly_cause_update">Atualização em segundo plano</string>
+    <string name="anomaly_cause_location_bg">Rastreamento em segundo plano</string>
     <string name="anomaly_cause_general_bg">Processo em segundo plano</string>
     <string name="anomaly_toast_force_stopped">“%1$s” finalizado via Superusuário</string>
     <string name="anomaly_toast_muted">Alertas de “%1$s” silenciados por 1 hora</string>
@@ -220,6 +229,7 @@
     <string name="background_filter_deep_sleep">Sono Profundo</string>
     <string name="background_filter_network">Rede</string>
     <string name="background_filter_cpu_ram">CPU &amp; RAM</string>
+    <string name="background_filter_location">Localização</string>
     <string name="background_service_label">Serviço Ativo</string>
     <string name="background_btn_stop">Parar</string>
     <string name="background_btn_inspect">Inspecionar</string>
@@ -1192,11 +1202,9 @@
     
     <string name="anomaly_deep_sleep_badge">Tela Apagada</string>
     <string name="anomaly_screen_on_badge">Tela Ligada</string>
-    <string name="battery_anomaly_card_title">Alertas de Consumo em Segundo Plano</string>
-    <string name="battery_anomaly_card_desc">Alertas quando aplicativos em segundo plano consumirem internet, processador ou memória em excesso.</string>
-    <string name="battery_anomaly_configure">Configurar</string>
 
     
+    <string name="action_configure">Configurar</string>
     <string name="enforce_doze_title">Enforce Doze (Sono Profundo)</string>
     <string name="enforce_doze_enable_title">Ativar Enforce Doze</string>
     <string name="enforce_doze_desc">Força o modo Doze do Android imediatamente ao desligar a tela para maximizar a economia de bateria.</string>
@@ -1261,7 +1269,7 @@
     
     <string name="battery_auto_reset_title">Redefinição Automática (Auto Reset)</string>
     <string name="battery_reset_on_charging_title">Resetar ao carregar</string>
-    <string name="battery_reset_on_charging_desc">Resetar estatísticas ao carregar até o nível alvo ou 100%%</string>
+    <string name="battery_reset_on_charging_desc">Resetar estatísticas ao desplugar do carregador ou atingir o nível alvo</string>
     <string name="battery_reset_target_percent">Porcentagem Alvo: %1$d%%</string>
     <string name="battery_reset_full_charge">Carga completa (100%%)</string>
     <string name="battery_reset_target_label">&gt;= %1$d%% ou 100%%</string>
@@ -1313,6 +1321,8 @@
 
     <string name="background_infraction_deep_sleep">%1$dx sono profundo</string>
     <string name="background_infraction_cpu">%1$dx CPU</string>
+    <string name="background_infraction_location">%1$dx localização</string>
+    <string name="background_last_flagged_time">Último: %1$s</string>
 
     <string name="log_action_save_zip">Salvar ZIP</string>
 

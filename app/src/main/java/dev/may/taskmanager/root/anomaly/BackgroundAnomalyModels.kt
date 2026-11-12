@@ -11,6 +11,7 @@ enum class AnomalyType(val labelPt: String, val labelEn: String, val iconEmoji: 
     CPU("Processador", "Processor / CPU", ""),
     RAM("Memória RAM", "RAM Memory", ""),
     DEEP_SLEEP("Sono Profundo", "Deep Sleep", ""),
+    LOCATION("Localização", "Location / GPS", ""),
 }
 
 enum class AnomalySensitivity(
@@ -19,6 +20,7 @@ enum class AnomalySensitivity(
     val netScreenOffMb: Long,
     val cpuPercent: Double,
     val ramMb: Long,
+    val locationMinHits: Int = 1,
 ) {
     HIGH(
         labelRes = R.string.anomaly_sensitivity_high,
@@ -26,6 +28,7 @@ enum class AnomalySensitivity(
         netScreenOffMb = 15L,
         cpuPercent = 12.0,
         ramMb = 400L,
+        locationMinHits = 1,
     ),
     BALANCED(
         labelRes = R.string.anomaly_sensitivity_balanced,
@@ -33,6 +36,7 @@ enum class AnomalySensitivity(
         netScreenOffMb = 25L,
         cpuPercent = 20.0,
         ramMb = 600L,
+        locationMinHits = 2,
     ),
     LOW(
         labelRes = R.string.anomaly_sensitivity_low,
@@ -40,6 +44,7 @@ enum class AnomalySensitivity(
         netScreenOffMb = 60L,
         cpuPercent = 32.0,
         ramMb = 850L,
+        locationMinHits = 3,
     ),
 }
 
@@ -80,6 +85,7 @@ data class AnomalyWatcherConfig(
     val notifyCpu: Boolean = true,
     val notifyRam: Boolean = true,
     val notifyDeepSleep: Boolean = true,
+    val notifyLocation: Boolean = true,
     val whitelistedPackages: Set<String> = emptySet(),
 )
 

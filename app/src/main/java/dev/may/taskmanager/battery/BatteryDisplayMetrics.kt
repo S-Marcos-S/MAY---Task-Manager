@@ -34,10 +34,10 @@ data class BatteryDisplayMetrics(
             // Se a sessão do DrainTracker acabou de ser resetada e o snapshot do dumpsys
             // contém histórico antigo acumulado que não foi zerado, descarta o snapshot
             // desatualizado para não sobrepor métricas antigas sobre a sessão recém-zerada.
-            val isSnapshotStale = snapshot != null &&
-                drainState.sessionStartTime > 0L &&
-                drainState.totalTimeMs < 60_000L &&
-                snapshot.batteryRealtimeMs > (drainState.totalTimeMs + 60_000L)
+            val isSnapshotStale = snapshot != null && (
+                (drainState.sessionStartTime > 0L && snapshot.capturedAt < drainState.sessionStartTime) ||
+                (drainState.sessionStartTime > 0L && snapshot.batteryRealtimeMs > (drainState.totalTimeMs + 30_000L))
+            )
 
             val effectiveSnapshot = if (isSnapshotStale) null else snapshot
 
@@ -61,26 +61,36 @@ data class BatteryDisplayMetrics(
                 else -> 0L
             }
 
-            val screenOnDischarge = when {
+            val levelDrop = if (drainState.sessionStartBatteryLevel != null && drainState.batteryLevel != null) {
+                (drainState.sessionStartBatteryLevel - drainState.batteryLevel).coerceAtLeast(0)
+            } else null
+
+            val isZeroPercentDischarge = levelDrop != null && levelDrop == 0
+
+            val rawScreenOnDischarge = if (isZeroPercentDischarge) 0f else when {
                 effectiveSnapshot != null && effectiveSnapshot.screenOnDischargePercent > 0f -> effectiveSnapshot.screenOnDischargePercent
                 drainState.screenOnDrainMah > 0.0 && drainState.batteryCapacityMah > 0 ->
                     (drainState.screenOnDrainMah / drainState.batteryCapacityMah * 100.0).toFloat()
                 else -> 0f
             }
 
-            val screenOffDischarge = when {
+            val rawScreenOffDischarge = if (isZeroPercentDischarge) 0f else when {
                 effectiveSnapshot != null && effectiveSnapshot.screenOffDischargePercent > 0f -> effectiveSnapshot.screenOffDischargePercent
                 drainState.screenOffDrainMah > 0.0 && drainState.batteryCapacityMah > 0 ->
                     (drainState.screenOffDrainMah / drainState.batteryCapacityMah * 100.0).toFloat()
                 else -> 0f
             }
 
-            val totalDischarge = when {
+            val screenOnDischarge = if (levelDrop != null) rawScreenOnDischarge.coerceAtMost(levelDrop.toFloat()) else rawScreenOnDischarge
+            val screenOffDischarge = if (levelDrop != null) rawScreenOffDischarge.coerceAtMost(levelDrop.toFloat()) else rawScreenOffDischarge
+
+            val rawTotalDischarge = if (isZeroPercentDischarge) 0f else when {
                 screenOnDischarge + screenOffDischarge > 0f -> screenOnDischarge + screenOffDischarge
                 drainState.totalDrainMah > 0.0 && drainState.batteryCapacityMah > 0 ->
                     (drainState.totalDrainMah / drainState.batteryCapacityMah * 100.0).toFloat()
                 else -> 0f
             }
+            val totalDischarge = if (levelDrop != null) rawTotalDischarge.coerceAtMost(levelDrop.toFloat()) else rawTotalDischarge
 
             val capacityMah = when {
                 effectiveSnapshot != null && effectiveSnapshot.estimatedCapacityMah > 0 -> effectiveSnapshot.estimatedCapacityMah.toDouble()
@@ -89,6 +99,7 @@ data class BatteryDisplayMetrics(
             }
 
             val totalDrainMah = when {
+                isZeroPercentDischarge -> 0.0
                 totalDischarge > 0f -> (totalDischarge / 100.0) * capacityMah
                 drainState.totalDrainMah > 0.0 -> drainState.totalDrainMah
                 else -> 0.0
@@ -118,32 +129,30 @@ data class BatteryDisplayMetrics(
             val idleMs = if (screenOnMs >= activeMs) (screenOnMs - activeMs).coerceAtLeast(0L) else drainState.idleTimeMs
 
             val screenOnHours = screenOnMs / 3_600_000.0
-            val screenOnDrainRatePercent = if (screenOnDischarge > 0f && screenOnHours > 0.0) {
-                screenOnDischarge / screenOnHours
-            } else {
-                drainState.screenOnDrainRatePercent
-            }
+            val screenOnDrainRatePercent = if (!isZeroPercentDischarge && screenOnDischarge > 0f && screenOnHours >= (60.0 / 3600.0)) {
+                (screenOnDischarge / screenOnHours).coerceIn(0.0, 100.0)
+            } else 0.0
 
             val screenOffHours = screenOffMs / 3_600_000.0
-            val screenOffDrainRatePercent = if (screenOffDischarge > 0f && screenOffHours > 0.0) {
-                screenOffDischarge / screenOffHours
-            } else {
-                drainState.screenOffDrainRatePercent
-            }
+            val screenOffDrainRatePercent = if (!isZeroPercentDischarge && screenOffDischarge > 0f && screenOffHours >= (60.0 / 3600.0)) {
+                (screenOffDischarge / screenOffHours).coerceIn(0.0, 100.0)
+            } else 0.0
 
             val totalHours = totalTimeMs / 3_600_000.0
-            val averageDrainRatePercent = if (totalDischarge > 0f && totalHours > 0.0) {
-                totalDischarge / totalHours
-            } else {
-                drainState.averageDrainRatePercent
-            }
+            val averageDrainRatePercent = if (!isZeroPercentDischarge && totalDischarge > 0f && totalHours >= (60.0 / 3600.0)) {
+                (totalDischarge / totalHours).coerceIn(0.0, 100.0)
+            } else 0.0
 
             val deepSleepDrainRatePercent = when {
                 screenOffDrainRatePercent > 0.0 && drainState.screenOffDrainRatePercent > 0.0 && drainState.deepSleepDrainRatePercent > 0.0 -> {
                     val ratio = (drainState.deepSleepDrainRatePercent / drainState.screenOffDrainRatePercent).coerceIn(0.0, 1.0)
                     screenOffDrainRatePercent * ratio
                 }
-                else -> drainState.deepSleepDrainRatePercent
+                screenOffDrainRatePercent > 0.0 && screenOffMs > 0L -> {
+                    val ratio = (deepSleepMs.toDouble() / screenOffMs).coerceIn(0.0, 1.0)
+                    screenOffDrainRatePercent * ratio
+                }
+                else -> 0.0
             }
 
             val awakeDrainRatePercent = when {
@@ -151,7 +160,11 @@ data class BatteryDisplayMetrics(
                     val ratio = (drainState.awakeDrainRatePercent / drainState.screenOffDrainRatePercent).coerceAtLeast(1.0)
                     screenOffDrainRatePercent * ratio
                 }
-                else -> drainState.awakeDrainRatePercent
+                screenOffDrainRatePercent > 0.0 && screenOffMs > 0L -> {
+                    val ratio = (awakeMs.toDouble() / screenOffMs).coerceIn(0.0, 2.0)
+                    screenOffDrainRatePercent * ratio
+                }
+                else -> 0.0
             }
 
             val activeDrainRatePercent = when {
@@ -159,7 +172,11 @@ data class BatteryDisplayMetrics(
                     val ratio = (drainState.activeDrainRatePercent / drainState.screenOnDrainRatePercent).coerceAtLeast(1.0)
                     screenOnDrainRatePercent * ratio
                 }
-                else -> drainState.activeDrainRatePercent
+                screenOnDrainRatePercent > 0.0 && screenOnMs > 0L -> {
+                    val ratio = (activeMs.toDouble() / screenOnMs).coerceIn(0.0, 2.0)
+                    screenOnDrainRatePercent * ratio
+                }
+                else -> 0.0
             }
 
             val idleDrainRatePercent = when {
@@ -167,7 +184,11 @@ data class BatteryDisplayMetrics(
                     val ratio = (drainState.idleDrainRatePercent / drainState.screenOnDrainRatePercent).coerceIn(0.0, 1.0)
                     screenOnDrainRatePercent * ratio
                 }
-                else -> drainState.idleDrainRatePercent
+                screenOnDrainRatePercent > 0.0 && screenOnMs > 0L -> {
+                    val ratio = (idleMs.toDouble() / screenOnMs).coerceIn(0.0, 1.0)
+                    screenOnDrainRatePercent * ratio
+                }
+                else -> 0.0
             }
 
             return BatteryDisplayMetrics(

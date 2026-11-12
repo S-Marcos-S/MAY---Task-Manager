@@ -182,6 +182,12 @@
     <string name="anomaly_opt_cpu">CPU Usage</string>
     <string name="anomaly_opt_ram">RAM Leaks</string>
     <string name="anomaly_opt_deep_sleep">Deep Sleep Interruption</string>
+    <string name="anomaly_opt_location">Location Access</string>
+    <string name="anomaly_chip_net">Net</string>
+    <string name="anomaly_chip_cpu">CPU</string>
+    <string name="anomaly_chip_ram">RAM</string>
+    <string name="anomaly_chip_sleep">Sleep</string>
+    <string name="anomaly_chip_location">GPS</string>
     <string name="anomaly_recent_alerts">Recent Alerts</string>
     <string name="anomaly_no_recent_alerts">No anomalies detected recently</string>
     <string name="anomaly_action_force_stop">Force Stop</string>
@@ -191,11 +197,13 @@
     <string name="anomaly_notif_cpu_title">High background CPU: %1$s</string>
     <string name="anomaly_notif_ram_title">High RAM usage: %1$s</string>
     <string name="anomaly_notif_deep_sleep_title">Preventing deep sleep: %1$s</string>
+    <string name="anomaly_notif_location_title">Background location access: %1$s</string>
     <string name="anomaly_desc_net_screen_off">%1$s transferred %2$s with screen off (%3$s).</string>
     <string name="anomaly_desc_net_screen_on">%1$s transferred %2$s in background (%3$s).</string>
     <string name="anomaly_desc_cpu">%1$s consumed %2$s CPU in background.</string>
     <string name="anomaly_desc_ram">%1$s is using %2$s RAM in background.</string>
     <string name="anomaly_desc_deep_sleep">Device awake for %2$s during %3$s screen off (possible correlation with %1$s).</string>
+    <string name="anomaly_desc_location">%1$s is accessing location (%2$s) in background.</string>
     <string name="anomaly_value_awake_minutes">%1$dm awake</string>
     <string name="anomaly_cause_download">Background download</string>
     <string name="anomaly_cause_upload">Background upload</string>
@@ -205,6 +213,7 @@
     <string name="anomaly_cause_call">Voice/video call</string>
     <string name="anomaly_cause_service_active">Foreground service: %1$s</string>
     <string name="anomaly_cause_update">Background app update</string>
+    <string name="anomaly_cause_location_bg">Background location tracking</string>
     <string name="anomaly_cause_general_bg">Unknown background process</string>
     <string name="anomaly_toast_force_stopped">“%1$s” force-stopped via Superuser</string>
     <string name="anomaly_toast_muted">Alerts for “%1$s” muted for 1 hour</string>
@@ -220,6 +229,7 @@
     <string name="background_filter_deep_sleep">Deep Sleep</string>
     <string name="background_filter_network">Network</string>
     <string name="background_filter_cpu_ram">CPU &amp; RAM</string>
+    <string name="background_filter_location">Location</string>
     <string name="background_service_label">Active Service</string>
     <string name="background_btn_stop">Stop</string>
     <string name="background_btn_inspect">Inspect</string>
@@ -1230,11 +1240,9 @@
     
     <string name="anomaly_deep_sleep_badge">Screen Off</string>
     <string name="anomaly_screen_on_badge">Screen On</string>
-    <string name="battery_anomaly_card_title">Background Consumption Alerts</string>
-    <string name="battery_anomaly_card_desc">Alerts when background apps consume excessive network data, CPU, or RAM.</string>
-    <string name="battery_anomaly_configure">Configure</string>
 
     
+    <string name="action_configure">Configure</string>
     <string name="enforce_doze_title">Enforce Doze (Deep Sleep)</string>
     <string name="enforce_doze_enable_title">Enable Enforce Doze</string>
     <string name="enforce_doze_desc">Forces Android into deep sleep immediately when screen is turned off to maximize battery savings.</string>
@@ -1299,7 +1307,7 @@
     
     <string name="battery_auto_reset_title">Auto Reset</string>
     <string name="battery_reset_on_charging_title">Reset when charging</string>
-    <string name="battery_reset_on_charging_desc">Reset statistics when charging reaches target level or 100%%</string>
+    <string name="battery_reset_on_charging_desc">Reset statistics when unplugging charger or reaching target level</string>
     <string name="battery_reset_target_percent">Target percentage: %1$d%%</string>
     <string name="battery_reset_full_charge">Full charge (100%%)</string>
     <string name="battery_reset_target_label">&gt;= %1$d%% or 100%%</string>
@@ -1352,6 +1360,8 @@
 
     <string name="background_infraction_deep_sleep">%1$dx deep sleep</string>
     <string name="background_infraction_cpu">%1$dx CPU</string>
+    <string name="background_infraction_location">%1$dx location</string>
+    <string name="background_last_flagged_time">Last: %1$s</string>
 
     <string name="log_action_save_zip">Save ZIP</string>
 

@@ -29,6 +29,7 @@ data class FlaggedAppSummary(
     val backgroundDataFlags: Int = 0,
     val cpuFlags: Int = 0,
     val ramFlags: Int = 0,
+    val locationFlags: Int = 0,
     val totalEstimatedBytes: Long = 0L,
     val lastFlaggedTimestamp: Long = 0L,
     val lastServiceOrProcess: String? = null,
@@ -150,6 +151,7 @@ class AnomalyHistoryRepository private constructor(private val context: Context)
                 }
                 AnomalyType.CPU -> data.cpuFlags++
                 AnomalyType.RAM -> data.ramFlags++
+                AnomalyType.LOCATION -> data.locationFlags++
             }
         }
 
@@ -162,6 +164,7 @@ class AnomalyHistoryRepository private constructor(private val context: Context)
                 backgroundDataFlags = d.backgroundDataFlags,
                 cpuFlags = d.cpuFlags,
                 ramFlags = d.ramFlags,
+                locationFlags = d.locationFlags,
                 totalEstimatedBytes = d.totalEstimatedBytes,
                 lastFlaggedTimestamp = d.lastFlaggedTimestamp,
                 lastServiceOrProcess = d.lastServiceOrProcess,
@@ -197,6 +200,7 @@ class AnomalyHistoryRepository private constructor(private val context: Context)
         var backgroundDataFlags: Int = 0,
         var cpuFlags: Int = 0,
         var ramFlags: Int = 0,
+        var locationFlags: Int = 0,
         var totalEstimatedBytes: Long = 0L,
         var lastFlaggedTimestamp: Long = 0L,
         var lastServiceOrProcess: String? = null,

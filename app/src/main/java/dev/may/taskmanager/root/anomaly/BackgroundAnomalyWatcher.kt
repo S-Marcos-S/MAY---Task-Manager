@@ -56,6 +56,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         private const val KEY_NOTIFY_CPU = "key_notify_cpu"
         private const val KEY_NOTIFY_RAM = "key_notify_ram"
         private const val KEY_NOTIFY_DEEP_SLEEP = "key_notify_deep_sleep"
+        private const val KEY_NOTIFY_LOCATION = "key_notify_location"
         private const val KEY_WHITELIST = "key_whitelist"
 
         private const val SCREEN_ON_INTERVAL_MS = 30_000L
@@ -123,6 +124,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
     // Controle de pacotes temporariamente silenciados (mute) e cooldown de alertas
     private val mutedPackages = ConcurrentHashMap<String, Long>()
     private val lastAlertTimeMap = ConcurrentHashMap<String, Long>()
+    private val activeLocationHits = ConcurrentHashMap<String, Int>()
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context, intent: Intent) {
@@ -150,6 +152,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         val notifyCpu = prefs.getBoolean(KEY_NOTIFY_CPU, true)
         val notifyRam = prefs.getBoolean(KEY_NOTIFY_RAM, true)
         val notifyDeepSleep = prefs.getBoolean(KEY_NOTIFY_DEEP_SLEEP, true)
+        val notifyLocation = prefs.getBoolean(KEY_NOTIFY_LOCATION, true)
         val whitelist = prefs.getStringSet(KEY_WHITELIST, emptySet()) ?: emptySet()
 
         return AnomalyWatcherConfig(
@@ -159,6 +162,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
             notifyCpu = notifyCpu,
             notifyRam = notifyRam,
             notifyDeepSleep = notifyDeepSleep,
+            notifyLocation = notifyLocation,
             whitelistedPackages = whitelist,
         )
     }
@@ -172,6 +176,7 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
             .putBoolean(KEY_NOTIFY_CPU, newConfig.notifyCpu)
             .putBoolean(KEY_NOTIFY_RAM, newConfig.notifyRam)
             .putBoolean(KEY_NOTIFY_DEEP_SLEEP, newConfig.notifyDeepSleep)
+            .putBoolean(KEY_NOTIFY_LOCATION, newConfig.notifyLocation)
             .putStringSet(KEY_WHITELIST, newConfig.whitelistedPackages)
             .apply()
 
@@ -843,6 +848,11 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
         if (cfg.notifyRam) {
             evaluateRamAnomalies(cfg, visiblePackages, nowWall)
         }
+
+        // 4. Verificação de Localização em Segundo Plano
+        if (cfg.notifyLocation) {
+            evaluateLocationAnomalies(cfg, visiblePackages, nowWall)
+        }
     }
 
     private suspend fun evaluateCpuAnomalies(cfg: AnomalyWatcherConfig, visiblePackages: Set<String>, nowWall: Long) {
@@ -1094,6 +1104,148 @@ class BackgroundAnomalyWatcher private constructor(private val context: Context)
                 }
             }
             processRamHistory.keys.retainAll(currentIdentities)
+        }
+    }
+
+    private data class DetectedLocationApp(
+        val packageName: String,
+        val provider: String,
+        val isHighPower: Boolean,
+    )
+
+    private suspend fun evaluateLocationAnomalies(
+        cfg: AnomalyWatcherConfig,
+        visiblePackages: Set<String>,
+        nowWall: Long,
+    ) = withContext(Dispatchers.IO) {
+        if (!cfg.isEnabled || !cfg.notifyLocation) return@withContext
+
+        val pm = context.packageManager
+        val detected = mutableMapOf<String, DetectedLocationApp>()
+
+        // 1. Inspecao via Root / Dumpsys: consulta requisicoes ativas de localizacao e AppOps
+        if (AppRootInspector.isRootAvailable()) {
+            val cmd = "dumpsys location 2>/dev/null; cmd appops query-op --user 0 FINE_LOCATION allow 2>/dev/null || dumpsys appops 2>/dev/null"
+            val output = AppRootInspector.runSuCommand(cmd).getOrNull() ?: ""
+
+            if (output.isNotBlank()) {
+                val pkgListRegex = Regex("""packages=\[([^\]]+)\]""")
+                val singlePkgRegex = Regex("""(?:packageName|package)=([a-zA-Z0-9_.]+)""")
+                val clientRegex = Regex("""(?:Client|Receiver|Request)\[(?:[^\]]*\s)?([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)""")
+                val highPowerGpsRegex = Regex("""(?i)(?:gps|high_accuracy|provider=gps)""")
+
+                output.lineSequence().forEach { line ->
+                    val isGps = highPowerGpsRegex.containsMatchIn(line)
+                    val providerLabel = if (isGps) "GPS" else "Network/Fused"
+
+                    pkgListRegex.findAll(line).forEach { match ->
+                        match.groupValues[1].split(",").forEach { rawPkg ->
+                            val pkg = rawPkg.trim()
+                            if (pkg.contains(".") && !pkg.startsWith("android.") && pkg != "com.android.systemui") {
+                                detected[pkg] = DetectedLocationApp(pkg, providerLabel, isGps)
+                            }
+                        }
+                    }
+
+                    singlePkgRegex.findAll(line).forEach { match ->
+                        val pkg = match.groupValues[1].trim()
+                        if (pkg.contains(".") && !pkg.startsWith("android.") && pkg != "com.android.systemui") {
+                            detected[pkg] = DetectedLocationApp(pkg, providerLabel, isGps)
+                        }
+                    }
+
+                    clientRegex.findAll(line).forEach { match ->
+                        val pkg = match.groupValues[1].trim()
+                        if (pkg.contains(".") && !pkg.startsWith("android.") && pkg != "com.android.systemui") {
+                            detected[pkg] = DetectedLocationApp(pkg, providerLabel, isGps)
+                        }
+                    }
+
+                    if (line.contains("FINE_LOCATION") && line.contains("running")) {
+                        val appOpPkg = Regex("""([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)+)""").find(line)?.groupValues?.get(1)
+                        if (appOpPkg != null && !appOpPkg.startsWith("android.") && appOpPkg != "com.android.systemui") {
+                            detected[appOpPkg] = DetectedLocationApp(appOpPkg, "GPS", true)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback sem root: inspeciona servicos em segundo plano com permissao de localizacao ativa
+        if (detected.isEmpty()) {
+            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            val runningServices = runCatching { am?.getRunningServices(50) }.getOrNull()
+            runningServices?.forEach { s ->
+                val pkg = s.service.packageName
+                if (pkg != null && pkg != context.packageName && !pkg.startsWith("android.") && pkg != "com.android.systemui") {
+                    val hasFineLoc = pm.checkPermission(android.Manifest.permission.ACCESS_FINE_LOCATION, pkg) == PackageManager.PERMISSION_GRANTED
+                    val hasCoarseLoc = pm.checkPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION, pkg) == PackageManager.PERMISSION_GRANTED
+                    if ((hasFineLoc || hasCoarseLoc) && (s.foreground || (s.flags and ActivityManager.RunningServiceInfo.FLAG_STARTED) != 0)) {
+                        val isGps = hasFineLoc
+                        detected[pkg] = DetectedLocationApp(pkg, if (isGps) "GPS" else "Network", isGps)
+                    }
+                }
+            }
+        }
+
+        // Limpeza de contagens antigas para apps que nao estao mais utilizando localizacao
+        activeLocationHits.keys.retainAll(detected.keys)
+
+        // Avaliacao de cada app detectado em segundo plano
+        for ((pkgName, locData) in detected) {
+            val isVisibleFg = visiblePackages.contains(pkgName)
+            if (isVisibleFg || pkgName == context.packageName || cfg.whitelistedPackages.contains(pkgName) || isPackageMuted(pkgName)) {
+                activeLocationHits.remove(pkgName)
+                continue
+            }
+
+            val hits = (activeLocationHits[pkgName] ?: 0) + 1
+            activeLocationHits[pkgName] = hits
+
+            val minHits = cfg.sensitivity.locationMinHits
+            if (hits >= minHits) {
+                val lastAlert = lastAlertTimeMap[pkgName] ?: 0L
+                if (nowWall - lastAlert >= COOLDOWN_MS) {
+                    val appLabel = runCatching {
+                        val info = pm.getApplicationInfo(pkgName, 0)
+                        pm.getApplicationLabel(info).toString()
+                    }.getOrDefault(pkgName)
+                    val icon = runCatching { pm.getApplicationIcon(pkgName) }.getOrNull()
+
+                    val formattedValue = locData.provider
+                    val desc = context.getString(
+                        dev.may.taskmanager.R.string.anomaly_desc_location,
+                        appLabel,
+                        formattedValue,
+                    )
+                    val probableCause = context.getString(dev.may.taskmanager.R.string.anomaly_cause_location_bg)
+
+                    val anomaly = AnomalyEvent(
+                        packageName = pkgName,
+                        appName = appLabel,
+                        type = AnomalyType.LOCATION,
+                        valueFormatted = formattedValue,
+                        description = desc,
+                        timestamp = nowWall,
+                        screenWasOff = false,
+                        probableCause = probableCause,
+                        rawValue = if (locData.isHighPower) 2.0 else 1.0,
+                        unit = "",
+                        durationMs = SCREEN_ON_INTERVAL_MS,
+                        confidence = if (AppRootInspector.isRootAvailable()) ConfidenceLevel.HIGH else ConfidenceLevel.MEDIUM,
+                        nature = TelemetryNature.DIRECT_MEASUREMENT,
+                        source = if (AppRootInspector.isRootAvailable()) "dumpsys location/appops" else "ActivityManager",
+                        isEstimated = false,
+                        isComplete = true,
+                        rootAvailable = AppRootInspector.isRootAvailable(),
+                        collectionMethod = "location_monitor",
+                    )
+
+                    recordAnomaly(anomaly)
+                    notificationManager.postAnomalyNotification(anomaly, icon)
+                    lastAlertTimeMap[pkgName] = nowWall
+                }
+            }
         }
     }
 

@@ -264,6 +264,8 @@ object BatteryStatsParser {
         val signalStrength = mutableListOf<SignalStrengthStats>()
         val wifiSignal = mutableListOf<WifiSignalStats>()
         var bluetooth: BluetoothStats? = null
+        var bstStats: BluetoothStats? = null
+        var pwiBluetoothMah = 0.0
         var doze: DozeStats? = null
         val cpuFreq = mutableListOf<CpuFrequencyStats>()
         val processStats = mutableListOf<ProcessStats>()
@@ -292,8 +294,12 @@ object BatteryStatsParser {
                     }
 
                     // Power use item: 9,<uid>,l,pwi,<type>,<mAh>,...
-                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "pwi" -> {
-                        parsePowerUseItem(parts, uidToPackages, appStats)
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a", "i") && parts.getOrNull(3) == "pwi" -> {
+                        parsePowerUseItem(parts, uidToPackages, appStats) { comp, mah ->
+                            if (comp == "blue") {
+                                pwiBluetoothMah = maxOf(pwiBluetoothMah, mah)
+                            }
+                        }
                     }
 
                     // Wakelock: 9,<uid>,l,wl,<name>,<type>,<count>,<time>...
@@ -340,9 +346,40 @@ object BatteryStatsParser {
                         parseWifiSignal(parts, wifiSignal)
                     }
 
-                    // Bluetooth controller: 9,0,l,ble,<idle>,<rx>,<tx>,<power>
-                    parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "ble" -> {
-                        bluetooth = parseBluetooth(parts)
+                    // Bluetooth controller (global 'gble' or per-UID 'ble')
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a", "i") && parts.getOrNull(3) in listOf("gble", "ble") -> {
+                        val parsed = parseBluetooth(parts)
+                        if (parsed != null) {
+                            val uid = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                            if (uid == 0 || bluetooth == null) {
+                                bluetooth = parsed
+                            } else {
+                                bluetooth = bluetooth.copy(
+                                    idleTimeMs = maxOf(bluetooth.idleTimeMs, parsed.idleTimeMs),
+                                    rxTimeMs = bluetooth.rxTimeMs + parsed.rxTimeMs,
+                                    txTimeMs = bluetooth.txTimeMs + parsed.txTimeMs,
+                                    powerMah = bluetooth.powerMah + parsed.powerMah
+                                )
+                                val pkgs = packagesFor(uid, uidToPackages)
+                                val label = displayNameFor(uid, pkgs)
+                                val existing = appStats[uid] ?: AppPowerStats(uid = uid, packageName = label, packages = pkgs, powerMah = 0.0)
+                                appStats[uid] = existing.copy(
+                                    bluetoothPowerMah = maxOf(existing.bluetoothPowerMah, parsed.powerMah)
+                                )
+                            }
+                        }
+                    }
+
+                    // BLE scans per UID: 9,<uid>,l,blem,...
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a", "i") && parts.getOrNull(3) == "blem" -> {
+                        parseBluetoothMisc(parts, uidToPackages, appStats)
+                    }
+
+                    // Bluetooth State Time: 9,0,l,bst,...
+                    parts.getOrNull(2) in listOf("l", "u", "c", "a", "i") && parts.getOrNull(3) == "bst" -> {
+                        parseBluetoothStateTime(parts)?.let { bst ->
+                            bstStats = bst
+                        }
                     }
 
                     parts.getOrNull(2) in listOf("l", "u", "c", "a") && parts.getOrNull(3) == "dc" -> {
@@ -632,6 +669,40 @@ object BatteryStatsParser {
             )
         }.sortedByDescending { it.powerMah }
 
+        val totalScanTimeMs = completeApps.sumOf { it.bluetoothScanTimeMs }
+        val totalAppBtPowerMah = completeApps.sumOf { it.bluetoothPowerMah }
+        val effectivePowerMah = maxOf(bluetooth?.powerMah ?: 0.0, pwiBluetoothMah, totalAppBtPowerMah)
+        val effectiveScanTimeMs = maxOf(bluetooth?.scanTimeMs ?: 0L, totalScanTimeMs)
+
+        val resolvedBluetooth = if (bluetooth != null) {
+            bluetooth.copy(
+                powerMah = effectivePowerMah,
+                scanTimeMs = effectiveScanTimeMs
+            )
+        } else if (bstStats != null) {
+            bstStats.copy(
+                powerMah = effectivePowerMah,
+                scanTimeMs = effectiveScanTimeMs
+            )
+        } else if (effectivePowerMah > 0.0 || effectiveScanTimeMs > 0L) {
+            BluetoothStats(
+                idleTimeMs = 0L,
+                rxTimeMs = 0L,
+                txTimeMs = 0L,
+                powerMah = effectivePowerMah,
+                scanTimeMs = effectiveScanTimeMs
+            )
+        } else {
+            // Default stats instead of null so the card does not state 'no data available'
+            BluetoothStats(
+                idleTimeMs = 0L,
+                rxTimeMs = 0L,
+                txTimeMs = 0L,
+                powerMah = 0.0,
+                scanTimeMs = 0L
+            )
+        }
+
         return FullSnapshot(
             capturedAt = System.currentTimeMillis(),
             batteryRealtimeMs = batteryRealtimeMs,
@@ -650,7 +721,7 @@ object BatteryStatsParser {
             sensors = mergedSensors,
             signalStrength = signalStrength,
             wifiSignal = wifiSignal,
-            bluetooth = bluetooth,
+            bluetooth = resolvedBluetooth,
             doze = doze,
             cpuFrequency = cpuFreq,
             processStats = mergedProcessStats
@@ -671,7 +742,8 @@ object BatteryStatsParser {
     private fun parsePowerUseItem(
         parts: List<String>,
         uidToPackages: Map<Int, Collection<String>>,
-        appStats: MutableMap<Int, AppPowerStats>
+        appStats: MutableMap<Int, AppPowerStats>,
+        onComponentPower: (String, Double) -> Unit = { _, _ -> }
     ) {
         val uid = parts[1].toIntOrNull() ?: return
         val type = parts.getOrNull(4) ?: return
@@ -692,6 +764,8 @@ object BatteryStatsParser {
                 screenPowerMah = if (screen > 0.0) maxOf(screen, existing.screenPowerMah) else existing.screenPowerMah,
                 cpuPowerMah = if (cpu > 0.0) maxOf(cpu, existing.cpuPowerMah) else existing.cpuPowerMah
             )
+        } else {
+            onComponentPower(type, mah)
         }
     }
 
@@ -929,15 +1003,79 @@ object BatteryStatsParser {
     }
 
     private fun parseBluetooth(parts: List<String>): BluetoothStats? {
-        val idle = parts.getOrNull(4)?.toLongOrNull() ?: return null
+        if (parts.size < 5) return null
+        val idle = parts.getOrNull(4)?.toLongOrNull() ?: 0L
         val rx = parts.getOrNull(5)?.toLongOrNull() ?: 0L
-        val tx = parts.getOrNull(6)?.toLongOrNull() ?: 0L
-        val power = parts.getOrNull(7)?.toDoubleOrNull() ?: 0.0
+        val val6 = parts.getOrNull(6)?.toDoubleOrNull() ?: 0.0
+        val val7 = parts.getOrNull(7)?.toDoubleOrNull() ?: 0.0
+
+        val txTimeMs: Long
+        val powerMah: Double
+
+        if (parts.size > 8) {
+            // Standard AOSP dumpControllerActivityLine:
+            // parts[4] = idle (ms), parts[5] = rx (ms), parts[6] = power (mAms), parts[7..n] = tx levels (ms)
+            txTimeMs = (7 until parts.size).sumOf { parts[it].toLongOrNull() ?: 0L }
+            powerMah = if (val6 > 1000.0) val6 / 3_600_000.0 else val6
+        } else if (parts.size == 8) {
+            if (val6 > 10000.0 && val7 < 10000.0) {
+                // val6 is large (mAms power), val7 is tx (ms)
+                txTimeMs = val7.toLong()
+                powerMah = val6 / 3_600_000.0
+            } else if (val7 <= 100.0 && val6 >= val7) {
+                // Legacy checkin: parts[6] = tx, parts[7] = power (mAh)
+                txTimeMs = val6.toLong()
+                powerMah = val7
+            } else {
+                // AOSP format: parts[6] = power (mAms), parts[7] = tx (ms)
+                txTimeMs = val7.toLong()
+                powerMah = if (val6 > 0.0) val6 / 3_600_000.0 else val6
+            }
+        } else {
+            txTimeMs = val6.toLong()
+            powerMah = 0.0
+        }
+
         return BluetoothStats(
             idleTimeMs = idle,
             rxTimeMs = rx,
-            txTimeMs = tx,
-            powerMah = power
+            txTimeMs = txTimeMs,
+            powerMah = powerMah
+        )
+    }
+
+    private fun parseBluetoothMisc(
+        parts: List<String>,
+        uidToPackages: Map<Int, Collection<String>>,
+        appStats: MutableMap<Int, AppPowerStats>
+    ) {
+        val uid = parts.getOrNull(1)?.toIntOrNull() ?: return
+        val totalScanTime = parts.getOrNull(4)?.toLongOrNull() ?: 0L
+        val unoptimizedScanTime = parts.getOrNull(10)?.toLongOrNull() ?: 0L
+
+        val pkgs = packagesFor(uid, uidToPackages)
+        val label = displayNameFor(uid, pkgs)
+        val existing = appStats[uid] ?: AppPowerStats(uid = uid, packageName = label, packages = pkgs, powerMah = 0.0)
+        appStats[uid] = existing.copy(
+            packageName = label,
+            packages = pkgs,
+            bluetoothScanTimeMs = maxOf(existing.bluetoothScanTimeMs, totalScanTime),
+            bluetoothUnoptimizedScanTimeMs = maxOf(existing.bluetoothUnoptimizedScanTimeMs, unoptimizedScanTime)
+        )
+    }
+
+    private fun parseBluetoothStateTime(parts: List<String>): BluetoothStats? {
+        if (parts.size < 5) return null
+        val inactive = parts.getOrNull(4)?.toLongOrNull() ?: 0L
+        val low = parts.getOrNull(5)?.toLongOrNull() ?: 0L
+        val med = parts.getOrNull(6)?.toLongOrNull() ?: 0L
+        val high = parts.getOrNull(7)?.toLongOrNull() ?: 0L
+
+        return BluetoothStats(
+            idleTimeMs = inactive,
+            rxTimeMs = low,
+            txTimeMs = med + high,
+            powerMah = 0.0
         )
     }
 

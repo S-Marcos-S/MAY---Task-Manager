@@ -103,6 +103,28 @@ class BackgroundAnomalyFormatTest {
             val formattedSharedUidCount = String.format(Locale.getDefault(), sharedUidCountTemplate, "GMS", 2)
             assertTrue(formattedSharedUidCount.contains("GMS"))
             assertTrue(formattedSharedUidCount.contains("2"))
+
+            val locPattern = Pattern.compile("<string name=\"anomaly_desc_location\">(.*?)</string>")
+            val locMatcher = locPattern.matcher(content)
+            assertTrue("anomaly_desc_location must exist in ${file.path}", locMatcher.find())
+            val locTemplate = locMatcher.group(1) ?: ""
+            val formattedLoc = String.format(Locale.getDefault(), locTemplate, "AppTest", "GPS")
+            assertTrue(formattedLoc.contains("AppTest"))
+            assertTrue(formattedLoc.contains("GPS"))
+
+            val locInfractPattern = Pattern.compile("<string name=\"background_infraction_location\">(.*?)</string>")
+            val locInfractMatcher = locInfractPattern.matcher(content)
+            assertTrue("background_infraction_location must exist in ${file.path}", locInfractMatcher.find())
+            val locInfractTemplate = locInfractMatcher.group(1) ?: ""
+            val formattedLocInfract = String.format(Locale.getDefault(), locInfractTemplate, 5)
+            assertTrue(formattedLocInfract.contains("5"))
+
+            val lastTimePattern = Pattern.compile("<string name=\"background_last_flagged_time\">(.*?)</string>")
+            val lastTimeMatcher = lastTimePattern.matcher(content)
+            assertTrue("background_last_flagged_time must exist in ${file.path}", lastTimeMatcher.find())
+            val lastTimeTemplate = lastTimeMatcher.group(1) ?: ""
+            val formattedLastTime = String.format(Locale.getDefault(), lastTimeTemplate, "12:30")
+            assertTrue(formattedLastTime.contains("12:30"))
         }
     }
 }

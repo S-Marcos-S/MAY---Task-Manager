@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Speed
@@ -222,6 +223,13 @@ fun BackgroundAnomalySettingsDialog(
                             onCheckedChange = { watcher.updateConfig(config.copy(notifyDeepSleep = it)) },
                         )
 
+                        ResourceOptionRow(
+                            label = stringResource(R.string.anomaly_opt_location),
+                            icon = Icons.Filled.LocationOn,
+                            checked = config.notifyLocation,
+                            onCheckedChange = { watcher.updateConfig(config.copy(notifyLocation = it)) },
+                        )
+
                         Spacer(Modifier.height(14.dp))
 
                         // Sensitivity Selector
@@ -254,9 +262,9 @@ fun BackgroundAnomalySettingsDialog(
                                     ) {
                                         Text(
                                             text = when (sens) {
-                                                AnomalySensitivity.HIGH -> "Alta"
-                                                AnomalySensitivity.BALANCED -> "Equilibrada"
-                                                AnomalySensitivity.LOW -> "Baixa"
+                                                AnomalySensitivity.HIGH -> stringResource(R.string.anomaly_sensitivity_short_high)
+                                                AnomalySensitivity.BALANCED -> stringResource(R.string.anomaly_sensitivity_short_med)
+                                                AnomalySensitivity.LOW -> stringResource(R.string.anomaly_sensitivity_short_low)
                                             },
                                             fontSize = 12.sp,
                                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
@@ -290,7 +298,7 @@ fun BackgroundAnomalySettingsDialog(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DeleteOutline,
-                                contentDescription = "Limpar histórico",
+                                contentDescription = stringResource(R.string.action_clear),
                                 tint = colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp),
                             )
@@ -402,6 +410,7 @@ private fun AnomalyItemCard(
         AnomalyType.CPU -> Icons.Filled.Speed
         AnomalyType.RAM -> Icons.Filled.Memory
         AnomalyType.DEEP_SLEEP -> Icons.Filled.Bedtime
+        AnomalyType.LOCATION -> Icons.Filled.LocationOn
     }
 
     Surface(

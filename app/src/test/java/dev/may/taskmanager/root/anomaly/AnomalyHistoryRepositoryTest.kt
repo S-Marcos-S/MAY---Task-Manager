@@ -104,4 +104,34 @@ class AnomalyHistoryRepositoryTest {
         val result = runCatching { JSONArray(malformed) }
         assertTrue(result.isFailure)
     }
+
+    @Test
+    fun anomalyWatcherConfig_defaultValuesAreAllEnabledAndMediumSensitivity() {
+        val config = AnomalyWatcherConfig()
+        assertTrue("Alerts must be enabled by default upon installation", config.isEnabled)
+        assertEquals("Sensitivity must be BALANCED (medium) by default", AnomalySensitivity.BALANCED, config.sensitivity)
+        assertTrue("Network alerts must be enabled by default", config.notifyNetwork)
+        assertTrue("CPU alerts must be enabled by default", config.notifyCpu)
+        assertTrue("RAM alerts must be enabled by default", config.notifyRam)
+        assertTrue("Deep sleep alerts must be enabled by default", config.notifyDeepSleep)
+        assertTrue("Location alerts must be enabled by default", config.notifyLocation)
+        assertTrue("Whitelist must be empty by default", config.whitelistedPackages.isEmpty())
+    }
+
+    @Test
+    fun anomalyType_locationEnumAndSensitivityThresholdsAreValid() {
+        assertEquals("LOCATION", AnomalyType.LOCATION.name)
+        assertEquals(1, AnomalySensitivity.HIGH.locationMinHits)
+        assertEquals(2, AnomalySensitivity.BALANCED.locationMinHits)
+        assertEquals(3, AnomalySensitivity.LOW.locationMinHits)
+
+        val summary = FlaggedAppSummary(
+            packageName = "com.test.loc",
+            appName = "LocApp",
+            totalFlags = 3,
+            locationFlags = 3,
+        )
+        assertEquals(3, summary.locationFlags)
+        assertEquals("com.test.loc", summary.packageName)
+    }
 }
