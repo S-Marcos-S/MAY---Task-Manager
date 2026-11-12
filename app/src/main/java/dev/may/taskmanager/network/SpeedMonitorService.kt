@@ -444,7 +444,7 @@ class SpeedMonitorService : Service() {
                         } else {
                             val detailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                                 data = Uri.fromParts("package", basePkg, null)
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
                             startActivity(detailsIntent)
                         }
@@ -1066,15 +1066,13 @@ class SpeedMonitorService : Service() {
 
         // 2. Stop consuming app button ("Parar" stops the consuming app if active, or stops monitor if idle)
         val topApp = activeApps.firstOrNull()
-        val topAppPkg = topApp?.let { app ->
-            app.packageName ?: (app.uid?.let { uid -> packageManager.getPackagesForUid(uid)?.firstOrNull() })
-        }
+        val topAppPkg = topApp?.uid?.let { uid -> packageManager.getPackagesForUid(uid)?.firstOrNull() }
 
         val stopPending = if (!topAppPkg.isNullOrBlank()) {
             val stopAppIntent = Intent(this, SpeedMonitorService::class.java).apply {
                 action = ACTION_FORCE_STOP_CONSUMING_APP
                 putExtra(EXTRA_APP_PACKAGE, topAppPkg)
-                putExtra(EXTRA_APP_NAME, topApp.appName)
+                putExtra(EXTRA_APP_NAME, topApp?.appName ?: topAppPkg)
             }
             PendingIntent.getService(this, 1002, stopAppIntent, pendingIntentFlags)
         } else {
