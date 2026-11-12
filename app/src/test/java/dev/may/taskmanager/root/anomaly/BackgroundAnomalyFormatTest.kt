@@ -96,6 +96,14 @@ class BackgroundAnomalyFormatTest {
             assertTrue(formattedAppDiv.contains("Telegram"))
             assertTrue(formattedAppDiv.contains("1.2 MB/s"))
 
+            val usageSummaryPattern = Pattern.compile("<string name=\"net_speed_usage_summary\">(.*?)</string>")
+            val usageSummaryMatcher = usageSummaryPattern.matcher(content)
+            assertTrue("net_speed_usage_summary must exist in ${file.path}", usageSummaryMatcher.find())
+            val usageSummaryTemplate = usageSummaryMatcher.group(1) ?: ""
+            val formattedUsageSummary = String.format(Locale.getDefault(), usageSummaryTemplate, "150 MB", "1.2 GB")
+            assertTrue(formattedUsageSummary.contains("150 MB"))
+            assertTrue(formattedUsageSummary.contains("1.2 GB"))
+
             val sharedUidCountPattern = Pattern.compile("<string name=\"shared_uid_app_count\">(.*?)</string>")
             val sharedUidCountMatcher = sharedUidCountPattern.matcher(content)
             assertTrue("shared_uid_app_count must exist in ${file.path}", sharedUidCountMatcher.find())

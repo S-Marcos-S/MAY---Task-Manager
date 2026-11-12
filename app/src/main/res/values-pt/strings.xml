@@ -1253,6 +1253,7 @@
     <string name="net_speed_upload">Upload</string>
     <string name="net_speed_mobile_today">Dados Móveis hoje</string>
     <string name="net_speed_wifi_today">Wi-Fi hoje</string>
+    <string name="net_speed_usage_summary">Dados: %1$s  |  Wi-Fi: %2$s</string>
     <string name="net_speed_action_view_apps">Ver apps</string>
     <string name="net_speed_action_hide_apps">Ocultar</string>
     <string name="net_speed_action_stop">Parar</string>

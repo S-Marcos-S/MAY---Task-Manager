@@ -44,9 +44,7 @@ import dev.may.taskmanager.update.RootInstaller
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 
 class SpeedMonitorService : Service() {
@@ -996,26 +994,11 @@ class SpeedMonitorService : Service() {
             builder.setSmallIcon(R.drawable.ic_net_speed)
         }
 
-        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        val lastSampleTimeStr = if (lastValidSampleTimeMillis > 0L) {
-            timeFormat.format(Date(lastValidSampleTimeMillis))
-        } else {
-            "--:--:--"
-        }
         val isStaleData = isStale || (lastValidSampleTimeMillis > 0L && System.currentTimeMillis() - lastValidSampleTimeMillis > 15000L)
-        val statusText = when {
-            isCollectionError -> getString(R.string.telemetry_status_error)
-            !isScreenOn -> getString(R.string.telemetry_status_paused)
-            isStaleData -> getString(R.string.telemetry_status_stale)
-            else -> getString(R.string.telemetry_status_active)
-        }
 
         // Expanded view showing speeds, daily usage, and active apps if toggled
         val bigTextStyle = NotificationCompat.BigTextStyle()
         val bigText = buildString {
-            appendLine(getString(R.string.net_speed_status, statusText))
-            appendLine(getString(R.string.net_speed_last_sample, lastSampleTimeStr))
-
             if (settings.isRealTimeEnabled) {
                 if (isCollectionError || isStaleData) {
                     appendLine("${getString(R.string.net_speed_download)}: --  |  ${getString(R.string.net_speed_upload)}: --")
@@ -1024,8 +1007,7 @@ class SpeedMonitorService : Service() {
                 }
             }
             if (settings.isDailyUsageEnabled) {
-                appendLine("${getString(R.string.net_speed_mobile_today)}: $mobileText")
-                appendLine("${getString(R.string.net_speed_wifi_today)}: $wifiText")
+                appendLine(getString(R.string.net_speed_usage_summary, mobileText, wifiText))
             }
 
             if (isViewingApps) {
@@ -1049,7 +1031,8 @@ class SpeedMonitorService : Service() {
                 }
             }
         }.trimEnd()
-        builder.setStyle(bigTextStyle.bigText(bigText))
+        val finalBigText = if (bigText.isEmpty()) contentText else bigText
+        builder.setStyle(bigTextStyle.bigText(finalBigText))
 
         // Action Buttons: extremely concise, displayed right below the apps
         // 1. Toggle Apps view button ("Ocultar" when open, "Ver apps" when closed)
