@@ -30,26 +30,34 @@ class BackgroundAnomalyReceiver : BroadcastReceiver() {
 
         when (action) {
             BackgroundAnomalyNotificationManager.ACTION_FORCE_STOP -> {
-                if (packageName.isBlank()) return
+                val basePkg = packageName.substringBefore(":")
+                if (basePkg.isBlank() || basePkg == "android.system.sleep") return
+
+                val pendingResult = goAsync()
                 CoroutineScope(Dispatchers.IO).launch {
-                    val rootAvailable = AppRootInspector.isRootAvailable()
-                    if (rootAvailable) {
-                        AppRootInspector.runSuCommand("am force-stop $packageName")
-                        showToast(context, context.getString(R.string.anomaly_toast_force_stopped, appName))
-                    } else {
-                        val detailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.fromParts("package", packageName, null)
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    try {
+                        val rootAvailable = AppRootInspector.isRootAvailable()
+                        if (rootAvailable) {
+                            AppRootInspector.runSuCommand("am force-stop $basePkg; pkill -9 -f $basePkg 2>/dev/null")
+                            showToast(context, context.getString(R.string.anomaly_toast_force_stopped, appName))
+                        } else {
+                            val detailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", basePkg, null)
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            context.startActivity(detailsIntent)
+                            showToast(context, context.getString(R.string.anomaly_toast_open_settings, appName))
                         }
-                        context.startActivity(detailsIntent)
-                        showToast(context, context.getString(R.string.anomaly_toast_open_settings, appName))
+                    } finally {
+                        pendingResult.finish()
                     }
                 }
             }
 
             BackgroundAnomalyNotificationManager.ACTION_MUTE_APP -> {
-                if (packageName.isBlank()) return
-                BackgroundAnomalyWatcher.getInstance(context).mutePackage(packageName, 60 * 60 * 1000L)
+                val basePkg = packageName.substringBefore(":")
+                if (basePkg.isBlank()) return
+                BackgroundAnomalyWatcher.getInstance(context).mutePackage(basePkg, 60 * 60 * 1000L)
                 showToast(context, context.getString(R.string.anomaly_toast_muted, appName))
             }
 

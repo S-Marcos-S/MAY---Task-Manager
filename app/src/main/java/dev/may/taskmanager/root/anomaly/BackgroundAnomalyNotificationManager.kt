@@ -164,7 +164,7 @@ class BackgroundAnomalyNotificationManager private constructor(private val conte
             .setContentIntent(inspectPendingIntent)
             .addAction(
                 0,
-                context.getString(R.string.anomaly_action_force_stop),
+                context.getString(R.string.background_btn_stop),
                 forceStopPendingIntent,
             )
             .addAction(

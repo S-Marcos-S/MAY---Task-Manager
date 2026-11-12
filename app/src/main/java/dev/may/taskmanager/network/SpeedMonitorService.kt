@@ -27,17 +27,23 @@ import android.net.TrafficStats
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
+import android.net.Uri
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.graphics.drawable.IconCompat
 import dev.may.taskmanager.MainActivity
 import dev.may.taskmanager.R
+import dev.may.taskmanager.root.AppRootInspector
 import dev.may.taskmanager.telemetry.ConfidenceLevel
 import dev.may.taskmanager.telemetry.TelemetryNature
 import dev.may.taskmanager.telemetry.TelemetryValidator
 import dev.may.taskmanager.update.RootInstaller
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -53,6 +59,9 @@ class SpeedMonitorService : Service() {
 
         const val ACTION_START = "dev.may.taskmanager.network.ACTION_START_SPEED_MONITOR"
         const val ACTION_STOP = "dev.may.taskmanager.network.ACTION_STOP_SPEED_MONITOR"
+        const val ACTION_FORCE_STOP_CONSUMING_APP = "dev.may.taskmanager.network.ACTION_FORCE_STOP_CONSUMING_APP"
+        const val EXTRA_APP_PACKAGE = "extra_app_package"
+        const val EXTRA_APP_NAME = "extra_app_name"
         const val ACTION_VIEW_APPS = "dev.may.taskmanager.network.ACTION_VIEW_APPS"
         const val ACTION_HIDE_APPS = "dev.may.taskmanager.network.ACTION_HIDE_APPS"
         const val ACTION_TOGGLE_APPS = "dev.may.taskmanager.network.ACTION_TOGGLE_APPS"
@@ -415,6 +424,34 @@ class SpeedMonitorService : Service() {
                 notificationManager.cancel(NOTIFICATION_ID)
                 stopSelf()
                 return START_NOT_STICKY
+            }
+            ACTION_FORCE_STOP_CONSUMING_APP -> {
+                val pkg = intent.getStringExtra(EXTRA_APP_PACKAGE)
+                val appLabel = intent.getStringExtra(EXTRA_APP_NAME) ?: pkg ?: ""
+                if (!pkg.isNullOrBlank()) {
+                    val basePkg = pkg.substringBefore(":")
+                    CoroutineScope(Dispatchers.IO).launch {
+                        val rootAvailable = AppRootInspector.isRootAvailable()
+                        if (rootAvailable) {
+                            AppRootInspector.runSuCommand("am force-stop $basePkg; pkill -9 -f $basePkg 2>/dev/null")
+                            Handler(Looper.getMainLooper()).post {
+                                Toast.makeText(
+                                    applicationContext,
+                                    getString(R.string.anomaly_toast_force_stopped, appLabel),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        } else {
+                            val detailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", basePkg, null)
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            startActivity(detailsIntent)
+                        }
+                    }
+                }
+                updateStats()
+                return START_STICKY
             }
             ACTION_VIEW_APPS -> {
                 isViewingApps = true
@@ -1027,12 +1064,26 @@ class SpeedMonitorService : Service() {
         }
         builder.addAction(0, toggleLabel, toggleAppsPending)
 
-        // 2. Stop service button ("Parar")
-        val stopIntent = Intent(this, SpeedMonitorService::class.java).apply {
-            action = ACTION_STOP
+        // 2. Stop consuming app button ("Parar" stops the consuming app if active, or stops monitor if idle)
+        val topApp = activeApps.firstOrNull()
+        val topAppPkg = topApp?.let { app ->
+            app.packageName ?: (app.uid?.let { uid -> packageManager.getPackagesForUid(uid)?.firstOrNull() })
         }
-        val stopPending = PendingIntent.getService(this, 1002, stopIntent, pendingIntentFlags)
-        builder.addAction(0, getString(R.string.net_speed_action_stop), stopPending)
+
+        val stopPending = if (!topAppPkg.isNullOrBlank()) {
+            val stopAppIntent = Intent(this, SpeedMonitorService::class.java).apply {
+                action = ACTION_FORCE_STOP_CONSUMING_APP
+                putExtra(EXTRA_APP_PACKAGE, topAppPkg)
+                putExtra(EXTRA_APP_NAME, topApp.appName)
+            }
+            PendingIntent.getService(this, 1002, stopAppIntent, pendingIntentFlags)
+        } else {
+            val stopIntent = Intent(this, SpeedMonitorService::class.java).apply {
+                action = ACTION_STOP
+            }
+            PendingIntent.getService(this, 1002, stopIntent, pendingIntentFlags)
+        }
+        builder.addAction(0, getString(R.string.background_btn_stop), stopPending)
 
         // 3. Settings or Permission button
         val action3Pending = if (isViewingApps && !hasUsagePermission) {
