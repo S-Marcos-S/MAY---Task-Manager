@@ -1261,6 +1261,7 @@
     <string name="net_speed_upload">Upload</string>
     <string name="net_speed_mobile_today">Mobile data today</string>
     <string name="net_speed_wifi_today">Wi-Fi today</string>
+    <string name="net_speed_usage_summary">Data: %1$s  |  Wi-Fi: %2$s</string>
     <string name="net_speed_action_view_apps">Apps</string>
     <string name="net_speed_action_hide_apps">Hide</string>
     <string name="net_speed_action_stop">Stop</string>

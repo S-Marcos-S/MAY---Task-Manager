@@ -1,5 +1,5 @@
-### MAY Task Manager v1.0.32
-- Botao Parar nas notificacoes configurado para forcar parada do aplicativo infrator.
-- Execucao assincrona protegida (goAsync) e encerramento efetivo via Superusuario.
-- Manutencao continua do monitoramento ativo em segundo plano.
+### MAY Task Manager v1.0.33
+- Notificacao de consumo ao vivo de internet compactada e minimalista.
+- Remocao dos campos redundantes de status e horario de atualizacao.
+- Consumo diario de dados moveis e Wi-Fi resumidos em uma unica linha.
 ---
