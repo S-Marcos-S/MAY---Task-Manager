@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.scale
@@ -48,6 +49,7 @@ import dev.may.taskmanager.ui.theme.dynamicSurfaceColor
 import dev.may.taskmanager.ui.theme.dynamicBorderColor
 import dev.may.taskmanager.ui.theme.glass.GlassCard
 import dev.may.taskmanager.R
+import java.util.Locale
 import dev.may.taskmanager.battery.BatteryDisplayMetrics
 import dev.may.taskmanager.battery.BatteryStatsParser
 import dev.may.taskmanager.battery.formatBatteryDuration
@@ -2727,6 +2729,83 @@ fun BatterySettingsTab(vm: BatteryStatsViewModel) {
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(stringResource(R.string.notif_opt_network), style = MaterialTheme.typography.bodyMedium)
                         Switch(checked = notifShowNetwork, onCheckedChange = { vm.setNotifShowNetwork(it) }, modifier = Modifier.scale(0.80f))
+                    }
+
+                    HorizontalDivider(color = dynamicBorderColor(alpha = 0.20f))
+
+                    Text(stringResource(R.string.transparency_section_title), fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
+
+                    val isTransparencyEnabled by vm.isTransparencyNotificationEnabled.collectAsStateWithLifecycle()
+                    val transparencyHour by vm.transparencyScheduleHour.collectAsStateWithLifecycle()
+                    val transparencyMinute by vm.transparencyScheduleMinute.collectAsStateWithLifecycle()
+                    var showTimeDialog by remember { mutableStateOf(false) }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.notif_transparency_title), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.notif_transparency_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = isTransparencyEnabled,
+                            onCheckedChange = { vm.setTransparencyNotificationEnabled(it) },
+                            modifier = Modifier.scale(0.80f)
+                        )
+                    }
+
+                    if (isTransparencyEnabled) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f))
+                                .clickable { showTimeDialog = true }
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    stringResource(R.string.notif_transparency_schedule_title),
+                                    fontWeight = FontWeight.Medium,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    stringResource(R.string.notif_transparency_schedule_desc, String.format(Locale.US, "%02d:%02d", transparencyHour, transparencyMinute)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                            ) {
+                                Text(
+                                    text = String.format(Locale.US, "%02d:%02d", transparencyHour, transparencyMinute),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (showTimeDialog) {
+                        TransparencyTimePickerDialog(
+                            initialHour = transparencyHour,
+                            initialMinute = transparencyMinute,
+                            onDismiss = { showTimeDialog = false },
+                            onConfirm = { h, m ->
+                                vm.setTransparencyScheduleTime(h, m)
+                                showTimeDialog = false
+                            }
+                        )
                     }
 
                     HorizontalDivider(color = dynamicBorderColor(alpha = 0.20f))

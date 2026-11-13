@@ -1,5 +1,5 @@
-### MAY Task Manager v1.0.33
-- Notificacao de consumo ao vivo de internet compactada e minimalista.
-- Remocao dos campos redundantes de status e horario de atualizacao.
-- Consumo diario de dados moveis e Wi-Fi resumidos em uma unica linha.
+### MAY Task Manager v1.0.34
+- Notificacao de transparencia de consumo de bateria em segundo plano do MAY.
+- Seletor de horario diario para recebimento programado do relatorio.
+- Telemetria de alta precisao baseada em CPU de processo e Android BatteryStats.
 ---

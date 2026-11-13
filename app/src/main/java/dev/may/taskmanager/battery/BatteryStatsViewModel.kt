@@ -35,6 +35,21 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
     )
     val isDrainNotificationEnabled: StateFlow<Boolean> = _isDrainNotificationEnabled.asStateFlow()
 
+    private val _isTransparencyNotificationEnabled = MutableStateFlow(
+        TransparencyNotificationManager.isNotificationEnabled(context)
+    )
+    val isTransparencyNotificationEnabled: StateFlow<Boolean> = _isTransparencyNotificationEnabled.asStateFlow()
+
+    private val _transparencyScheduleHour = MutableStateFlow(
+        TransparencyNotificationManager.getScheduleHour(context)
+    )
+    val transparencyScheduleHour: StateFlow<Int> = _transparencyScheduleHour.asStateFlow()
+
+    private val _transparencyScheduleMinute = MutableStateFlow(
+        TransparencyNotificationManager.getScheduleMinute(context)
+    )
+    val transparencyScheduleMinute: StateFlow<Int> = _transparencyScheduleMinute.asStateFlow()
+
     private val enforceDozeController = EnforceDozeController.getInstance(context)
     val isEnforceDozeEnabled: StateFlow<Boolean> = enforceDozeController.isEnabled
     val enforceDozeDisableMotion: StateFlow<Boolean> = enforceDozeController.disableMotion
@@ -306,5 +321,16 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
 
     fun setEnforceDozeNotifOnWake(enabled: Boolean) {
         enforceDozeController.setNotifOnWake(enabled)
+    }
+
+    fun setTransparencyNotificationEnabled(enabled: Boolean) {
+        TransparencyNotificationManager.setNotificationEnabled(context, enabled)
+        _isTransparencyNotificationEnabled.value = enabled
+    }
+
+    fun setTransparencyScheduleTime(hour: Int, minute: Int) {
+        TransparencyNotificationManager.setScheduleTime(context, hour, minute)
+        _transparencyScheduleHour.value = hour
+        _transparencyScheduleMinute.value = minute
     }
 }

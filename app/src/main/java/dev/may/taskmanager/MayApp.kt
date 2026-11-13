@@ -4,6 +4,7 @@ package dev.may.taskmanager
 import android.app.Application
 import dev.may.taskmanager.battery.AdvancedDrainTracker
 import dev.may.taskmanager.battery.DrainNotificationManager
+import dev.may.taskmanager.battery.TransparencyNotificationManager
 import dev.may.taskmanager.data.AppRepository
 import dev.may.taskmanager.network.NetSpeedSettings
 import dev.may.taskmanager.network.SpeedMonitorService
@@ -24,6 +25,10 @@ class MayApp : Application() {
         AdvancedDrainTracker.getInstance(this).start()
         if (DrainNotificationManager.isNotificationEnabled(this)) {
             DrainNotificationManager.getInstance(this).startNotification()
+        }
+        TransparencyNotificationManager.init(this)
+        if (TransparencyNotificationManager.isNotificationEnabled(this)) {
+            TransparencyNotificationManager.getInstance(this).scheduleNextAlarm()
         }
         if (NetSpeedSettings(this).isEnabled) {
             SpeedMonitorService.start(this)

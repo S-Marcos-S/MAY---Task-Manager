@@ -46,6 +46,9 @@ class DrainNotificationReceiver : BroadcastReceiver() {
                     if (DrainNotificationManager.isNotificationEnabled(context)) {
                         DrainNotificationManager.getInstance(context).startNotification()
                     }
+                    if (TransparencyNotificationManager.isNotificationEnabled(context)) {
+                        TransparencyNotificationManager.getInstance(context).scheduleNextAlarm()
+                    }
                 }
                 if (NetSpeedSettings(context).isEnabled) {
                     SpeedMonitorService.start(context)
@@ -64,6 +67,9 @@ class DrainNotificationReceiver : BroadcastReceiver() {
                     }
                     if (DrainNotificationManager.isNotificationEnabled(context)) {
                         DrainNotificationManager.getInstance(context).startNotification()
+                    }
+                    if (TransparencyNotificationManager.isNotificationEnabled(context)) {
+                        TransparencyNotificationManager.getInstance(context).scheduleNextAlarm()
                     }
                 }
                 if (NetSpeedSettings(context).isEnabled) {

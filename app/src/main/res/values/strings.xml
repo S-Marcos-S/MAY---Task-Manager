@@ -1507,4 +1507,22 @@
     <string name="task_process_cpu_unavailable">--%% CPU</string>
     <string name="power_impact_unavailable">--</string>
     <string name="root_inspector_power_impact_unavailable">Impact Unavailable</string>
+
+    <!-- Battery Transparency Notification -->
+    <string name="transparency_section_title">Transparency</string>
+    <string name="notif_transparency_title">Transparency Notification</string>
+    <string name="notif_transparency_desc">Shows exact battery consumed by MAY in background today</string>
+    <string name="notif_transparency_channel_name">MAY Transparency</string>
+    <string name="notif_transparency_channel_desc">Shows daily background battery usage of MAY</string>
+    <string name="notif_transparency_summary_line">%1$s (%2$s) • CPU: %3$s • Bg: %4$s</string>
+    <string name="notif_transparency_big_drain">Today Drain: %1$s (%2$s)</string>
+    <string name="notif_transparency_big_bg_time">Time in Background: %1$s</string>
+    <string name="notif_transparency_big_cpu_time">Processor Usage: %1$s</string>
+    <string name="notif_transparency_big_wakelocks">Held Wakelocks: %1$s</string>
+    <string name="notif_transparency_schedule_title">Scheduled Time</string>
+    <string name="notif_transparency_schedule_desc">Daily notification triggers at %1$s</string>
+    <string name="notif_transparency_time_picker_title">Notification Time</string>
+    <string name="notif_transparency_time_picker_desc">Select the time to receive the daily transparency report</string>
+    <string name="notif_transparency_hour_label">Hour</string>
+    <string name="notif_transparency_minute_label">Minute</string>
 </resources>
