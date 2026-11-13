@@ -44,8 +44,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.may.taskmanager.R
-import dev.may.taskmanager.ui.theme.glass.dynamicBorderColor
-import dev.may.taskmanager.ui.theme.glass.dynamicSurfaceColor
+import dev.may.taskmanager.ui.theme.dynamicBorderColor
+import dev.may.taskmanager.ui.theme.dynamicSurfaceColor
 import java.util.Locale
 
 @Composable
