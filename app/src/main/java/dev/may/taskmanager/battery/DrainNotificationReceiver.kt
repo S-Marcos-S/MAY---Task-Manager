@@ -27,7 +27,6 @@ class DrainNotificationReceiver : BroadcastReceiver() {
                     val collector = DetailedStatsCollector.getInstance(context)
                     collector.resetStats()
                     collector.refresh()
-                    DrainNotificationManager.getInstance(context).updateNow()
                 }
             }
             Intent.ACTION_POWER_CONNECTED -> {
@@ -37,15 +36,11 @@ class DrainNotificationReceiver : BroadcastReceiver() {
             Intent.ACTION_POWER_DISCONNECTED -> {
                 val tracker = AdvancedDrainTracker.getInstance(context)
                 tracker.onPowerDisconnected()
-                DrainNotificationManager.getInstance(context).updateNow()
             }
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
                 CoroutineScope(Dispatchers.Default).launch {
                     val tracker = AdvancedDrainTracker.getInstance(context)
                     tracker.restoreSession()
-                    if (DrainNotificationManager.isNotificationEnabled(context)) {
-                        DrainNotificationManager.getInstance(context).startNotification()
-                    }
                     if (TransparencyNotificationManager.isNotificationEnabled(context)) {
                         TransparencyNotificationManager.getInstance(context).scheduleNextAlarm()
                     }
@@ -64,9 +59,6 @@ class DrainNotificationReceiver : BroadcastReceiver() {
                         tracker.resetSession()
                     } else {
                         tracker.restoreSession()
-                    }
-                    if (DrainNotificationManager.isNotificationEnabled(context)) {
-                        DrainNotificationManager.getInstance(context).startNotification()
                     }
                     if (TransparencyNotificationManager.isNotificationEnabled(context)) {
                         TransparencyNotificationManager.getInstance(context).scheduleNextAlarm()

@@ -29,8 +29,8 @@ android {
         applicationId = "dev.may.taskmanager"
         minSdk = 26
         targetSdk = 35
-        versionCode = 35
-        versionName = "1.0.34"
+        versionCode = 36
+        versionName = "1.0.35"
 
         buildConfigField("String", "GIT_SHA", "\"$gitCommitSha\"")
         buildConfigField("Long", "BUILD_TIME_MILLIS", "${buildTimeMillis}L")

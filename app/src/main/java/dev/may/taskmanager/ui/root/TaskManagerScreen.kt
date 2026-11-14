@@ -81,8 +81,6 @@ import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Settings
 import dev.may.taskmanager.history.DailyHistoryRepository
 import dev.may.taskmanager.ui.network.NetworkStatsScreen
-import dev.may.taskmanager.ui.battery.BatteryStatsScreen
-import dev.may.taskmanager.ui.battery.BatteryCyclesScreen
 import dev.may.taskmanager.ui.settings.SettingsScreen
 import dev.may.taskmanager.battery.BatteryCycleRepository
 import dev.may.taskmanager.battery.CycleType
@@ -160,10 +158,8 @@ private enum class TaskManagerTab {
     HISTORY,
     BACKGROUND,
     NETWORK,
-    CYCLES,
     TOOLS,
     SETTINGS,
-    BATTERY,
 }
 
 /**
@@ -179,7 +175,6 @@ fun TaskManagerScreen(
     onSelectTheme: (String) -> Unit = {},
     onNavigateBack: () -> Unit = {},
     onNavigateToNetworkStats: () -> Unit = {},
-    onNavigateToBatteryStats: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -390,16 +385,6 @@ fun TaskManagerScreen(
                                     pagerState.animateScrollToPage(TaskManagerTab.NETWORK.ordinal)
                                 }
                             },
-                            onNavigateToBatteryStats = {
-                                scope.launch {
-                                    pagerState.animateScrollToPage(TaskManagerTab.BATTERY.ordinal)
-                                }
-                            },
-                            onNavigateToCycles = {
-                                scope.launch {
-                                    pagerState.animateScrollToPage(TaskManagerTab.CYCLES.ordinal)
-                                }
-                            },
                             onNavigateToSettings = {
                                 scope.launch {
                                     pagerState.animateScrollToPage(TaskManagerTab.SETTINGS.ordinal)
@@ -437,17 +422,6 @@ fun TaskManagerScreen(
                         )
                     }
 
-                    TaskManagerTab.CYCLES -> {
-                        BatteryCyclesScreen(
-                            allApps = allApps,
-                            onNavigateBack = {
-                                scope.launch {
-                                    pagerState.animateScrollToPage(TaskManagerTab.PERFORMANCE.ordinal)
-                                }
-                            },
-                        )
-                    }
-
                     TaskManagerTab.TOOLS -> {
                         ToolsScreen()
                     }
@@ -457,17 +431,6 @@ fun TaskManagerScreen(
                             activeThemeId = activeThemeId,
                             onSelectTheme = onSelectTheme,
                             onNavigateBack = {
-                                scope.launch {
-                                    pagerState.animateScrollToPage(TaskManagerTab.PERFORMANCE.ordinal)
-                                }
-                            },
-                            showHeader = false,
-                        )
-                    }
-
-                    TaskManagerTab.BATTERY -> {
-                        BatteryStatsScreen(
-                            onBack = {
                                 scope.launch {
                                     pagerState.animateScrollToPage(TaskManagerTab.PERFORMANCE.ordinal)
                                 }
@@ -554,10 +517,8 @@ private fun CleanTaskManagerTopBar(
                         TaskManagerTab.HISTORY -> stringResource(R.string.task_manager_tab_history) to Icons.Filled.CalendarMonth
                         TaskManagerTab.BACKGROUND -> stringResource(R.string.task_manager_tab_background) to Icons.Filled.Bedtime
                         TaskManagerTab.NETWORK -> stringResource(R.string.task_manager_tab_network) to Icons.Filled.Wifi
-                        TaskManagerTab.CYCLES -> stringResource(R.string.task_manager_tab_cycles) to Icons.Filled.Autorenew
                         TaskManagerTab.TOOLS -> stringResource(R.string.task_manager_tab_tools) to Icons.Filled.Build
                         TaskManagerTab.SETTINGS -> stringResource(R.string.task_manager_tab_settings) to Icons.Filled.Settings
-                        TaskManagerTab.BATTERY -> stringResource(R.string.task_manager_tab_battery) to Icons.Filled.BatteryChargingFull
                     }
                     ExpressiveTabPill(
                         title = title,
@@ -1208,8 +1169,6 @@ private fun PerformanceScreen(
     netTxHistory: List<Float>,
     batteryHistory: List<Float> = emptyList(),
     onNavigateToNetworkStats: () -> Unit = {},
-    onNavigateToBatteryStats: () -> Unit = {},
-    onNavigateToCycles: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -1333,18 +1292,6 @@ private fun PerformanceScreen(
                 subHeadline = subHeadline,
                 history = batteryHistory,
                 chartColor = battAccent,
-                actionButton = {
-                    Text(
-                        text = stringResource(R.string.action_show_more),
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = battAccent,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable(onClick = onNavigateToBatteryStats)
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                    )
-                },
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1399,18 +1346,6 @@ private fun PerformanceScreen(
                 subHeadline = cycleSubHeadline,
                 history = if (cycleHistory.isNotEmpty()) cycleHistory else batteryHistory,
                 chartColor = cycleAccent,
-                actionButton = {
-                    Text(
-                        text = stringResource(R.string.action_show_more),
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = cycleAccent,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable(onClick = onNavigateToCycles)
-                            .padding(horizontal = 4.dp, vertical = 2.dp),
-                    )
-                },
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

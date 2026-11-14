@@ -235,8 +235,6 @@ class TransparencyNotificationManager private constructor(private val context: C
             context,
             REQUEST_CODE_OPEN,
             Intent(context, MainActivity::class.java).apply {
-                action = DrainNotificationManager.ACTION_OPEN_BATTERY_STATS
-                putExtra(DrainNotificationManager.EXTRA_OPEN_BATTERY_STATS, true)
                 flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

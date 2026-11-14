@@ -16,7 +16,6 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import dev.may.taskmanager.MainActivity
 import dev.may.taskmanager.R
-import dev.may.taskmanager.battery.DrainNotificationManager
 import dev.may.taskmanager.battery.ShellRunner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -266,8 +265,6 @@ class EnforceDozeController private constructor(
         )
 
         val intent = Intent(context, MainActivity::class.java).apply {
-            action = DrainNotificationManager.ACTION_OPEN_BATTERY_STATS
-            putExtra(DrainNotificationManager.EXTRA_OPEN_BATTERY_STATS, true)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pendingIntent = PendingIntent.getActivity(

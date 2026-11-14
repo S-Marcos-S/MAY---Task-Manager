@@ -2,8 +2,8 @@
 package dev.may.taskmanager
 
 import android.app.Application
+import android.app.NotificationManager
 import dev.may.taskmanager.battery.AdvancedDrainTracker
-import dev.may.taskmanager.battery.DrainNotificationManager
 import dev.may.taskmanager.battery.TransparencyNotificationManager
 import dev.may.taskmanager.data.AppRepository
 import dev.may.taskmanager.network.NetSpeedSettings
@@ -23,9 +23,8 @@ class MayApp : Application() {
         UpdateManager.init(this)
         BackgroundAnomalyWatcher.getInstance(this).start()
         AdvancedDrainTracker.getInstance(this).start()
-        if (DrainNotificationManager.isNotificationEnabled(this)) {
-            DrainNotificationManager.getInstance(this).startNotification()
-        }
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as? NotificationManager
+        notificationManager?.cancel(2001)
         TransparencyNotificationManager.init(this)
         if (TransparencyNotificationManager.isNotificationEnabled(this)) {
             TransparencyNotificationManager.getInstance(this).scheduleNextAlarm()

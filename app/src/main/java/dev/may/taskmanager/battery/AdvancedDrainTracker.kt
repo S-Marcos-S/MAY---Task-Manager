@@ -307,7 +307,6 @@ class AdvancedDrainTracker private constructor(
                     }
                 }
                 refreshDetailedStatsAsync()
-                DrainNotificationManager.getInstance(context).updateNow()
             }
         }
     }
@@ -336,7 +335,6 @@ class AdvancedDrainTracker private constructor(
                     }
                 }
                 refreshDetailedStatsAsync()
-                DrainNotificationManager.getInstance(context).updateNow()
             }
         }
     }
@@ -794,7 +792,6 @@ class AdvancedDrainTracker private constructor(
             }
         }
 
-        DrainNotificationManager.getInstance(context).updateNow()
         Log.i(TAG, "Battery drain tracking session reset")
     }
 

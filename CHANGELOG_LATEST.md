@@ -1,5 +1,5 @@
-### MAY Task Manager v1.0.34
-- Notificacao de transparencia de consumo de bateria em segundo plano do MAY.
-- Seletor de horario diario para recebimento programado do relatorio.
-- Telemetria de alta precisao baseada em CPU de processo e Android BatteryStats.
+### MAY Task Manager v1.0.35
+- Remocao das telas dedicadas de Estatisticas de Bateria e Ciclos de Bateria.
+- Remocao da notificacao persistente de consumo ao vivo da bateria.
+- Preservacao integral da logica, dreno e telemetria do Historico Diario.
 ---

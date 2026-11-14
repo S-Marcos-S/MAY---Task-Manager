@@ -30,9 +30,7 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
     // Drain tracker flows
     val drainState: StateFlow<DrainState> = drainTracker.drainState
 
-    private val _isDrainNotificationEnabled = MutableStateFlow(
-        DrainNotificationManager.isNotificationEnabled(context)
-    )
+    private val _isDrainNotificationEnabled = MutableStateFlow(false)
     val isDrainNotificationEnabled: StateFlow<Boolean> = _isDrainNotificationEnabled.asStateFlow()
 
     private val _isTransparencyNotificationEnabled = MutableStateFlow(
@@ -148,7 +146,6 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
     suspend fun resetSessionOnly(): Boolean {
         return try {
             drainTracker.resetSession()
-            DrainNotificationManager.getInstance(context).updateNow()
             true
         } catch (_: Exception) {
             false
@@ -161,7 +158,6 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
                 val advancedSuccess = collector.resetStats()
                 // Sempre preserva a possibilidade de resetar a sessão interna
                 drainTracker.resetSession()
-                DrainNotificationManager.getInstance(context).updateNow()
                 if (advancedSuccess) {
                     collector.refresh()
                     ResetResult.SUCCESS
@@ -170,7 +166,6 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
                 }
             } else {
                 drainTracker.resetSession()
-                DrainNotificationManager.getInstance(context).updateNow()
                 ResetResult.SESSION_ONLY_SUCCESS
             }
         } catch (_: Exception) {
@@ -184,7 +179,6 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun toggleDrainNotification(enabled: Boolean) {
-        DrainNotificationManager.setNotificationEnabled(context, enabled)
         _isDrainNotificationEnabled.value = enabled
         if (enabled) {
             if (!drainTracker.isRunning()) {
@@ -203,7 +197,6 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
 
     fun resetDrainSession() {
         drainTracker.resetSession()
-        DrainNotificationManager.getInstance(context).updateNow()
     }
 
     private val prefs = context.getSharedPreferences("battery_prefs", Context.MODE_PRIVATE)
@@ -274,37 +267,31 @@ class BatteryStatsViewModel(application: Application) : AndroidViewModel(applica
     fun setNotifShowRates(show: Boolean) {
         prefs.edit().putBoolean("notif_show_rates", show).apply()
         _notifShowRates.value = show
-        DrainNotificationManager.getInstance(context).updateNow()
     }
 
     fun setNotifShowDeepSleep(show: Boolean) {
         prefs.edit().putBoolean("notif_show_deep_sleep", show).apply()
         _notifShowDeepSleep.value = show
-        DrainNotificationManager.getInstance(context).updateNow()
     }
 
     fun setNotifShowActiveIdle(show: Boolean) {
         prefs.edit().putBoolean("notif_show_active_idle", show).apply()
         _notifShowActiveIdle.value = show
-        DrainNotificationManager.getInstance(context).updateNow()
     }
 
     fun setNotifShowTotalAvg(show: Boolean) {
         prefs.edit().putBoolean("notif_show_total_avg", show).apply()
         _notifShowTotalAvg.value = show
-        DrainNotificationManager.getInstance(context).updateNow()
     }
 
     fun setNotifShowTemperature(show: Boolean) {
         prefs.edit().putBoolean("notif_show_temperature", show).apply()
         _notifShowTemperature.value = show
-        DrainNotificationManager.getInstance(context).updateNow()
     }
 
     fun setNotifShowNetwork(show: Boolean) {
         prefs.edit().putBoolean("notif_show_network", show).apply()
         _notifShowNetwork.value = show
-        DrainNotificationManager.getInstance(context).updateNow()
     }
 
     fun setEnforceDozeEnabled(enabled: Boolean) {
