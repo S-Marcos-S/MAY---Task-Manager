@@ -149,4 +149,33 @@ class DailyHistoryTest {
         assertEquals(90, restored.batteryTimeline[2].batteryLevel)
         assertEquals(BatteryTimelinePoint.STATE_OFF, restored.batteryTimeline[2].state)
     }
+
+    @Test
+    fun testAppLaunchStatsSortingAndEffectiveCount() {
+        val rawStats = listOf(
+            AppDailyLaunchStat("com.pkg.a", "App A", launchCount = 0, screenTimeMs = 120_000L), // time >= 1s, count 0 -> effective 1
+            AppDailyLaunchStat("com.pkg.b", "App B", launchCount = 10, screenTimeMs = 30_000L),
+            AppDailyLaunchStat("com.pkg.c", "App C", launchCount = 10, screenTimeMs = 60_000L), // tie on count, higher screen time
+            AppDailyLaunchStat("com.pkg.d", "App D", launchCount = 2, screenTimeMs = 5_000L),
+        )
+
+        val processed = rawStats.map {
+            it.copy(launchCount = maxOf(it.launchCount, if (it.screenTimeMs >= 1000L) 1 else 0))
+        }.sortedWith(
+            compareByDescending<AppDailyLaunchStat> { it.launchCount }
+                .thenByDescending { it.screenTimeMs }
+        )
+
+        assertEquals("App C", processed[0].appName)
+        assertEquals(10, processed[0].launchCount)
+
+        assertEquals("App B", processed[1].appName)
+        assertEquals(10, processed[1].launchCount)
+
+        assertEquals("App D", processed[2].appName)
+        assertEquals(2, processed[2].launchCount)
+
+        assertEquals("App A", processed[3].appName)
+        assertEquals(1, processed[3].launchCount)
+    }
 }

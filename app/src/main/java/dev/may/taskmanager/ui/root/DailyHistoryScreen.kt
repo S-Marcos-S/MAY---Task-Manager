@@ -648,7 +648,11 @@ private fun CompactDayCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = if (isExpanded) "Ocultar detalhes de apps" else "Ver lista completa de apps abertos (${record.appLaunches.size})",
+                        text = if (isExpanded) {
+                            stringResource(R.string.history_hide_app_details)
+                        } else {
+                            stringResource(R.string.history_show_app_details, record.appLaunches.size)
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = colorScheme.primary,

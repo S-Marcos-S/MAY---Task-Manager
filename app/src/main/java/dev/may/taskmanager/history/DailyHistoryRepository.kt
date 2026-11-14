@@ -667,6 +667,9 @@ class DailyHistoryRepository private constructor(private val context: Context) {
         var reboots = 0
         var shutdowns = 0
 
+        var currentForegroundPkg: String? = null
+        var lastPausePkg: String? = null
+        var lastPauseTime = -1L
         var lastInteractiveTimestamp = -1L
         var lastResumedPkg: String? = null
         var lastResumedTime = -1L
@@ -684,46 +687,89 @@ class DailyHistoryRepository private constructor(private val context: Context) {
                 when (eventType) {
                     UsageEvents.Event.ACTIVITY_RESUMED, 1 /* MOVE_TO_FOREGROUND */ -> {
                         if (!pkg.isNullOrBlank()) {
-                            if (!ignoredPkgs.contains(pkg)) {
-                                launchCounts[pkg] = (launchCounts[pkg] ?: 0) + 1
+                            if (ignoredPkgs.contains(pkg)) {
+                                currentForegroundPkg = null
+                            } else {
+                                val isSameApp = (pkg == currentForegroundPkg)
+                                val isInternalTransition = isSameApp && (lastPausePkg == pkg) && (time - lastPauseTime in 0..3000L)
+
+                                if (!isSameApp || !isInternalTransition) {
+                                    launchCounts[pkg] = (launchCounts[pkg] ?: 0) + 1
+                                    currentForegroundPkg = pkg
+                                }
                             }
+
                             if (lastResumedPkg != null && lastResumedTime > 0) {
                                 val duration = (time - lastResumedTime).coerceAtLeast(0L)
-                                screenTimes[lastResumedPkg] = (screenTimes[lastResumedPkg] ?: 0L) + duration
+                                if (!ignoredPkgs.contains(lastResumedPkg)) {
+                                    screenTimes[lastResumedPkg] = (screenTimes[lastResumedPkg] ?: 0L) + duration
+                                }
                             }
-                            lastResumedPkg = pkg
+                            lastResumedPkg = if (!ignoredPkgs.contains(pkg)) pkg else null
                             lastResumedTime = time
                         }
                     }
                     UsageEvents.Event.ACTIVITY_PAUSED, 2 /* MOVE_TO_BACKGROUND */ -> {
                         if (lastResumedPkg != null && lastResumedTime > 0) {
                             val duration = (time - lastResumedTime).coerceAtLeast(0L)
-                            screenTimes[lastResumedPkg] = (screenTimes[lastResumedPkg] ?: 0L) + duration
+                            if (!ignoredPkgs.contains(lastResumedPkg)) {
+                                screenTimes[lastResumedPkg] = (screenTimes[lastResumedPkg] ?: 0L) + duration
+                            }
                             lastResumedPkg = null
                             lastResumedTime = -1L
                         }
+                        lastPausePkg = pkg
+                        lastPauseTime = time
                     }
                     UsageEvents.Event.SCREEN_INTERACTIVE, 15 -> {
                         lastInteractiveTimestamp = time
                     }
-                    UsageEvents.Event.SCREEN_NON_INTERACTIVE, 16 -> {
+                    UsageEvents.Event.SCREEN_NON_INTERACTIVE, 16, 17 /* KEYGUARD_SHOWN */ -> {
                         if (lastInteractiveTimestamp > 0) {
                             val duration = (time - lastInteractiveTimestamp).coerceAtLeast(0L)
                             screenOnTime += duration
                             lastInteractiveTimestamp = -1L
                         }
+                        if (lastResumedPkg != null && lastResumedTime > 0) {
+                            val duration = (time - lastResumedTime).coerceAtLeast(0L)
+                            if (!ignoredPkgs.contains(lastResumedPkg)) {
+                                screenTimes[lastResumedPkg] = (screenTimes[lastResumedPkg] ?: 0L) + duration
+                            }
+                            lastResumedPkg = null
+                            lastResumedTime = -1L
+                        }
+                        currentForegroundPkg = null
+                        lastPausePkg = null
+                        lastPauseTime = -1L
                     }
                     UsageEvents.Event.DEVICE_STARTUP, 27 -> {
                         reboots++
                     }
                     UsageEvents.Event.DEVICE_SHUTDOWN, 26 -> {
                         shutdowns++
+                        if (lastResumedPkg != null && lastResumedTime > 0) {
+                            val duration = (time - lastResumedTime).coerceAtLeast(0L)
+                            if (!ignoredPkgs.contains(lastResumedPkg)) {
+                                screenTimes[lastResumedPkg] = (screenTimes[lastResumedPkg] ?: 0L) + duration
+                            }
+                            lastResumedPkg = null
+                            lastResumedTime = -1L
+                        }
+                        currentForegroundPkg = null
+                        lastPausePkg = null
+                        lastPauseTime = -1L
                     }
                 }
             }
 
             if (lastInteractiveTimestamp > 0) {
                 screenOnTime += (endTimeMs - lastInteractiveTimestamp).coerceAtLeast(0L)
+            }
+            if (lastResumedPkg != null && lastResumedTime > 0) {
+                val duration = (endTimeMs - lastResumedTime).coerceAtLeast(0L)
+                if (!ignoredPkgs.contains(lastResumedPkg)) {
+                    screenTimes[lastResumedPkg] = (screenTimes[lastResumedPkg] ?: 0L) + duration
+                }
             }
         }
 
@@ -757,6 +803,8 @@ class DailyHistoryRepository private constructor(private val context: Context) {
             val time = screenTimes[pkg] ?: 0L
             if (count == 0 && time < 1000L) return@mapNotNull null
 
+            val effectiveCount = maxOf(count, if (time >= 1000L) 1 else 0)
+
             val appName = runCatching {
                 val appInfo = packageManager.getApplicationInfo(pkg, 0)
                 packageManager.getApplicationLabel(appInfo).toString()
@@ -765,10 +813,13 @@ class DailyHistoryRepository private constructor(private val context: Context) {
             AppDailyLaunchStat(
                 packageName = pkg,
                 appName = appName,
-                launchCount = count,
+                launchCount = effectiveCount,
                 screenTimeMs = time,
             )
-        }.sortedByDescending { it.launchCount * 1000 + (it.screenTimeMs / 1000) }
+        }.sortedWith(
+            compareByDescending<AppDailyLaunchStat> { it.launchCount }
+                .thenByDescending { it.screenTimeMs }
+        )
 
         return UsageEventComputation(
             screenOnTimeMs = screenOnTime,

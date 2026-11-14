@@ -1295,6 +1295,8 @@
     <string name="history_reboots_cycles_format">%1$d reinícios/ciclos</string>
     <string name="history_no_apps_opened">Nenhum app</string>
     <string name="history_app_launches_count">%1$d aberturas</string>
+    <string name="history_hide_app_details">Ocultar detalhes de apps</string>
+    <string name="history_show_app_details">Ver lista completa de apps abertos (%1$d)</string>
     <string name="history_network_wifi_mobile">Wi-Fi: %1$s • Móvel: %2$s</string>
     <string name="history_anomalies_summary_format">%1$d alertas em 2º plano • %2$d quebras de sono profundo</string>
 

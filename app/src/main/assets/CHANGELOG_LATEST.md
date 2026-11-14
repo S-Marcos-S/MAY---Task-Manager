@@ -1,5 +1,5 @@
-### MAY Task Manager v1.0.35
-- Remocao das telas dedicadas de Estatisticas de Bateria e Ciclos de Bateria.
-- Remocao da notificacao persistente de consumo ao vivo da bateria.
-- Preservacao integral da logica, dreno e telemetria do Historico Diario.
+### MAY Task Manager v1.0.36
+- Correcao e refinamento na contagem de aberturas de aplicativos no Historico Diario.
+- Eliminacao de contagens duplicadas causadas por transicoes internas de telas no mesmo app.
+- Remocao da secao de creditos no README.
 ---
