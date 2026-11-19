@@ -1,3 +1,18 @@
+> [!WARNING]
+> **PROJETO DESCONTINUADO / DISCONTINUED PROJECT**
+>
+> Este projeto foi oficialmente descontinuado e nao recebera novas atualizacoes ou suporte.
+>
+> **Justificativa e Alternativa:**
+> O aplicativo **DevCheck Device & System Info** ja realiza com ampla maturidade, estabilidade e profundidade praticamente tudo o que este aplicativo se propunha a fazer (telemetria em tempo real de hardware, sensores, bateria, rede e processos).
+>
+> Recomendamos o uso do DevCheck como alternativa:
+> - [DevCheck na Google Play Store](https://play.google.com/store/apps/details?id=flar2.devcheck)
+>
+> ---
+>
+> *This project has been discontinued and is no longer maintained. The DevCheck application already provides virtually all hardware telemetry, battery diagnostics, and system monitoring features that this project set out to offer. We recommend using DevCheck instead.*
+
 <p align="center">
   <img src="docs/icon.png" width="128" height="128" alt="MAY Task Manager Icon" />
 </p>
@@ -9,9 +24,10 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Status-Descontinuado-critical?style=for-the-badge" alt="Status: Descontinuado" />
+  <a href="https://play.google.com/store/apps/details?id=flar2.devcheck"><img src="https://img.shields.io/badge/Alternativa-DevCheck-00897B?style=for-the-badge" alt="Alternativa: DevCheck" /></a>
   <a href="https://github.com/S-Marcos-S/MAY---Task-Manager/releases/latest"><img src="https://img.shields.io/github/v/release/S-Marcos-S/MAY---Task-Manager?style=for-the-badge&color=7F52FF&logo=github&label=Vers%C3%A3o" alt="Versão Mais Recente" /></a>
   <a href="https://github.com/S-Marcos-S/MAY---Task-Manager/releases"><img src="https://img.shields.io/github/downloads/S-Marcos-S/MAY---Task-Manager/total?style=for-the-badge&color=00897B&logo=github&label=Downloads" alt="Total de Downloads" /></a>
-  <a href="https://github.com/S-Marcos-S/MAY---Task-Manager/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/S-Marcos-S/MAY---Task-Manager/build.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=Build" alt="Status da Build" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/Licen%C3%A7a-GPL--3.0-EA4335?style=for-the-badge&logo=gnu" alt="Licença GPL v3" /></a>
 </p>
 
